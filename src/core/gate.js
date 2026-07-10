@@ -1,0 +1,86 @@
+import {
+  ERR,
+  STATUS,
+  assertTransition,
+  claimHash,
+  newId,
+  validScope,
+} from "./schema.js";
+
+const FACT_TYPES = new Set(["episodic", "semantic", "procedural"]);
+
+function rejected(reason) {
+  return { status: "rejected", reason };
+}
+
+function validOptionalInputs(input) {
+  if (input.type !== undefined && !FACT_TYPES.has(input.type)) return false;
+  if (input.subject !== undefined && typeof input.subject !== "string") return false;
+  if (input.t_valid !== undefined && (typeof input.t_valid !== "string" || input.t_valid.length === 0)) return false;
+  if (input.confidence !== undefined
+    && (typeof input.confidence !== "number"
+      || !Number.isFinite(input.confidence)
+      || input.confidence < 0
+      || input.confidence > 1)) return false;
+  if (input.supersedes !== undefined && typeof input.supersedes !== "string") return false;
+  return true;
+}
+
+function makeFact(input, scope, claim) {
+  return {
+    id: newId(),
+    type: input.type ?? "episodic",
+    scope,
+    subject: input.subject ?? "",
+    claim,
+    confidence: input.confidence ?? 0.7,
+    provenance: {},
+    t_valid: input.t_valid ?? new Date().toISOString().slice(0, 10),
+    t_invalid: null,
+    t_expired: null,
+    superseded_by: null,
+    status: STATUS.ACTIVE,
+    claim_hash: claimHash(claim),
+  };
+}
+
+export function remember(store, input, config) {
+  if (!input || typeof input.claim !== "string" || input.claim.trim() === "") {
+    return rejected(ERR.E_INVALID_INPUT);
+  }
+
+  if (input.claim.length > 280) return rejected(ERR.E_CLAIM_TOO_LONG);
+
+  if (/\n\s*(?:-|\*|1\.)/.test(input.claim) || input.claim.split(/;\s+/).length >= 3) {
+    return rejected(ERR.E_MULTI_FACT);
+  }
+
+  const scope = input.scope ?? config?.default_scope;
+  if (!validScope(scope)) return rejected(ERR.E_UNKNOWN_SCOPE);
+  if (!validOptionalInputs(input)) return rejected(ERR.E_INVALID_INPUT);
+
+  const claim = input.claim.trim();
+
+  if (input.supersedes !== undefined) {
+    const oldFact = store.getFact(input.supersedes);
+    if (!oldFact) return rejected(ERR.E_NOT_FOUND);
+    assertTransition(oldFact.status, STATUS.SUPERSEDED, "client");
+    const fact = makeFact(input, scope, claim);
+    store.addFact(fact);
+    store.transition(oldFact.id, STATUS.SUPERSEDED, {
+      superseded_by: fact.id,
+      t_invalid: fact.t_valid,
+    }, "client");
+    return { id: fact.id, status: "added" };
+  }
+
+  const hash = claimHash(claim);
+  const duplicate = store.byHash(hash);
+  if (duplicate?.status === STATUS.ACTIVE) {
+    return { id: duplicate.id, status: "duplicate", reason: ERR.W_DUPLICATE };
+  }
+
+  const fact = makeFact(input, scope, claim);
+  store.addFact(fact);
+  return { id: fact.id, status: "added" };
+}

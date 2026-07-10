@@ -1,0 +1,20 @@
+✅ Claude CLI ready (구독 fallback)
+✅ Gemini CLI ready (Ultra fallback)
+✅ Codex CLI ready (OpenAI fallback)
+
+🏗️  BuildKit Pipeline: onebrain-core
+📁 Codebase: /Users/bugbookee/Desktop/onebrain
+📋 Steps: 1
+
+[1/1] Developer (codex) — dev-core
+  📡 Codex CLI fallback (OpenAI 구독)
+  📝 src/brand.js 수정
+  📝 src/core/schema.js 수정
+  📝 src/core/store.js 수정
+  📝 src/core/gate.js 수정
+  📝 src/core/recall.js 수정
+  📝 test/gate.test.js 수정
+  📝 test/store.test.js 수정
+  📝 test/recall.test.js 수정
+  📝 test/invariants.test.js 수정
+  ✅ 2413 tokens, 560.9s

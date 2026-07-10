@@ -1,0 +1,15 @@
+{
+  "project": "onebrain-daemon",
+  "codebase": "/Users/bugbookee/Desktop/onebrain",
+  "steps": [
+    {
+      "step": "dev-daemon",
+      "role": "Developer",
+      "model": "codex",
+      "prompt": "너는 onebrain v0 개발자다. 워크스페이스의 SPEC.md §9(데몬)·§10 중 daemon.test.js/e2e.test.js/mock-judge.js를 구현하라. src/core/*와 src/cli.js는 이미 구현돼 있다 — 실제 파일을 읽고 그 시그니처에 맞춰라(추측 금지). judge 프롬프트 상수는 POC_JUDGE_PROMPT.md 파일 내용을 그대로 문자열 상수로 넣어라.\n\n출력 파일: src/daemon/pair.js, src/daemon/judge.js, src/daemon/apply.js, src/daemon/report.js, src/daemon/render.js, src/daemon/pipeline.js, test/daemon.test.js, test/e2e.test.js, test/fixtures/mock-judge.js\n\n규칙:\n- ESM, node 내장+better-sqlite3만. judge의 CLI spawn은 node:child_process spawn, stdin으로 JSONL, timeout 300s.\n- 신뢰도 게이트·전이 규칙·저널 멱등은 SPEC §9 그대로. 오병합 비대칭: 애매하면 no-op.\n- mock-judge.js는 인자·환경 없이 stdin JSONL→stdout JSONL 단독 실행 가능해야 함(테스트가 config.judge_cmd=['node', '<절대경로>']로 지정).\n- e2e.test.js는 CLI를 child_process로 실행(node src/cli.js ...), ONEBRAIN_HOME=mkdtemp 전달.\n- tsc/테스트 직접 실행 금지, 파일 출력 후 즉시 종료.\n- 출력 형식: 파일마다 `// === <상대경로>` + ```js 펜스로 전문. 전체 파일만.",
+      "input": ["SPEC.md", "POC_JUDGE_PROMPT.md", "src/core/schema.js", "src/core/store.js", "src/cli.js"],
+      "files": ["src/daemon/pair.js", "src/daemon/judge.js", "src/daemon/apply.js", "src/daemon/report.js", "src/daemon/render.js", "src/daemon/pipeline.js", "test/daemon.test.js", "test/e2e.test.js", "test/fixtures/mock-judge.js"],
+      "output": "code"
+    }
+  ]
+}
