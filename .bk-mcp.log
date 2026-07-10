@@ -1,0 +1,13 @@
+✅ Claude CLI ready (구독 fallback)
+✅ Gemini CLI ready (Ultra fallback)
+✅ Codex CLI ready (OpenAI fallback)
+
+🏗️  BuildKit Pipeline: onebrain-mcp
+📁 Codebase: /Users/bugbookee/Desktop/onebrain
+📋 Steps: 1
+
+[1/1] Developer (codex) — dev-mcp-cli
+  📡 Codex CLI fallback (OpenAI 구독)
+  📝 src/mcp/server.js 수정
+  📝 src/cli.js 수정
+  ✅ 4463 tokens, 283.5s
