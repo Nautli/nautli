@@ -81,6 +81,12 @@ export class Store {
       fs.mkdirSync(path.join(this.home, directory), { recursive: true });
     }
     this.open();
+    // 자가치유: 이전 세션에서 인덱스 반영이 실패한 흔적이 있으면 정본(events)에서 재구성
+    const dirtyMarker = path.join(this.home, ".index-dirty");
+    if (fs.existsSync(dirtyMarker)) {
+      this.rebuild();
+      fs.rmSync(dirtyMarker, { force: true });
+    }
   }
 
   open() {
@@ -124,7 +130,13 @@ export class Store {
     if (!month) throw codedError(ERR.E_INVALID_INPUT);
     const file = path.join(this.home, "events", `${month}.jsonl`);
     fs.appendFileSync(file, `${JSON.stringify(event)}\n`, { encoding: "utf8", flag: "a" });
-    this.applyEvent(event);
+    try {
+      this.applyEvent(event);
+    } catch {
+      // 정본(로그)은 이미 기록됨 — 인덱스만 뒤처진 상태. 호출자가 재시도해 이벤트를 중복 쌓지 않도록
+      // 성공으로 처리하고, 마커를 남겨 다음 오픈 시 rebuild로 자가치유한다.
+      fs.writeFileSync(path.join(this.home, ".index-dirty"), at);
+    }
     return event;
   }
 

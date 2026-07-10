@@ -1,7 +1,6 @@
 import {
   ERR,
   STATUS,
-  assertTransition,
   claimHash,
   newId,
   validScope,
@@ -63,8 +62,8 @@ export function remember(store, input, config) {
 
   if (input.supersedes !== undefined) {
     const oldFact = store.getFact(input.supersedes);
-    if (!oldFact) return rejected(ERR.E_NOT_FOUND);
-    assertTransition(oldFact.status, STATUS.SUPERSEDED, "client");
+    // active가 아닌 대상(stale id, 이미 대체/무효화됨)은 throw 대신 거부 반환 — remember()는 예외를 안 던진다
+    if (!oldFact || oldFact.status !== STATUS.ACTIVE) return rejected(ERR.E_NOT_FOUND);
     const fact = makeFact(input, scope, claim);
     store.addFact(fact);
     store.transition(oldFact.id, STATUS.SUPERSEDED, {

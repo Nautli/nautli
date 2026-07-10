@@ -83,7 +83,7 @@ export function recall(store, task, opts)
 export function briefing(store, context, scope, config) // recall 프리셋 (semantic 상위+최근 episodic+scope procedural)
 ```
 - budget<200 → throw ERR.E_BUDGET_TOO_SMALL
-- 후보: searchFts(task) 결과 ∪ scope 최근 30건. status 필터: 기본 active만, as_of 지정 시 `t_valid<=as_of AND (t_invalid IS NULL OR t_invalid>as_of)`이면 superseded/invalidated도 포함(그 시점엔 참이었으므로).
+- 후보: searchFts(task) 결과. **scope가 명시된 경우에만** 해당 scope 최근 30건을 union (v1 리뷰 결정: scope 없는 순수 텍스트 질의에 최근 노이즈를 섞지 않음 — 무관 task는 W_EMPTY가 정답). status 필터: 기본 active만, as_of 지정 시 `t_valid<=as_of AND (t_invalid IS NULL OR t_invalid>as_of)`이면 superseded/invalidated도 포함(그 시점엔 참이었으므로).
 - 점수 = ftsNorm(0~1, 매치 없으면 0.3) × exp(-일수/90) 반감 × confidence × (scope 일치 1.0 / person 0.8)
 - 예산 패킹: 점수순 그리디, 토큰 추정 = ceil(chars/3). 결과 0건 → {briefing:"", facts:[], tokens_used:0, warning:'W_EMPTY'}
 - briefing 렌더: 줄당 `- [{scope}] {claim} ({t_valid의 M/D} 기준, 확신 {confidence})` — 이 템플릿 외 문자열 조립 금지.
