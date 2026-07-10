@@ -81,7 +81,9 @@ export function applyJudgments(store, judgments) {
         outcome = "applied";
       } else if ((judgment.verdict === "duplicate" || judgment.verdict === "contradiction")
         && confidence >= 0.6
-        && confidence < 0.9) {
+        && (confidence < 0.9
+          // 고신뢰 모순인데 방향(newer) 미확정 — 자동 적용 대신 사람 리뷰로 (오병합 비대칭 원칙)
+          || (judgment.verdict === "contradiction" && judgment.newer !== "a" && judgment.newer !== "b"))) {
         if (!queuedPairs.has(judgment.pair_id)) {
           appendJsonl(queueFile, {
             ...judgment,

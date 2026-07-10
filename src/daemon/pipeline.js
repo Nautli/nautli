@@ -23,7 +23,7 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
 
   if (dry) return { dry: true, pairs: pairs.length };
 
-  const judgments = await judgePairs(pairs, store, config);
+  const judgments = await judgePairs(pairs, store, config, home);
   recordStage(home, "judge", { count: judgments.length });
 
   const appliedResults = applyJudgments(store, judgments);
