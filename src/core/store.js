@@ -263,7 +263,8 @@ export class Store {
     if (typeof text !== "string") return [];
     const tokens = text.match(/[\p{L}\p{N}_]+/gu) ?? [];
     if (tokens.length === 0) return [];
-    const match = tokens.map((token) => `"${token.replaceAll('"', '""')}"`).join(" OR ");
+    // 프리픽스 매칭: 한국어 조사가 붙은 토큰("포트는")도 어간 질의("포트")로 잡히게
+    const match = tokens.map((token) => `"${token.replaceAll('"', '""')}"*`).join(" OR ");
     const params = { match, limit: Math.max(0, Math.trunc(limit)) };
     let sql = `
       SELECT facts_fts.id AS id, bm25(facts_fts) AS rank
