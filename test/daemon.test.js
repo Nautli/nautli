@@ -1,0 +1,77 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Store } from "../src/core/store.js";
+import { remember } from "../src/core/gate.js";
+import { STATUS } from "../src/core/schema.js";
+import { runOnce } from "../src/daemon/pipeline.js";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
+const config = {
+  default_scope: "person",
+  judge_cmd: [process.execPath, mockJudge],
+};
+
+function isolatedStore(t) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "onebrain-daemon-"));
+  const store = new Store(home);
+  t.after(() => {
+    store.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  return { home, store };
+}
+
+function add(store, claim, scope, t_valid, confidence = 0.8) {
+  return remember(store, { claim, scope, t_valid, confidence }, config);
+}
+
+test("daemon applies confidence gates and is journal-idempotent", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const duplicateOld = add(store, "고신뢰중복 메모 alpha", "project:duplicate", "2025-01-01", 0.7);
+  const duplicateNew = add(store, "고신뢰중복 메모 alpha 기록", "project:duplicate", "2025-02-01", 0.9);
+  const contradictionOld = add(store, "서비스 포트는 3000", "project:port", "2025-01-10");
+  const contradictionNew = add(store, "서비스 포트는 4000", "project:port", "2025-03-10");
+  const reviewA = add(store, "검토중복 메모 beta", "project:review", "2025-01-01");
+  const reviewB = add(store, "검토중복 메모 beta 기록", "project:review", "2025-02-01");
+  const unrelatedA = add(store, "무관판정 메모 gamma 왼쪽", "project:unrelated", "2025-01-01");
+  const unrelatedB = add(store, "무관판정 메모 gamma 오른쪽", "project:unrelated", "2025-02-01");
+
+  const first = await runOnce(store, home, config, { dry: false });
+  assert.equal(first.pairs, 4);
+  assert.deepEqual({ applied: first.applied, queued: first.queued, skipped: first.skipped }, {
+    applied: 2,
+    queued: 1,
+    skipped: 1,
+  });
+  assert.equal(store.getFact(duplicateOld.id).status, STATUS.SUPERSEDED);
+  assert.equal(store.getFact(duplicateOld.id).superseded_by, duplicateNew.id);
+  assert.equal(store.getFact(contradictionOld.id).status, STATUS.INVALIDATED);
+  assert.equal(store.getFact(contradictionOld.id).t_invalid, "2025-03-10");
+  assert.equal(store.getFact(contradictionNew.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(reviewA.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(reviewB.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(unrelatedA.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(unrelatedB.id).status, STATUS.ACTIVE);
+
+  const queue = fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
+    .trim().split("\n").map(JSON.parse);
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].status, "pending");
+
+  const reports = fs.readdirSync(path.join(home, "reports"));
+  assert.equal(reports.length, 1);
+  const report = fs.readFileSync(path.join(home, "reports", reports[0]), "utf8");
+  assert.ok((report.match(/^## 리뷰 카드/gm) ?? []).length <= 3);
+
+  const second = await runOnce(store, home, config, { dry: false });
+  assert.equal(second.pairs, 0);
+  assert.equal(second.applied, 0);
+  assert.equal(second.queued, 0);
+  assert.equal(fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
+    .trim().split("\n").length, 1);
+});
