@@ -10,6 +10,7 @@ import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
 import { Store } from "./core/store.js";
+import { doctor } from "./onboard/doctor.js";
 import {
   initStore,
   installDaemon,
@@ -90,82 +91,20 @@ function initialize(home, args) {
   return { status: "initialized", home, config: readConfig(home) };
 }
 
-function countAddedEvents(home) {
-  const directory = path.join(home, "events");
-  if (!fs.existsSync(directory)) return 0;
-
-  let count = 0;
-  const files = fs.readdirSync(directory)
-    .filter((file) => /^\d{4}-\d{2}\.jsonl$/.test(file))
-    .sort();
-  for (const file of files) {
-    const lines = fs.readFileSync(path.join(directory, file), "utf8").split("\n");
-    for (const line of lines) {
-      if (line.trim() !== "" && JSON.parse(line).ev === "fact.added") count += 1;
-    }
-  }
-  return count;
-}
-
-function doctor(home, args) {
+function doctorCommand(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 0);
+  return doctor(home);
+}
 
-  const homeExists = fs.existsSync(home) && fs.statSync(home).isDirectory();
-  const indexFile = path.join(home, "index.sqlite");
-  const indexExists = homeExists && fs.existsSync(indexFile);
-  if (!homeExists) {
-    const setup = statusAll(home);
-    return {
-      result: {
-        ok: false,
-        node_version: process.versions.node,
-        claude_cli: setup.required.mcp.cli_exists,
-        claude_mcp_registered: setup.required.mcp.registered,
-        daemon: setup.required.daemon,
-        home_exists: false,
-        index_exists: false,
-        sqlite_integrity: false,
-        event_count: 0,
-        index_count: 0,
-        counts_match: false,
-      },
-      ok: false,
-    };
+function dashboardPort(value) {
+  if (value === undefined) return 4600;
+  if (!/^\d+$/u.test(value)) throw codedError(ERR.E_INVALID_INPUT, "Invalid dashboard port");
+  const port = Number(value);
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
+    throw codedError(ERR.E_INVALID_INPUT, "Invalid dashboard port");
   }
-
-  const eventCount = countAddedEvents(home);
-  let sqliteIntegrity = false;
-  let indexCount = 0;
-  if (indexExists) {
-    const store = new Store(home);
-    try {
-      sqliteIntegrity = store.db.pragma("integrity_check", { simple: true }) === "ok";
-      indexCount = store.stats().total;
-    } finally {
-      store.close();
-    }
-  }
-
-  const countsMatch = eventCount === indexCount;
-  const setup = statusAll(home);
-  const ok = indexExists && sqliteIntegrity && countsMatch;
-  return {
-    result: {
-      ok,
-      node_version: process.versions.node,
-      claude_cli: setup.required.mcp.cli_exists,
-      claude_mcp_registered: setup.required.mcp.registered,
-      daemon: setup.required.daemon,
-      home_exists: true,
-      index_exists: indexExists,
-      sqlite_integrity: sqliteIntegrity,
-      event_count: eventCount,
-      index_count: indexCount,
-      counts_match: countsMatch,
-    },
-    ok,
-  };
+  return port;
 }
 
 async function runDaemon(home, args) {
@@ -263,7 +202,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
 
     if (command === "doctor") {
-      const result = doctor(home, args);
+      const result = doctorCommand(home, args);
       writeJson(result.result);
       process.exitCode = result.ok ? 0 : 1;
       return;
@@ -277,6 +216,22 @@ export async function main(argv = process.argv.slice(2)) {
 
     if (command === "review") {
       writeJson(await reviewCommand(home, args));
+      process.exitCode = 0;
+      return;
+    }
+
+    if (command === "dashboard") {
+      const parsed = parseCommand(args, {
+        port: { type: "string" },
+        "no-open": { type: "boolean", default: false },
+      });
+      requirePositionals(parsed.positionals, 0);
+      const { startDashboard } = await import("./dashboard/server.js");
+      const dashboard = await startDashboard(home, {
+        port: dashboardPort(parsed.values.port),
+        open: !parsed.values["no-open"],
+      });
+      process.stdout.write(`Dashboard: ${dashboard.url}\n`);
       process.exitCode = 0;
       return;
     }

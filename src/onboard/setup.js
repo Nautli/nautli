@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { remember } from "../core/gate.js";
 import { ERR, STATUS } from "../core/schema.js";
@@ -50,7 +50,7 @@ function readConfig(home) {
 
 function readHealth(home) {
   const file = path.join(home, "daemon", "health.log");
-  if (!fs.existsSync(file)) return { exists: false, healthy: false, last_run: null, age_ms: null };
+  if (!fs.existsSync(file)) return { exists: false, healthy: false, last_run: null, age_ms: null, result: null };
   const lines = fs.readFileSync(file, "utf8").split("\n").filter((line) => line.trim() !== "");
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     try {
@@ -64,12 +64,13 @@ function readHealth(home) {
         stale: age > 24 * 60 * 60 * 1000,
         last_run: value.at,
         age_ms: age,
+        result: value.result ?? null,
       };
     } catch {
       // launchd가 남긴 비-JSON 출력은 건너뛴다.
     }
   }
-  return { exists: true, healthy: false, last_run: null, age_ms: null };
+  return { exists: true, healthy: false, last_run: null, age_ms: null, result: null };
 }
 
 function nextDigestAt(now = new Date()) {
@@ -97,20 +98,71 @@ function claudeStatus(runner) {
   }
 }
 
-export function statusAll(home, { runner = defaultRunner, userHome = os.homedir(), now = new Date() } = {}) {
+function execFileText(command, args) {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { encoding: "utf8" }, (error, stdout) => {
+      if (error) reject(error);
+      else resolve(String(stdout ?? ""));
+    });
+  });
+}
+
+export async function checkClaudeStatus(runner) {
+  if (runner) {
+    await new Promise((resolve) => setImmediate(resolve));
+    return claudeStatus(runner);
+  }
+  try {
+    await execFileText("claude", ["--version"]);
+  } catch {
+    return { cli_exists: false, registered: false };
+  }
+  try {
+    const list = await execFileText("claude", ["mcp", "list"]);
+    return { cli_exists: true, registered: /(^|\s)nightmerge(?:\s|:|$)/m.test(list) };
+  } catch {
+    return { cli_exists: true, registered: false };
+  }
+}
+
+function localDateTime(value) {
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(value);
+  const part = (type) => parts.find((entry) => entry.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")}:${part("second")}`;
+}
+
+export function statusAll(home, {
+  runner = defaultRunner,
+  userHome = os.homedir(),
+  now = new Date(),
+  checkClaude = true,
+  claude: suppliedClaude,
+} = {}) {
   const { instructions, plist } = userPaths(userHome);
-  const claude = claudeStatus(runner);
+  const claude = suppliedClaude ?? (checkClaude
+    ? claudeStatus(runner)
+    : { cli_exists: null, registered: null, status: "checking" });
   const health = readHealth(home);
+  const nextRun = new Date(nextDigestAt(now));
   const required = {
     store: { complete: fs.existsSync(path.join(home, "index.sqlite")) },
-    mcp: { complete: claude.cli_exists && claude.registered, ...claude },
+    mcp: { complete: Boolean(claude.cli_exists && claude.registered), ...claude },
     instructions: { complete: instructionInstalled(instructions), file: instructions },
     daemon: {
       complete: fs.existsSync(plist) && health.healthy,
       plist_exists: fs.existsSync(plist),
       plist,
       health,
-      next_run: nextDigestAt(now),
+      next_run: localDateTime(nextRun),
+      next_run_ms: nextRun.getTime(),
     },
   };
   return {
