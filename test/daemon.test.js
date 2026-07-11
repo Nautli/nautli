@@ -14,6 +14,7 @@ const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
 const config = {
   default_scope: "person",
   judge_cmd: [process.execPath, mockJudge],
+  contradiction_auto: true, // 자동 무효화 메커니즘 자체를 테스트 (제품 기본값은 false=리뷰카드)
 };
 
 function isolatedStore(t) {

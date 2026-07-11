@@ -26,7 +26,7 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
   const judgments = await judgePairs(pairs, store, config, home);
   recordStage(home, "judge", { count: judgments.length });
 
-  const appliedResults = applyJudgments(store, judgments);
+  const appliedResults = applyJudgments(store, judgments, config);
   recordStage(home, "apply", appliedResults);
 
   const report = writeReport(store, home, appliedResults);

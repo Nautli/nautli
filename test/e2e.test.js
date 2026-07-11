@@ -38,6 +38,7 @@ test("CLI story survives daemon digestion and rebuild", (t) => {
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
     default_scope: "person",
     judge_cmd: [process.execPath, mockJudge],
+    contradiction_auto: true, // e2e는 자동 무효화 경로까지 검증 (제품 기본값은 false)
   })}\n`, "utf8");
 
   runCli(home, ["remember", "서비스 포트는 3000", "--scope", "project:app"], "2025-01-01T12:00:00.000Z");

@@ -33,7 +33,7 @@ function appendJsonl(file, value) {
   fs.appendFileSync(file, `${JSON.stringify(value)}\n`, "utf8");
 }
 
-export function applyJudgments(store, judgments) {
+export function applyJudgments(store, judgments, config = {}) {
   const journalFile = path.join(store.home, "daemon", "journal.jsonl");
   const queueFile = path.join(store.home, "review", "queue.jsonl");
   const completed = new Set(readJsonl(journalFile)
@@ -70,6 +70,10 @@ export function applyJudgments(store, judgments) {
           outcome = "applied";
         }
       } else if (judgment.verdict === "contradiction"
+        // v0 정책(유저 라벨 실측 2026-07-11): 모순은 기본 자동 적용 금지 — 항상 리뷰카드.
+        // 자동병합(중복) 정밀도는 10/10이었지만 모순 자동무효화는 5장 중 2장이 유저 정정을 받음
+        // (죽은 프로젝트 통째 보관 신호 1, 기록과 다른 현재 의도 1). opt-in: config.contradiction_auto=true
+        && config.contradiction_auto === true
         && confidence >= 0.9
         && (judgment.newer === "a" || judgment.newer === "b")) {
         const newFact = judgment.newer === "a" ? a : b;
@@ -79,11 +83,9 @@ export function applyJudgments(store, judgments) {
         }, "daemon");
         applied += 1;
         outcome = "applied";
-      } else if ((judgment.verdict === "duplicate" || judgment.verdict === "contradiction")
-        && confidence >= 0.6
-        && (confidence < 0.9
-          // 고신뢰 모순인데 방향(newer) 미확정 — 자동 적용 대신 사람 리뷰로 (오병합 비대칭 원칙)
-          || (judgment.verdict === "contradiction" && judgment.newer !== "a" && judgment.newer !== "b"))) {
+      } else if ((judgment.verdict === "duplicate" && confidence >= 0.6 && confidence < 0.9)
+        // 모순은 conf ≥0.6이면 전부 리뷰카드행 (자동 적용은 위 opt-in 분기에서만)
+        || (judgment.verdict === "contradiction" && confidence >= 0.6)) {
         if (!queuedPairs.has(judgment.pair_id)) {
           appendJsonl(queueFile, {
             ...judgment,
