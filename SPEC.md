@@ -102,7 +102,7 @@ export function briefing(store, context, scope, config) // recall 프리셋 (sem
 - `pair.js findPairs(store, {simFloor=0.25, topK=5})`: active fact 전수, 같은 scope 블로킹, FTS로 상대 후보, 문자 2-gram 코사인(subject 일치 +0.08). journal에 있는 쌍 제외. 반환 [{a,b,sim}].
 - `judge.js judgePairs(pairs, store, config)`: 20쌍 배치로 config.judge_cmd(기본 `claude --model sonnet -p <프롬프트>`) spawn, stdin에 JSONL, stdout JSONL 파싱 → [{pair_id, verdict:duplicate|contradiction|related|unrelated, confidence, newer, reason}]. 프롬프트는 PoC 검증본(파일 상수). `config.judge_cmd`가 배열이면 [cmd, ...args]로 spawn (테스트는 mock-judge.js 지정).
 - `apply.js applyJudgments(store, judgments)`: verdict별 — duplicate & conf≥0.9: 낡은 쪽(t_valid 과거, 동률이면 confidence 낮은 쪽)을 daemon actor로 superseded 전이(superseded_by=신규쪽). contradiction & conf≥0.9 & newer 확정: 낡은 쪽 invalidated(t_invalid=새쪽 t_valid). conf 0.6~0.9: review/queue.jsonl에 append({...judgment, claims, status:'pending'}). conf<0.6 또는 related/unrelated: no-op. 전 건 journal 기록. 반환 {applied, queued, skipped}.
-- `report.js writeReport(store, home, results)`: reports/YYYY-MM-DD.md — 요약 1줄 + pending 리뷰카드 최대 3장(초과 이월 표기).
+- `report.js writeReport(store, home, results)`: reports/YYYY-MM-DD.md — 요약 1줄 + pending 리뷰카드 최대 3장(초과 이월 표기). **카드 문구 규칙(유저 실측 피드백 2026-07-11): 분류 질문 금지 — "데몬이 하려는 행동"의 승인형(O/X/모름)으로, 각 claim에 출처 파일·날짜 병기, 모름=집계 제외.** 사람은 4지선다 분류를 못 하고(판별 부담), AI가 대신 쌓은 기억은 본인도 기억 못 하므로 출처가 필수.
 - `render.js renderViews(store, home)`: scope별 md — active fact를 subject 그룹으로 불릿. 프론트매터 `generated: true` + "onebrain이 생성한 읽기전용 뷰" 1줄.
 - `pipeline.js runOnce(store, home, config, {dry})`: pair→judge→apply→report→render 순차, 각 스테이지 완료를 daemon/journal.jsonl에 기록, dry면 judge/apply 스킵하고 쌍 수만 보고.
 
