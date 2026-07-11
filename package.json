@@ -1,5 +1,5 @@
 {
-  "name": "onebrain",
+  "name": "nightmerge",
   "version": "0.1.0",
   "description": "",
   "main": "index.js",
@@ -15,6 +15,6 @@
   },
   "type": "module",
   "bin": {
-    "onebrain": "./src/cli.js"
+    "nightmerge": "./src/cli.js"
   }
 }

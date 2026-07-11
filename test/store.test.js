@@ -8,7 +8,7 @@ import { recall } from "../src/core/recall.js";
 import { STATUS, claimHash, newId } from "../src/core/schema.js";
 
 function isolatedStore(t) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "onebrain-store-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-store-"));
   let store = new Store(home);
   t.after(() => {
     store.close();

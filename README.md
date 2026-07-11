@@ -1,4 +1,4 @@
-# onebrain (가칭)
+# nightmerge (가칭)
 
 네 모든 AI가 공유하는 하나의 뇌. 기억은 fact 단위로 쌓이고, 소화 데몬이 자는 동안 정리하며(중복 병합·모순 무효화·망각), 정본은 네 디스크의 파일이다.
 
@@ -7,8 +7,8 @@
 
 ## 빠른 시작
 ```bash
-cd ~/Desktop/onebrain && npm install   # 이미 됨
-node src/cli.js init                    # ~/.onebrain 생성
+cd ~/Desktop/nightmerge && npm install   # 이미 됨
+node src/cli.js init                    # ~/.nightmerge 생성
 node src/cli.js remember "우리 API 포트는 4000이다" --scope project:myapp
 node src/cli.js recall "포트" --scope project:myapp
 node src/cli.js daemon-run              # 소화 1회 (judge = claude CLI, 구독 $0)
@@ -17,7 +17,7 @@ node src/cli.js rebuild                 # 인덱스 재구성 (정본=events/*.j
 
 ## Claude Code에 MCP 등록 (도그푸딩)
 ```bash
-claude mcp add onebrain -- node ~/Desktop/onebrain/src/mcp/server.js
+claude mcp add nightmerge -- node ~/Desktop/nightmerge/src/mcp/server.js
 # 툴: remember / recall / briefing
 ```
 
@@ -39,5 +39,5 @@ claude mcp add onebrain -- node ~/Desktop/onebrain/src/mcp/server.js
 - **cheap dedup 전단필터 (⚠️소화 데몬용 아님 — 벌크 임포트 경로 한정)**: PoC 실측(2026-07-11)으로 데몬 경로에선 기각 — judge행 1,780쌍 중 sim≥0.98은 1쌍(0.1%). 원인: 쓰기 게이트가 완전중복을 입구에서 이미 막아 데몬까지 온 중복은 패러프레이즈(sim 중앙값 0.57)뿐. 문턱을 0.85로 내리면 오스킵 2건 발생. CrewAI는 게이트 없이 다 받아서 유효한 것. → **게이트 안 거치는 벌크 임포트/트랜스크립트 재처리(위 ④) 전처리로만 채용**
 - **verdict enum 확장**: keep/update/delete/insert_new + keep 필드 통합 (CrewAI)
 - **judge 이중검증**: 모델 선언 vs 무LLM 휴리스틱 교차검증으로 환각 병합 방지 (Hermes curator `_reconcile_classification` 패턴)
-- **`onebrain restore <id>`**: `.archive/`행 fact CLI 복구 동사 — 리뷰카드 오답 정정과 연결 (Hermes 계약)
+- **`nightmerge restore <id>`**: `.archive/`행 fact CLI 복구 동사 — 리뷰카드 오답 정정과 연결 (Hermes 계약)
 - **keep_first 앵커 층**: briefing 조립 시 압축·요약 불가 코어 fact 층(정체성·불변 제약) 분리 (OpenHands condenser)

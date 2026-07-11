@@ -10,7 +10,7 @@ import { ERR, STATUS } from "../src/core/schema.js";
 const config = { default_scope: "person", judge_cmd: null };
 
 function isolatedStore(t) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "onebrain-gate-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-gate-"));
   const store = new Store(home);
   t.after(() => {
     store.close();

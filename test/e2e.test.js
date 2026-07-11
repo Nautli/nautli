@@ -22,7 +22,7 @@ function runCli(home, args, date = "2025-04-01T12:00:00.000Z") {
     encoding: "utf8",
     env: {
       ...process.env,
-      ONEBRAIN_HOME: home,
+      NIGHTMERGE_HOME: home,
       NODE_OPTIONS: fixedClock(date),
     },
   });
@@ -31,7 +31,7 @@ function runCli(home, args, date = "2025-04-01T12:00:00.000Z") {
 }
 
 test("CLI story survives daemon digestion and rebuild", (t) => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "onebrain-e2e-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-e2e-"));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
 
   runCli(home, ["init"]);

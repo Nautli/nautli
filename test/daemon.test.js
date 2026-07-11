@@ -18,7 +18,7 @@ const config = {
 };
 
 function isolatedStore(t) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "onebrain-daemon-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-daemon-"));
   const store = new Store(home);
   t.after(() => {
     store.close();

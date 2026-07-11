@@ -1,10 +1,10 @@
-# onebrain v0 빌드 스펙 (정본 — 구조설계 v1의 실행형)
+# nightmerge v0 빌드 스펙 (정본 — 구조설계 v1의 실행형)
 
 모든 코드는 이 스펙을 따른다. 스펙에 없는 기능 추가 금지(YAGNI). Node 22, ESM("type":"module"), 의존성은 better-sqlite3, @modelcontextprotocol/sdk, zod만 (이미 설치됨). 새 의존성 추가 금지.
 
 ## 0. 공통
-- `ONEBRAIN_HOME` env로 홈 오버라이드, 기본 `~/.onebrain`. 모든 모듈은 홈 경로를 인자/env로만 받는다 (하드코딩 금지).
-- 브랜드 문자열은 `src/brand.js`의 `export const BRAND = "onebrain"` 한 곳만.
+- `NIGHTMERGE_HOME` env로 홈 오버라이드, 기본 `~/.nightmerge`. 모든 모듈은 홈 경로를 인자/env로만 받는다 (하드코딩 금지).
+- 브랜드 문자열은 `src/brand.js`의 `export const BRAND = "nightmerge"` 한 곳만.
 - **불변식(위반=버그)**: ①`facts` 테이블에 SQL `DELETE FROM facts` 금지 — 상태 전이만 (파생 인덱스 facts_fts는 DELETE 허용) ②recall/briefing 출력은 fact 필드+고정 템플릿만으로 조립 (프로모션·광고 문자열 injection 지점 자체가 없어야 함) ③이벤트 로그는 append-only ④데몬 스테이지는 전부 멱등.
 
 ## 1. 파일 레이아웃 (전부 신규 생성)
@@ -95,7 +95,7 @@ export function briefing(store, context, scope, config) // recall 프리셋 (sem
 - `briefing {context?, scope?}` → briefing 결과 JSON
 에러는 throw 대신 `{error: ERR코드, message}` JSON 반환 (에이전트가 분기하게). 서버명 BRAND, version 0.1.0.
 
-## 8. src/cli.js (bin: onebrain)
+## 8. src/cli.js (bin: nightmerge)
 서브커맨드: `init`(홈 생성+config), `remember <claim> [--scope --type --supersedes]`, `recall <task> [--budget --scope --as-of]`, `rebuild`, `stats`, `daemon-run [--dry]`(pipeline.runOnce 1회), `doctor`(홈 존재·sqlite 정합·이벤트수 vs 인덱스수 일치 체크), `mcp`(stdio 서버 기동). 출력은 JSON(사람용 꾸밈 금지). process.exitCode 규약: 성공0/거부2/에러1.
 
 ## 9. 데몬 (src/daemon/*)
@@ -111,7 +111,7 @@ export function briefing(store, context, scope, config) // recall 프리셋 (sem
   전 건 journal 기록. 반환 {applied, queued, skipped}. 정책 고정 테스트 = test/policy.test.js
 - `report.js writeReport(store, home, results)`: reports/YYYY-MM-DD.md — 요약 1줄 + pending 리뷰카드 최대 3장(초과 이월 표기). **카드 문구 규칙(유저 실측 피드백 2026-07-11, 2건): ①분류 질문 금지 — "데몬이 하려는 행동"의 승인형(O/X/모름/기타-텍스트)으로, 각 claim에 출처 파일·날짜 병기, 모름=집계 제외 ②기술 claim 원문을 그대로 묻지 말 것 — 카드 상단에 사람 언어 한 줄 번역 필수("PDF 읽는 부품을 새것으로 갈았다는 기록이 있어서 옛 기록을 접으려고 해"), 기술 원문은 하단 참고로 축소.** 사람은 4지선다 분류를 못 하고, AI가 대신 쌓은 기억은 본인도 기억 못 하며, 기술 용어("pdf-parse v2 getText()")는 데이터 주인에게도 외국어다. 번역 문장은 데몬 report 단계에서 LLM이 생성.
 **카드 라우팅 규칙(유저 3차 피드백 2026-07-11)**: ①**오라클 라우팅** — 질문은 그 답을 아는 주체에게. 기술·코드 기록(provenance가 레포·세션)은 유저 카드 금지: 정답은 레포(ground truth 대조)이거나, 대조 불가 시 보수 no-op. 유저 카드는 유저가 오라클인 것만(사업 결정·선호·사람·프로젝트 방향) ②**중복 병합은 카드 대상 제외**(non-lossy라 오판해도 복구 가능) — 카드는 모순 무효화만 ③UI: 거부(X) 버튼에 위험색 idle 스타일 금지 — 미선택인데 켜진 것처럼 보임(실측 혼동).
-- `render.js renderViews(store, home)`: scope별 md — active fact를 subject 그룹으로 불릿. 프론트매터 `generated: true` + "onebrain이 생성한 읽기전용 뷰" 1줄.
+- `render.js renderViews(store, home)`: scope별 md — active fact를 subject 그룹으로 불릿. 프론트매터 `generated: true` + "nightmerge이 생성한 읽기전용 뷰" 1줄.
 - `pipeline.js runOnce(store, home, config, {dry})`: pair→judge→apply→report→render 순차, 각 스테이지 완료를 daemon/journal.jsonl에 기록, dry면 judge/apply 스킵하고 쌍 수만 보고.
 
 ## 10. 테스트 (node --test, 각 테스트는 mkdtemp 홈 사용)
@@ -126,4 +126,4 @@ export function briefing(store, context, scope, config) // recall 프리셋 (sem
 ## 9-b. 텔레메트리 스키마 예약 (전략 확정분의 구현 명세 — MVP 공개 전 구현)
 - **설치 핑(heartbeat)**: {버전, OS, 국가(IP→국가 변환 후 IP 즉시 폐기), 데몬 가동 여부} — 일 1회 배치. 마케팅 지도("어느 나라에서 쓰이나")의 원천.
 - **판단 메타**: {결정유형, 확신도 밴드, 유저반응(승인/거부/모름)} — 내용·claim 원문 절대 미포함.
-- 원칙(불변): 기본 켜짐 + `onebrain telemetry off` 1커맨드 + 전송 스키마 공개 문서 + "전송 내역 보기" 커맨드. 끄면 0바이트 — 이 구멍은 버그가 아니라 신뢰 카피("끄면 진짜 아무것도 안 갑니다").
+- 원칙(불변): 기본 켜짐 + `nightmerge telemetry off` 1커맨드 + 전송 스키마 공개 문서 + "전송 내역 보기" 커맨드. 끄면 0바이트 — 이 구멍은 버그가 아니라 신뢰 카피("끄면 진짜 아무것도 안 갑니다").

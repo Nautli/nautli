@@ -19,7 +19,7 @@ const DEFAULT_CONFIG = Object.freeze({
 const ERROR_CODES = new Set(Object.values(ERR));
 
 function resolveHome() {
-  return path.resolve(process.env.ONEBRAIN_HOME ?? path.join(os.homedir(), ".onebrain"));
+  return path.resolve(process.env.NIGHTMERGE_HOME ?? path.join(os.homedir(), ".nightmerge"));
 }
 
 function readConfig(home) {
