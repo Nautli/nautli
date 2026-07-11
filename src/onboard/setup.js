@@ -4,6 +4,7 @@ import path from "node:path";
 import { execFile, execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { remember } from "../core/gate.js";
+import { withReviewLock } from "../core/review-lock.js";
 import { ERR, STATUS } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { runOnce } from "../daemon/pipeline.js";
@@ -22,6 +23,12 @@ const ALLOWED_COMMANDS = new Set(["claude", "launchctl"]);
 function codedError(code, message = code, cause) {
   const error = new Error(message, cause ? { cause } : undefined);
   error.code = code;
+  return error;
+}
+
+function setupError(code, message, manualCommand, cause) {
+  const error = codedError(code, message, cause);
+  error.manual_command = manualCommand;
   return error;
 }
 
@@ -186,7 +193,27 @@ export function initStore(home) {
 
 export function registerMcp(home, runner = defaultRunner) {
   const args = ["mcp", "add", "nightmerge", "--", process.execPath, CLI_FILE, "mcp"];
-  runnerText(runner, "claude", args, { env: { ...process.env, NIGHTMERGE_HOME: home } });
+  const manualCommand = ["claude", ...args].join(" ");
+  try {
+    runnerText(runner, "claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"] });
+  } catch (cause) {
+    throw setupError(
+      ERR.E_CLAUDE_CLI_MISSING,
+      "Claude CLI가 설치되어 있지 않아요. 설치한 뒤 수동 명령을 실행해 주세요.",
+      manualCommand,
+      cause,
+    );
+  }
+  try {
+    runnerText(runner, "claude", args, { env: { ...process.env, NIGHTMERGE_HOME: home } });
+  } catch (cause) {
+    throw setupError(
+      ERR.E_MCP_REGISTER_FAILED,
+      "Claude MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요.",
+      manualCommand,
+      cause,
+    );
+  }
   return { ok: true, command: ["claude", ...args] };
 }
 
@@ -242,7 +269,17 @@ export function installDaemon(home, runner = defaultRunner, { userHome = os.home
   const file = userPaths(userHome).plist;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, daemonPlist(home), "utf8");
-  runnerText(runner, "launchctl", ["bootstrap", `gui/${uid}`, file]);
+  const args = ["bootstrap", `gui/${uid}`, file];
+  try {
+    runnerText(runner, "launchctl", args);
+  } catch (cause) {
+    throw setupError(
+      ERR.E_LAUNCHCTL_FAILED,
+      "밤 소화 데몬 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요.",
+      ["launchctl", ...args].join(" "),
+      cause,
+    );
+  }
   return { ok: true, label: DAEMON_LABEL, plist: file };
 }
 
@@ -271,6 +308,17 @@ export async function runDigestOnce(home, { dry = false } = {}) {
   const store = new Store(home);
   try {
     const result = await runOnce(store, home, readConfig(home), { dry });
+    const failed = !dry && ((result.pairs > 0 && result.judgments === 0)
+      || (Array.isArray(result.judge_errors) && result.judge_errors.length > 0));
+    if (failed) {
+      const batchReason = result.judge_errors?.[0]?.reason;
+      const reason = batchReason
+        ? `체험 소화 판정에 실패했어요: ${batchReason}`
+        : "체험 소화할 기억은 찾았지만 판정 결과를 받지 못했어요. Claude CLI 연결을 확인해 주세요.";
+      const failure = { ok: false, reason, ...result };
+      appendHealth(home, { at: new Date().toISOString(), exit: 1, result: failure, error: reason });
+      return failure;
+    }
     appendHealth(home, { at: new Date().toISOString(), exit: 0, result });
     return { ok: true, ...result };
   } catch (error) {
@@ -335,17 +383,19 @@ export function removeSampleFacts(home) {
   }
   const queue = path.join(home, "review", "queue.jsonl");
   if (fs.existsSync(queue) && ids.size > 0) {
-    const kept = fs.readFileSync(queue, "utf8").split("\n").filter((line) => {
-      if (line.trim() === "") return false;
-      try {
-        return !String(JSON.parse(line).pair_id ?? "").split(":").some((id) => ids.has(id));
-      } catch {
-        return true;
-      }
+    withReviewLock(home, () => {
+      const kept = fs.readFileSync(queue, "utf8").split("\n").filter((line) => {
+        if (line.trim() === "") return false;
+        try {
+          return !String(JSON.parse(line).pair_id ?? "").split(":").some((id) => ids.has(id));
+        } catch {
+          return true;
+        }
+      });
+      const tmp = `${queue}.tmp-${process.pid}`;
+      fs.writeFileSync(tmp, kept.length === 0 ? "" : `${kept.join("\n")}\n`, "utf8");
+      fs.renameSync(tmp, queue);
     });
-    const tmp = `${queue}.tmp-${process.pid}`;
-    fs.writeFileSync(tmp, kept.length === 0 ? "" : `${kept.join("\n")}\n`, "utf8");
-    fs.renameSync(tmp, queue);
   }
   return { ok: true, removed };
 }

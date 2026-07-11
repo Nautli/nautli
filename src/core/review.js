@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { remember } from "./gate.js";
+import { withReviewLock } from "./review-lock.js";
 import { ERR, STATUS } from "./schema.js";
 
 const ACTIONS = new Set([
@@ -73,64 +74,87 @@ function orderedByAge(a, b) {
 }
 
 export function listCards(home) {
-  return readQueue(home).filter((entry) => entry.status === "pending");
+  return withReviewLock(home, () => {
+    const entries = readQueue(home);
+    const today = new Date().toLocaleDateString("sv-SE");
+    let changed = false;
+    const restored = entries.map((entry) => {
+      if (entry.status === "deferred"
+        && typeof entry.deferred_until === "string"
+        && entry.deferred_until <= today) {
+        changed = true;
+        return { ...entry, status: "pending" };
+      }
+      return entry;
+    });
+    if (changed) writeQueue(home, restored);
+    return restored.filter((entry) => entry.status === "pending");
+  });
 }
 
 export function applyCard(store, home, pairId, action, extraText) {
   if (!ACTIONS.has(action)) throw codedError(ERR.E_INVALID_INPUT);
-  const entries = readQueue(home);
-  const index = entries.findIndex((entry) => entry.pair_id === pairId);
-  if (index < 0) throw codedError(ERR.E_NOT_FOUND);
-  if (entries[index].status !== "pending") return { ok: false, reason: "already_handled" };
+  return withReviewLock(home, () => {
+    const entries = readQueue(home);
+    const index = entries.findIndex((entry) => entry.pair_id === pairId);
+    if (index < 0) throw codedError(ERR.E_NOT_FOUND);
+    if (entries[index].status !== "pending") return { ok: false, reason: "already_handled" };
 
-  const [a, b] = pairFacts(store, pairId);
-  const [chronologicalOlder, chronologicalNewer] = orderedByAge(a, b);
-  const newer = entries[index].newer === "a" ? a
-    : entries[index].newer === "b" ? b
-      : chronologicalNewer;
-  const older = newer.id === a.id ? b : a;
-  let status;
-  let remembered;
+    const [a, b] = pairFacts(store, pairId);
+    const [chronologicalOlder, chronologicalNewer] = orderedByAge(a, b);
+    const newer = entries[index].newer === "a" ? a
+      : entries[index].newer === "b" ? b
+        : chronologicalNewer;
+    const older = newer.id === a.id ? b : a;
+    let status = "answered";
+    let deferredUntil;
 
-  if (action === "merge") {
-    if (chronologicalOlder.status === STATUS.ACTIVE && chronologicalNewer.status === STATUS.ACTIVE) {
+    if (action === "keep_separate" || action === "both_valid") status = "dismissed";
+    if (action === "defer") {
+      status = "deferred";
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      deferredUntil = tomorrow.toLocaleDateString("sv-SE");
+    }
+    if (action === "other") {
+      if (typeof extraText !== "string" || extraText.trim() === "") throw codedError(ERR.E_INVALID_INPUT);
+      if (a.scope !== b.scope) throw codedError(ERR.E_INVALID_INPUT, "Review pair scopes differ");
+    }
+
+    entries[index] = {
+      ...entries[index],
+      status,
+      action,
+      handled_at: new Date().toISOString(),
+      ...(deferredUntil ? { deferred_until: deferredUntil } : {}),
+    };
+    writeQueue(home, entries);
+
+    let remembered;
+    if (action === "merge"
+      && chronologicalOlder.status === STATUS.ACTIVE
+      && chronologicalNewer.status === STATUS.ACTIVE) {
       store.transition(chronologicalOlder.id, STATUS.SUPERSEDED, {
         superseded_by: chronologicalNewer.id,
         t_invalid: chronologicalNewer.t_valid,
       }, "daemon");
+    } else if (action === "newer_wins" || action === "older_wins") {
+      const loser = action === "newer_wins" ? older : newer;
+      const winner = action === "newer_wins" ? newer : older;
+      if (loser.status === STATUS.ACTIVE) {
+        store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon");
+      }
+    } else if (action === "other") {
+      remembered = remember(store, {
+        claim: extraText.trim(),
+        scope: a.scope,
+        subject: a.subject === b.subject ? a.subject : "",
+        confidence: 0.9,
+        source: "review-card",
+      }, { default_scope: a.scope });
+      if (remembered.status === "rejected") throw codedError(remembered.reason);
     }
-    status = "answered";
-  } else if (action === "keep_separate" || action === "both_valid") {
-    status = "dismissed";
-  } else if (action === "defer") {
-    status = "deferred";
-  } else if (action === "newer_wins" || action === "older_wins") {
-    const loser = action === "newer_wins" ? older : newer;
-    const winner = action === "newer_wins" ? newer : older;
-    if (loser.status === STATUS.ACTIVE) {
-      store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon");
-    }
-    status = "answered";
-  } else {
-    if (typeof extraText !== "string" || extraText.trim() === "") throw codedError(ERR.E_INVALID_INPUT);
-    if (a.scope !== b.scope) throw codedError(ERR.E_INVALID_INPUT, "Review pair scopes differ");
-    remembered = remember(store, {
-      claim: extraText.trim(),
-      scope: a.scope,
-      subject: a.subject === b.subject ? a.subject : "",
-      confidence: 0.9,
-      source: "review-card",
-    }, { default_scope: a.scope });
-    if (remembered.status === "rejected") throw codedError(remembered.reason);
-    status = "answered";
-  }
 
-  entries[index] = {
-    ...entries[index],
-    status,
-    action,
-    handled_at: new Date().toISOString(),
-  };
-  writeQueue(home, entries);
-  return { ok: true, status, action, remembered };
+    return { ok: true, status, action, remembered };
+  });
 }

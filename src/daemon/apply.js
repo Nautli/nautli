@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { withReviewLock } from "../core/review-lock.js";
 import { STATUS } from "../core/schema.js";
 
 function readJsonl(file) {
@@ -34,9 +35,10 @@ function appendJsonl(file, value) {
 }
 
 export function applyJudgments(store, judgments, config = {}) {
-  const journalFile = path.join(store.home, "daemon", "journal.jsonl");
-  const queueFile = path.join(store.home, "review", "queue.jsonl");
-  const completed = new Set(readJsonl(journalFile)
+  return withReviewLock(store.home, () => {
+    const journalFile = path.join(store.home, "daemon", "journal.jsonl");
+    const queueFile = path.join(store.home, "review", "queue.jsonl");
+    const completed = new Set(readJsonl(journalFile)
     .map((entry) => entry.pair_id)
     .filter((value) => typeof value === "string"));
   const queuedPairs = new Set(readJsonl(queueFile)
@@ -111,5 +113,6 @@ export function applyJudgments(store, judgments, config = {}) {
     if (typeof judgment?.pair_id === "string") completed.add(judgment.pair_id);
   }
 
-  return { applied, queued, skipped };
+    return { applied, queued, skipped };
+  });
 }

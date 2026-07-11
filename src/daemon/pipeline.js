@@ -23,10 +23,13 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
 
   if (dry) return { dry: true, pairs: pairs.length };
 
-  const judgments = await judgePairs(pairs, store, config, home);
-  recordStage(home, "judge", { count: judgments.length });
+  const judgeResult = await judgePairs(pairs, store, config, home);
+  recordStage(home, "judge", {
+    count: judgeResult.parsedCount,
+    errors: judgeResult.errors.length,
+  });
 
-  const appliedResults = applyJudgments(store, judgments, config);
+  const appliedResults = applyJudgments(store, judgeResult.judgments, config);
   recordStage(home, "apply", appliedResults);
 
   const report = writeReport(store, home, appliedResults);
@@ -37,7 +40,8 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
 
   return {
     pairs: pairs.length,
-    judgments: judgments.length,
+    judgments: judgeResult.parsedCount,
+    judge_errors: judgeResult.errors,
     ...appliedResults,
     report,
     views,

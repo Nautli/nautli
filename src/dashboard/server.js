@@ -36,6 +36,9 @@ const HUMAN_ERRORS = Object.freeze({
   [ERR.E_NOT_FOUND]: "대상을 찾을 수 없어요. 상태를 새로고침해 주세요.",
   [ERR.E_STORE_BUSY]: "기억 저장소가 사용 중이에요. 잠시 후 다시 시도해 주세요.",
   [ERR.E_BUDGET_TOO_SMALL]: "검색 예산이 너무 작아요.",
+  [ERR.E_CLAUDE_CLI_MISSING]: "Claude CLI가 설치되어 있지 않아요.",
+  [ERR.E_MCP_REGISTER_FAILED]: "Claude MCP 자동 등록에 실패했어요.",
+  [ERR.E_LAUNCHCTL_FAILED]: "밤 소화 데몬 등록에 실패했어요.",
   [ERR.W_DUPLICATE]: "이미 같은 기억이 저장되어 있어요.",
 });
 
@@ -61,7 +64,12 @@ function errorCode(error) {
 
 function fail(response, status, error) {
   const code = errorCode(error);
-  json(response, status, { error: code, message: HUMAN_ERRORS[code] ?? "요청을 처리하지 못했어요." });
+  json(response, status, {
+    error: code,
+    message: HUMAN_ERRORS[code]
+      || (error?.message && error.message !== code ? error.message : "요청을 처리하지 못했어요."),
+    ...(typeof error?.manual_command === "string" ? { manual_command: error.manual_command } : {}),
+  });
 }
 
 async function bodyJson(request) {
@@ -128,7 +136,19 @@ function memoryFor(home, searchParams) {
         byId.set(fact.id, fact);
       }
     }
-    return { ...result, facts: [...byId.keys()].map((id) => store.getFact(id)).filter(Boolean) };
+    const allFacts = store.query({ scope });
+    const supersedes = new Map();
+    for (const fact of allFacts) {
+      if (!fact.superseded_by) continue;
+      const current = supersedes.get(fact.superseded_by) ?? [];
+      current.push(fact.id);
+      supersedes.set(fact.superseded_by, current);
+    }
+    return {
+      ...result,
+      facts: [...byId.keys()].map((id) => store.getFact(id)).filter(Boolean)
+        .map((fact) => ({ ...fact, supersedes: supersedes.get(fact.id) ?? [] })),
+    };
   } finally {
     store.close();
   }
