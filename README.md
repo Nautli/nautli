@@ -31,3 +31,4 @@ claude mcp add onebrain -- node ~/Desktop/onebrain/src/mcp/server.js
 - t_valid 날짜 단위 → 같은 날 모순은 recorded 시각+문맥으로 판정 (judge에 위임)
 - judge LLM 비결정성 → 격리 cwd+포맷 예시+0파싱 재시도+실패 배치 no-op 4중 방어
 - 임베딩 미탑재 (FTS 프리픽스만) — v1.1 예약
+- 중복 병합 방향이 t_valid 기준 → 부분집합이 최신이면 상위집합이 접힐 위험 (교차검수에서 발견, 실손실 0). v0.2: judge에 keep 필드 추가해 "정보 적은 쪽을 접는" 규칙으로 교체
