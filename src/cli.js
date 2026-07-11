@@ -4,10 +4,24 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { createInterface } from "node:readline/promises";
 import { remember } from "./core/gate.js";
 import { recall } from "./core/recall.js";
+import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
 import { Store } from "./core/store.js";
+import {
+  initStore,
+  installDaemon,
+  installInstructions,
+  registerMcp,
+  removeInstructions,
+  removeSampleFacts,
+  runDigestOnce,
+  seedSampleFacts,
+  statusAll,
+  uninstallDaemon,
+} from "./onboard/setup.js";
 
 const DEFAULT_CONFIG = Object.freeze({
   default_scope: "person",
@@ -101,9 +115,14 @@ function doctor(home, args) {
   const indexFile = path.join(home, "index.sqlite");
   const indexExists = homeExists && fs.existsSync(indexFile);
   if (!homeExists) {
+    const setup = statusAll(home);
     return {
       result: {
         ok: false,
+        node_version: process.versions.node,
+        claude_cli: setup.required.mcp.cli_exists,
+        claude_mcp_registered: setup.required.mcp.registered,
+        daemon: setup.required.daemon,
         home_exists: false,
         index_exists: false,
         sqlite_integrity: false,
@@ -129,10 +148,15 @@ function doctor(home, args) {
   }
 
   const countsMatch = eventCount === indexCount;
+  const setup = statusAll(home);
   const ok = indexExists && sqliteIntegrity && countsMatch;
   return {
     result: {
       ok,
+      node_version: process.versions.node,
+      claude_cli: setup.required.mcp.cli_exists,
+      claude_mcp_registered: setup.required.mcp.registered,
+      daemon: setup.required.daemon,
       home_exists: true,
       index_exists: indexExists,
       sqlite_integrity: sqliteIntegrity,
@@ -155,14 +179,76 @@ async function runDaemon(home, args) {
     return { missing: true, result: { error: "daemon not built" } };
   }
 
-  const { runOnce } = await import(moduleUrl.href);
+  const result = await runDigestOnce(home, { dry: parsed.values.dry });
+  return { missing: false, result };
+}
+
+async function setupCommand(home, args) {
+  const parsed = parseCommand(args, {
+    yes: { type: "boolean", default: false },
+    step: { type: "string" },
+  });
+  requirePositionals(parsed.positionals, 0);
+
+  const runStep = async (name) => {
+    if (name === "status") return statusAll(home);
+    if (name === "init") return initStore(home);
+    if (name === "mcp" || name === "register-mcp") return registerMcp(home);
+    if (name === "instructions") return installInstructions(home);
+    if (name === "instructions-preview") return installInstructions(home, { previewOnly: true });
+    if (name === "remove-instructions") return removeInstructions(home);
+    if (name === "daemon") return installDaemon(home);
+    if (name === "uninstall-daemon") return uninstallDaemon(home);
+    if (name === "digest") return runDigestOnce(home);
+    if (name === "sample") return seedSampleFacts(home);
+    if (name === "remove-sample") return removeSampleFacts(home);
+    throw codedError(ERR.E_INVALID_INPUT, `Unknown setup step: ${name}`);
+  };
+
+  if (parsed.values.step !== undefined) return runStep(parsed.values.step);
+  if (!parsed.values.yes) return statusAll(home);
+
+  const results = [];
+  results.push({ step: "init", result: await runStep("init") });
+  results.push({ step: "mcp", result: await runStep("mcp") });
+  results.push({ step: "instructions", result: await runStep("instructions") });
+  results.push({ step: "daemon", result: await runStep("daemon") });
+  results.push({ step: "digest", result: await runStep("digest") });
+  return { ok: true, results, status: statusAll(home) };
+}
+
+async function reviewCommand(home, args) {
+  const parsed = parseCommand(args);
+  requirePositionals(parsed.positionals, 0);
+  const cards = listCards(home);
+  if (cards.length === 0) return { ok: true, reviewed: 0, message: "검토할 카드가 없어요. 다음 소화는 오늘 새벽 3:30." };
+
   const store = new Store(home);
+  const input = createInterface({ input: process.stdin, output: process.stderr });
+  let reviewed = 0;
   try {
-    const result = await runOnce(store, home, readConfig(home), { dry: parsed.values.dry });
-    return { missing: false, result };
+    for (const card of cards) {
+      process.stderr.write(`\n[${card.verdict === "duplicate" ? "중복 정리" : "모순 발견"}] ${card.confidence ?? "?"}\n`);
+      process.stderr.write(`A: ${card.claims?.a ?? ""}\nB: ${card.claims?.b ?? ""}\n`);
+      let answer;
+      if (card.verdict === "duplicate") {
+        answer = (await input.question("[O] 합치기 / [X] 따로 유지 / [L] 내일 다시 보기: ")).trim();
+        const action = /^o$/iu.test(answer) ? "merge" : /^x$/iu.test(answer) ? "keep_separate" : "defer";
+        applyCard(store, home, card.pair_id, action);
+      } else {
+        answer = (await input.question("[O] 새 기억 / [X] 옛 기억 / [B] 둘 다 / 기타 정정문: ")).trim();
+        if (/^o$/iu.test(answer)) applyCard(store, home, card.pair_id, "newer_wins");
+        else if (/^x$/iu.test(answer)) applyCard(store, home, card.pair_id, "older_wins");
+        else if (/^b$/iu.test(answer)) applyCard(store, home, card.pair_id, "both_valid");
+        else applyCard(store, home, card.pair_id, "other", answer);
+      }
+      reviewed += 1;
+    }
   } finally {
+    input.close();
     store.close();
   }
+  return { ok: true, reviewed };
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -180,6 +266,18 @@ export async function main(argv = process.argv.slice(2)) {
       const result = doctor(home, args);
       writeJson(result.result);
       process.exitCode = result.ok ? 0 : 1;
+      return;
+    }
+
+    if (command === "setup") {
+      writeJson(await setupCommand(home, args));
+      process.exitCode = 0;
+      return;
+    }
+
+    if (command === "review") {
+      writeJson(await reviewCommand(home, args));
+      process.exitCode = 0;
       return;
     }
 

@@ -22,6 +22,7 @@ function validOptionalInputs(input) {
       || input.confidence < 0
       || input.confidence > 1)) return false;
   if (input.supersedes !== undefined && typeof input.supersedes !== "string") return false;
+  if (input.source !== undefined && (typeof input.source !== "string" || input.source.trim() === "")) return false;
   return true;
 }
 
@@ -33,7 +34,7 @@ function makeFact(input, scope, claim) {
     subject: input.subject ?? "",
     claim,
     confidence: input.confidence ?? 0.7,
-    provenance: {},
+    provenance: input.source === undefined ? {} : { source: input.source },
     t_valid: input.t_valid ?? new Date().toISOString().slice(0, 10),
     t_invalid: null,
     t_expired: null,
