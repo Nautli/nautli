@@ -122,3 +122,8 @@ export function briefing(store, context, scope, config) // recall 프리셋 (sem
 - daemon.test.js: fixtures/mock-judge.js(stdin 쌍 받아 사전정의 verdict 반환: 쌍1 duplicate 0.95, 쌍2 contradiction 0.95 newer=b, 쌍3 duplicate 0.7, 쌍4 unrelated) → runOnce 후: 쌍1 낡은쪽 superseded / 쌍2 낡은쪽 invalidated+t_invalid 기입 / 쌍3 큐에 pending / 쌍4 no-op / **runOnce 재실행 시 이중 적용 0(저널 멱등)** / report 파일 존재+카드≤3
 - e2e.test.js: CLI 경유 전체 스토리 — init→remember 5건(모순쌍 포함: "포트는 3000" 나중에 "포트는 4000")→daemon-run(mock judge)→recall "포트" → 4000만+날짜꼬리표→recall --as-of 과거 → 3000→rebuild→recall 동일→stats 정합
 - mock-judge.js: stdin JSONL 읽고 claim 내용 규칙(예: "포트" 포함 쌍=contradiction newer=늦은쪽)으로 verdict JSONL 출력하는 단독 node 스크립트
+
+## 9-b. 텔레메트리 스키마 예약 (전략 확정분의 구현 명세 — MVP 공개 전 구현)
+- **설치 핑(heartbeat)**: {버전, OS, 국가(IP→국가 변환 후 IP 즉시 폐기), 데몬 가동 여부} — 일 1회 배치. 마케팅 지도("어느 나라에서 쓰이나")의 원천.
+- **판단 메타**: {결정유형, 확신도 밴드, 유저반응(승인/거부/모름)} — 내용·claim 원문 절대 미포함.
+- 원칙(불변): 기본 켜짐 + `onebrain telemetry off` 1커맨드 + 전송 스키마 공개 문서 + "전송 내역 보기" 커맨드. 끄면 0바이트 — 이 구멍은 버그가 아니라 신뢰 카피("끄면 진짜 아무것도 안 갑니다").
