@@ -32,3 +32,12 @@ claude mcp add onebrain -- node ~/Desktop/onebrain/src/mcp/server.js
 - judge LLM 비결정성 → 격리 cwd+포맷 예시+0파싱 재시도+실패 배치 no-op 4중 방어
 - 임베딩 미탑재 (FTS 프리픽스만) — v1.1 예약
 - 중복 병합 방향이 t_valid 기준 → 부분집합이 최신이면 상위집합이 접힐 위험 (교차검수에서 발견, 실손실 0). v0.2: judge에 keep 필드 추가해 "정보 적은 쪽을 접는" 규칙으로 교체
+
+## v0.2 백로그 (정본 — 유저 라벨 신호 + 외부리포 차용검토 2026-07-11)
+유저 라벨 신호분: ①judge keep 필드(위 병합 방향) ②스코프 통째 망각(죽은 프로젝트 일괄 archive) ③정정 루프(리뷰카드 답변→새 fact 생성) ④트랜스크립트 재처리.
+외부리포 차용분(근거=Evanwiki/신사업/크로스AI-메모리-외부리포-차용검토-v1.md):
+- **cheap dedup 전단필터**: 정규화 문자열 유사도 ≥0.98 쌍은 judge LLM 스킵→자동 duplicate (CrewAI remember_many 패턴, 데몬 비용 절감)
+- **verdict enum 확장**: keep/update/delete/insert_new + keep 필드 통합 (CrewAI)
+- **judge 이중검증**: 모델 선언 vs 무LLM 휴리스틱 교차검증으로 환각 병합 방지 (Hermes curator `_reconcile_classification` 패턴)
+- **`onebrain restore <id>`**: `.archive/`행 fact CLI 복구 동사 — 리뷰카드 오답 정정과 연결 (Hermes 계약)
+- **keep_first 앵커 층**: briefing 조립 시 압축·요약 불가 코어 fact 층(정체성·불변 제약) 분리 (OpenHands condenser)
