@@ -8,9 +8,11 @@ import { Store } from "../src/core/store.js";
 import { remember } from "../src/core/gate.js";
 import { STATUS } from "../src/core/schema.js";
 import { runOnce } from "../src/daemon/pipeline.js";
+import { judgePairs } from "../src/daemon/judge.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
+process.env.NIGHTMERGE_ALLOW_TEST_JUDGE = "1";
 const config = {
   default_scope: "person",
   judge_cmd: [process.execPath, mockJudge],
@@ -75,4 +77,48 @@ test("daemon applies confidence gates and is journal-idempotent", async (t) => {
   assert.equal(second.queued, 0);
   assert.equal(fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
     .trim().split("\n").length, 1);
+});
+
+test("judge command rejects script and eval forms and gates node behind test env", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const a = add(store, "judge 명령 검증 왼쪽", "project:judge-command", "2025-01-01");
+  const b = add(store, "judge 명령 검증 오른쪽", "project:judge-command", "2025-02-01");
+  const pair = { a: store.getFact(a.id), b: store.getFact(b.id) };
+  for (const judge_cmd of [
+    ["claude", "/tmp/arbitrary-script.js"],
+    ["claude-patched", "--eval", "process.exit()"],
+    ["claude", "-e", "process.exit()"],
+  ]) {
+    const result = await judgePairs([pair], store, { judge_cmd }, home);
+    assert.equal(result.errors.length, 1);
+  }
+  const allowance = process.env.NIGHTMERGE_ALLOW_TEST_JUDGE;
+  delete process.env.NIGHTMERGE_ALLOW_TEST_JUDGE;
+  try {
+    const result = await judgePairs([pair], store, { judge_cmd: [process.execPath, mockJudge] }, home);
+    assert.match(result.errors[0].reason, /NIGHTMERGE_ALLOW_TEST_JUDGE/);
+  } finally {
+    process.env.NIGHTMERGE_ALLOW_TEST_JUDGE = allowance;
+  }
+});
+
+test("judge raw stdout and stderr are redacted and capped per line", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const a = add(store, "judge 로그 검증 왼쪽", "project:judge-log", "2025-01-01");
+  const b = add(store, "judge 로그 검증 오른쪽", "project:judge-log", "2025-02-01");
+  const script = path.join(home, "secret-judge.js");
+  fs.writeFileSync(script, [
+    'import readline from "node:readline";',
+    'process.stderr.write("api_key=abcdefghijklmnopqrstuvwxyz0123456789 Bearer bearer-secret-value\\n" + "A".repeat(3000) + "\\n");',
+    'const lines=readline.createInterface({input:process.stdin,crlfDelay:Infinity});',
+    'for await (const line of lines){if(!line.trim())continue;const input=JSON.parse(line);process.stdout.write(JSON.stringify({pair_id:input.pair_id,verdict:"related",confidence:0.5,newer:null,reason:"sk-abcdefgh12345678"})+"\\n");}',
+  ].join("\n"), "utf8");
+  const result = await judgePairs([{ a: store.getFact(a.id), b: store.getFact(b.id) }], store, {
+    judge_cmd: [process.execPath, script],
+  }, home);
+  assert.equal(result.parsedCount, 1);
+  const raw = fs.readFileSync(path.join(home, "daemon", "judge-raw.log"), "utf8");
+  assert.match(raw, /\[REDACTED\]/);
+  assert.doesNotMatch(raw, /abcdefghijklmnopqrstuvwxyz0123456789|bearer-secret-value|sk-abcdefgh12345678/);
+  assert.ok(raw.split("\n").every((line) => Buffer.byteLength(line) <= 2048));
 });

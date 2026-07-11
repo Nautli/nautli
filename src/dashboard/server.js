@@ -288,7 +288,7 @@ export function createDashboardServer(home, options = {}) {
         else if (step === "instructions-remove") result = removeInstructions(home, { userHome });
         else if (step === "daemon") result = installDaemon(home, runner, { userHome });
         else if (step === "daemon-remove") result = uninstallDaemon(home, runner, { userHome });
-        else if (step === "digest") result = (options.runDigest ?? runDigestInChild)(home);
+        else if (step === "digest") result = await (options.runDigest ?? runDigestInChild)(home);
         else if (step === "sample") result = seedSampleFacts(home);
         else if (step === "sample-remove") result = removeSampleFacts(home);
         else {

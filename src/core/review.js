@@ -121,15 +121,6 @@ export function applyCard(store, home, pairId, action, extraText) {
       if (a.scope !== b.scope) throw codedError(ERR.E_INVALID_INPUT, "Review pair scopes differ");
     }
 
-    entries[index] = {
-      ...entries[index],
-      status,
-      action,
-      handled_at: new Date().toISOString(),
-      ...(deferredUntil ? { deferred_until: deferredUntil } : {}),
-    };
-    writeQueue(home, entries);
-
     let remembered;
     if (action === "merge"
       && chronologicalOlder.status === STATUS.ACTIVE
@@ -152,8 +143,17 @@ export function applyCard(store, home, pairId, action, extraText) {
         confidence: 0.9,
         source: "review-card",
       }, { default_scope: a.scope });
-      if (remembered.status === "rejected") throw codedError(remembered.reason);
+      if (remembered.status !== "added") throw codedError(remembered.reason);
     }
+
+    entries[index] = {
+      ...entries[index],
+      status,
+      action,
+      handled_at: new Date().toISOString(),
+      ...(deferredUntil ? { deferred_until: deferredUntil } : {}),
+    };
+    writeQueue(home, entries);
 
     return { ok: true, status, action, remembered };
   });

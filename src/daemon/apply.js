@@ -34,6 +34,19 @@ function appendJsonl(file, value) {
   fs.appendFileSync(file, `${JSON.stringify(value)}\n`, "utf8");
 }
 
+function writeJsonl(file, values) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+  const data = values.length === 0 ? "" : `${values.map((value) => JSON.stringify(value)).join("\n")}\n`;
+  try {
+    fs.writeFileSync(tmp, data, "utf8");
+    fs.renameSync(tmp, file);
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+}
+
 export function applyJudgments(store, judgments, config = {}) {
   return withReviewLock(store.home, () => {
     const journalFile = path.join(store.home, "daemon", "journal.jsonl");
@@ -41,12 +54,14 @@ export function applyJudgments(store, judgments, config = {}) {
     const completed = new Set(readJsonl(journalFile)
     .map((entry) => entry.pair_id)
     .filter((value) => typeof value === "string"));
-  const queuedPairs = new Set(readJsonl(queueFile)
+  const queue = readJsonl(queueFile);
+  const queuedPairs = new Set(queue
     .map((entry) => entry.pair_id)
     .filter((value) => typeof value === "string"));
   let applied = 0;
   let queued = 0;
   let skipped = 0;
+  const journalEntries = [];
 
   for (const judgment of judgments) {
     if (completed.has(judgment?.pair_id)) {
@@ -89,7 +104,7 @@ export function applyJudgments(store, judgments, config = {}) {
         // 모순은 conf ≥0.6이면 전부 리뷰카드행 (자동 적용은 위 opt-in 분기에서만)
         || (judgment.verdict === "contradiction" && confidence >= 0.6)) {
         if (!queuedPairs.has(judgment.pair_id)) {
-          appendJsonl(queueFile, {
+          queue.push({
             ...judgment,
             claims: { a: a.claim, b: b.claim },
             status: "pending",
@@ -102,7 +117,7 @@ export function applyJudgments(store, judgments, config = {}) {
     }
 
     if (outcome === "skipped") skipped += 1;
-    appendJsonl(journalFile, {
+    journalEntries.push({
       kind: "judgment",
       pair_id: judgment?.pair_id,
       verdict: judgment?.verdict,
@@ -112,6 +127,9 @@ export function applyJudgments(store, judgments, config = {}) {
     });
     if (typeof judgment?.pair_id === "string") completed.add(judgment.pair_id);
   }
+
+    if (queued > 0) writeJsonl(queueFile, queue);
+    for (const entry of journalEntries) appendJsonl(journalFile, entry);
 
     return { applied, queued, skipped };
   });

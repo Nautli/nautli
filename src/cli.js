@@ -248,7 +248,7 @@ export async function main(argv = process.argv.slice(2)) {
     if (command === "daemon-run") {
       const result = await runDaemon(home, args);
       writeJson(result.result);
-      process.exitCode = result.missing ? 1 : 0;
+      process.exitCode = result.missing || result.result?.ok === false ? 1 : 0;
       return;
     }
 

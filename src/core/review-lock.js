@@ -3,6 +3,7 @@ import path from "node:path";
 import { ERR } from "./schema.js";
 
 const LOCK_TIMEOUT_MS = 5_000;
+const STALE_LOCK_MS = 60_000;
 const RETRY_MS = 25;
 const waitBuffer = new Int32Array(new SharedArrayBuffer(4));
 
@@ -24,6 +25,16 @@ export function withReviewLock(home, operation) {
       break;
     } catch (error) {
       if (error?.code !== "EEXIST") throw error;
+      try {
+        const age = Date.now() - fs.statSync(lockDirectory).mtimeMs;
+        if (age > STALE_LOCK_MS) {
+          fs.rmSync(lockDirectory, { recursive: true, force: true });
+          continue;
+        }
+      } catch (statError) {
+        if (statError?.code === "ENOENT") continue;
+        throw statError;
+      }
       if (Date.now() >= deadline) throw busyError();
       Atomics.wait(waitBuffer, 0, 0, RETRY_MS);
     }

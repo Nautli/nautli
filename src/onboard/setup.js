@@ -10,7 +10,6 @@ import { Store } from "../core/store.js";
 import { runOnce } from "../daemon/pipeline.js";
 import {
   AI_INSTRUCTIONS,
-  INSTRUCTIONS_PREVIEW,
   INSTRUCTIONS_START,
   INSTRUCTIONS_END,
 } from "./instructions.js";
@@ -220,15 +219,15 @@ export function registerMcp(home, runner = defaultRunner) {
 export function installInstructions(home, { userHome = os.homedir(), previewOnly = false } = {}) {
   void home;
   const file = userPaths(userHome).instructions;
-  const preview = INSTRUCTIONS_PREVIEW;
-  if (previewOnly) return { ok: true, installed: false, preview, file };
+  const preview = `추가될 위치: ${file}\n\n추가될 블록:\n${AI_INSTRUCTIONS}`;
+  if (previewOnly) return { ok: true, installed: false, preview, block: AI_INSTRUCTIONS, file };
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
   if (!current.includes(INSTRUCTIONS_START)) {
     const prefix = current === "" || current.endsWith("\n") ? current : `${current}\n`;
     fs.writeFileSync(file, `${prefix}${prefix === "" ? "" : "\n"}${AI_INSTRUCTIONS}\n`, "utf8");
   }
-  return { ok: true, installed: true, changed: !current.includes(INSTRUCTIONS_START), preview, file };
+  return { ok: true, installed: true, changed: !current.includes(INSTRUCTIONS_START), preview, block: AI_INSTRUCTIONS, file };
 }
 
 export function removeInstructions(home, { userHome = os.homedir() } = {}) {

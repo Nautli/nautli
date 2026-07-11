@@ -23,6 +23,7 @@ function runCli(home, args, date = "2025-04-01T12:00:00.000Z") {
     env: {
       ...process.env,
       NIGHTMERGE_HOME: home,
+      NIGHTMERGE_ALLOW_TEST_JUDGE: "1",
       NODE_OPTIONS: fixedClock(date),
     },
   });
@@ -66,4 +67,23 @@ test("CLI story survives daemon digestion and rebuild", (t) => {
   assert.equal(stats.total, 5);
   assert.equal(stats.byStatus.active, 4);
   assert.equal(stats.byStatus.invalidated, 1);
+});
+
+test("daemon-run exits one when judging fails", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-e2e-failed-daemon-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  runCli(home, ["init"]);
+  fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
+    default_scope: "person",
+    judge_cmd: ["claude", "/tmp/forbidden-judge.js"],
+  })}\n`, "utf8");
+  runCli(home, ["remember", "실패 판정 서비스 포트는 3000", "--scope", "project:failed-daemon"]);
+  runCli(home, ["remember", "실패 판정 서비스 포트는 4000", "--scope", "project:failed-daemon"]);
+  const result = spawnSync(process.execPath, [cli, "daemon-run"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, NIGHTMERGE_HOME: home },
+  });
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  assert.equal(JSON.parse(result.stdout).ok, false);
 });

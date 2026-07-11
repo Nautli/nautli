@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { Worker } from "node:worker_threads";
 import { remember } from "../src/core/gate.js";
 import { applyCard, listCards } from "../src/core/review.js";
 import { STATUS } from "../src/core/schema.js";
@@ -74,10 +75,66 @@ test("other answer stores a scoped correction and answers the card", (t) => {
   assert.equal(listCards(home).length, 0);
 });
 
+test("other gate rejection leaves the card pending", (t) => {
+  const { home, store, oldFact, pairId } = fixture(t, "contradiction");
+  assert.throws(
+    () => applyCard(store, home, pairId, "other", store.getFact(oldFact.id).claim),
+    (error) => error.code === "W_DUPLICATE",
+  );
+  assert.equal(listCards(home).length, 1);
+  const queued = JSON.parse(fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8").trim());
+  assert.equal(queued.status, "pending");
+});
+
+test("fact transition failure never completes the queue entry", (t) => {
+  const { home, store, pairId } = fixture(t);
+  store.transition = () => {
+    throw new Error("injected transition failure");
+  };
+  assert.throws(() => applyCard(store, home, pairId, "merge"), /injected transition failure/);
+  assert.equal(listCards(home).length, 1);
+});
+
+test("two colliding card applications produce one completion", async (t) => {
+  const { home, pairId } = fixture(t);
+  const gate = new SharedArrayBuffer(4);
+  const workerUrl = new URL("./fixtures/apply-card-worker.js", import.meta.url);
+  const workers = [0, 1].map(() => new Worker(workerUrl, { workerData: { home, pairId, gate } }));
+  t.after(() => Promise.all(workers.map((worker) => worker.terminate())));
+  const outcomes = workers.map((worker) => new Promise((resolve, reject) => {
+    worker.on("error", reject);
+    worker.on("message", (message) => {
+      if (message.ready) return;
+      if (message.error) reject(Object.assign(new Error(message.error.message), { code: message.error.code }));
+      else resolve(message.result);
+    });
+  }));
+  await Promise.all(workers.map((worker) => new Promise((resolve, reject) => {
+    worker.once("error", reject);
+    worker.once("message", resolve);
+  })));
+  Atomics.store(new Int32Array(gate), 0, 1);
+  Atomics.notify(new Int32Array(gate), 0, workers.length);
+  const results = await Promise.all(outcomes);
+  assert.equal(results.filter((result) => result.ok).length, 1);
+  assert.equal(results.filter((result) => result.reason === "already_handled").length, 1);
+  assert.equal(listCards(home).length, 0);
+});
+
 test("keep, defer, and both-valid only update queue status", (t) => {
   const { home, store, oldFact, newFact, pairId } = fixture(t);
   applyCard(store, home, pairId, "keep_separate");
   assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
   assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
   assert.equal(listCards(home).length, 0);
+});
+
+test("a stale review lock is reclaimed after sixty seconds", (t) => {
+  const { home } = fixture(t);
+  const lock = path.join(home, "review", ".lock");
+  fs.mkdirSync(lock);
+  const stale = new Date(Date.now() - 61_000);
+  fs.utimesSync(lock, stale, stale);
+  assert.equal(listCards(home).length, 1);
+  assert.equal(fs.existsSync(lock), false);
 });

@@ -22,6 +22,7 @@ import { INSTRUCTIONS_START } from "../src/onboard/instructions.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
+process.env.NIGHTMERGE_ALLOW_TEST_JUDGE = "1";
 
 function isolatedHome(t) {
   const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-onboard-"));

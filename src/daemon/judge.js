@@ -27,7 +27,7 @@ const VERDICTS = new Set(["duplicate", "contradiction", "related", "unrelated"])
 const TIMEOUT_MS = 300_000;
 const BATCH_SIZE = 20;
 const RAW_LOG_LIMIT = 10 * 1024 * 1024;
-const ALLOWED_JUDGE_COMMANDS = new Set(["claude", "claude-patched", "node"]);
+const ALLOWED_JUDGE_COMMANDS = new Set(["claude", "claude-patched"]);
 
 function pairId(pair) {
   return `${pair.a.id}:${pair.b.id}`;
@@ -53,8 +53,36 @@ function command(config) {
       throw new Error("Invalid judge_cmd");
     }
     const basename = path.basename(cmd);
+    if (basename === "node") {
+      if (process.env.NIGHTMERGE_ALLOW_TEST_JUDGE !== "1") {
+        throw new Error("테스트 judge는 NIGHTMERGE_ALLOW_TEST_JUDGE=1에서만 사용할 수 있습니다.");
+      }
+      if (args.length !== 1 || !path.isAbsolute(args[0]) || path.extname(args[0]) !== ".js") {
+        throw new Error("테스트 judge_cmd는 절대 경로의 JavaScript 파일 하나만 허용합니다.");
+      }
+      return { cmd, args };
+    }
     if (!ALLOWED_JUDGE_COMMANDS.has(basename)) {
-      throw new Error(`허용되지 않은 judge_cmd입니다: ${basename} (허용: claude, claude-patched, node)`);
+      throw new Error(`허용되지 않은 judge_cmd입니다: ${basename} (허용: claude, claude-patched)`);
+    }
+    let promptCount = 0;
+    for (let index = 0; index < args.length; index += 1) {
+      const arg = args[index];
+      if (arg === "-p") {
+        promptCount += 1;
+        index += 1;
+        if (index >= args.length || args[index] === "") throw new Error("judge_cmd의 -p에는 프롬프트가 필요합니다.");
+      } else if (arg === "--model") {
+        index += 1;
+        if (index >= args.length || !/^[A-Za-z0-9._-]+$/u.test(args[index])) {
+          throw new Error("judge_cmd의 model 형식이 올바르지 않습니다.");
+        }
+      } else {
+        throw new Error(`허용되지 않은 judge_cmd 인자입니다: ${arg}`);
+      }
+    }
+    if (promptCount !== 1) {
+      throw new Error("judge_cmd는 정확히 하나의 -p 프롬프트를 포함해야 합니다.");
     }
     return { cmd, args };
   }
@@ -64,9 +92,25 @@ function command(config) {
   };
 }
 
+function redactRawLog(text) {
+  const redacted = String(text)
+    .replace(/sk-[A-Za-z0-9]{8,}/gu, "[REDACTED]")
+    .replace(/(api[_-]?key|token|secret|password)\s*[:=]\s*\S+/giu, "[REDACTED]")
+    .replace(/Bearer\s+\S+/giu, "[REDACTED]")
+    .replace(/[A-Za-z0-9+/=]{32,}/gu, "[REDACTED]");
+  return redacted.split("\n").map((line) => {
+    const bytes = Buffer.from(line, "utf8");
+    return bytes.length <= 2048 ? line : bytes.subarray(0, 2048).toString("utf8");
+  }).join("\n");
+}
+
 function appendRawLog(file, text) {
+  const redacted = Buffer.from(redactRawLog(text), "utf8");
+  const safeBytes = redacted.length > RAW_LOG_LIMIT
+    ? redacted.subarray(redacted.length - RAW_LOG_LIMIT)
+    : redacted;
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const bytes = Buffer.byteLength(text);
+  const bytes = safeBytes.length;
   const currentSize = fs.existsSync(file) ? fs.statSync(file).size : 0;
   if (currentSize > 0 && currentSize + bytes > RAW_LOG_LIMIT) {
     const rolled = `${file}.1`;
@@ -74,7 +118,7 @@ function appendRawLog(file, text) {
     fs.renameSync(file, rolled);
     fs.chmodSync(rolled, 0o600);
   }
-  fs.appendFileSync(file, text, { encoding: "utf8", mode: 0o600 });
+  fs.appendFileSync(file, safeBytes, { mode: 0o600 });
   fs.chmodSync(file, 0o600);
 }
 
@@ -181,7 +225,10 @@ function runBatch(batch, config, cwd) {
         return;
       }
       if (code !== 0) {
-        reject(new Error(`Judge exited with ${code ?? signal}: ${stderr.trim()}`));
+        const error = new Error(`Judge exited with ${code ?? signal}`);
+        error.rawStdout = stdout;
+        error.rawStderr = stderr;
+        reject(error);
         return;
       }
 
@@ -196,6 +243,7 @@ function runBatch(batch, config, cwd) {
       resolve({
         judgments: batch.map((pair) => parsed.get(pairId(pair)) ?? safeJudgment(pairId(pair))),
         rawStdout: stdout,
+        rawStderr: stderr,
         parsedCount: parsed.size,
       });
     });
@@ -219,10 +267,10 @@ export async function judgePairs(pairs, store, config, home) {
       let result = await runBatch(batch, config, sandbox);
       if (result.parsedCount === 0 && batch.length > 0) {
         // 전량 파싱 실패 = 모델이 포맷을 무시한 회차 (비결정적) — 1회만 재시도
-        if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} RETRY (0 parsed)\n${result.rawStdout}\n`);
+        if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} RETRY (0 parsed)\nstdout:\n${result.rawStdout}\nstderr:\n${result.rawStderr}\n`);
         result = await runBatch(batch, config, sandbox);
       }
-      if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset}\n${result.rawStdout}\n`);
+      if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset}\nstdout:\n${result.rawStdout}\nstderr:\n${result.rawStderr}\n`);
       parsedCount += result.parsedCount;
       if (result.parsedCount === 0 && batch.length > 0) {
         errors.push({ offset, count: batch.length, reason: "judge 응답을 해석하지 못했습니다." });
@@ -230,7 +278,7 @@ export async function judgePairs(pairs, store, config, home) {
       judgments.push(...result.judgments);
     } catch (error) {
       // 배치 하나의 실패(스폰 에러·타임아웃)가 밤 전체를 날리지 않게 격리 — 해당 쌍은 안전 no-op
-      if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} FAILED: ${error.message}\n`);
+      if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} FAILED: ${error.message}\nstdout:\n${error.rawStdout ?? ""}\nstderr:\n${error.rawStderr ?? ""}\n`);
       errors.push({ offset, count: batch.length, reason: error.message });
       judgments.push(...batch.map((pair) => safeJudgment(pairId(pair), `batch failed: ${error.message}`)));
     }

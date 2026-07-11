@@ -12,4 +12,4 @@ export const AI_INSTRUCTIONS = `${INSTRUCTIONS_START}
 - 기존 기억을 정정하거나 갱신할 때는 가능하면 이전 fact를 \`supersedes\`로 지정한다.
 ${INSTRUCTIONS_END}`;
 
-export const INSTRUCTIONS_PREVIEW = `CLAUDE.md에 다음 블록을 추가합니다:\n\n${AI_INSTRUCTIONS}`;
+export const INSTRUCTIONS_PREVIEW = `추가될 위치: CLAUDE.md\n\n추가될 블록:\n${AI_INSTRUCTIONS}`;
