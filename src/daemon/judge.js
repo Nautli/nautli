@@ -46,7 +46,7 @@ function inputLine(pair) {
   };
 }
 
-function command(config) {
+export function command(config) {
   if (Array.isArray(config?.judge_cmd) && config.judge_cmd.length > 0) {
     const [cmd, ...args] = config.judge_cmd;
     if (typeof cmd !== "string" || cmd === "" || args.some((arg) => typeof arg !== "string")) {
@@ -71,7 +71,9 @@ function command(config) {
       if (arg === "-p") {
         promptCount += 1;
         index += 1;
-        if (index >= args.length || args[index] === "") throw new Error("judge_cmd의 -p에는 프롬프트가 필요합니다.");
+        // -p가 마지막 인자면 프롬프트는 코드 상수를 주입한다 (config는 바이너리·모델만 지정하는 게 정상 사용)
+        if (index >= args.length) args.push(JUDGE_PROMPT);
+        else if (args[index] === "") throw new Error("judge_cmd의 -p에는 프롬프트가 필요합니다.");
       } else if (arg === "--model") {
         index += 1;
         if (index >= args.length || !/^[A-Za-z0-9._-]+$/u.test(args[index])) {

@@ -122,3 +122,12 @@ test("judge raw stdout and stderr are redacted and capped per line", async (t) =
   assert.doesNotMatch(raw, /abcdefghijklmnopqrstuvwxyz0123456789|bearer-secret-value|sk-abcdefgh12345678/);
   assert.ok(raw.split("\n").every((line) => Buffer.byteLength(line) <= 2048));
 });
+
+test("judge_cmd ending with bare -p gets the default prompt injected (config specifies binary/model only)", async () => {
+  const { command, JUDGE_PROMPT } = await import("../src/daemon/judge.js");
+  const resolved = command({ judge_cmd: ["claude-patched", "--model", "sonnet", "-p"] });
+  assert.equal(resolved.cmd, "claude-patched");
+  assert.equal(resolved.args[resolved.args.length - 1], JUDGE_PROMPT);
+  assert.throws(() => command({ judge_cmd: ["claude", "-p", ""] }), /프롬프트가 필요/);
+  assert.throws(() => command({ judge_cmd: ["rm", "-p"] }), /허용되지 않은 judge_cmd/);
+});
