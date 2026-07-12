@@ -18,8 +18,8 @@
 - 상태 배지: active=--ok 점 / superseded·invalidated=--text-dim + 도장(🔖) 아이콘, 취소선 금지
 
 ## 타이포
-- 시스템 스택: -apple-system, 'Pretendard', sans-serif. claim 원문·코드·명령어 = ui-monospace, 'SF Mono', monospace
-- 크기: 본문 14px / claim 15px mono / 섹션 제목 13px 대문자 letter-spacing .08em --text-dim / 페이지 제목 20px 600
+- 시스템 스택: -apple-system, 'Pretendard', sans-serif. 코드·명령어 = ui-monospace, 'SF Mono', monospace. **claim 원문은 산세리프 500** (⚠️SF Mono엔 한글 글리프가 없어 한국어 claim을 mono로 지정하면 폴백 렌더로 어절 간격이 붕 뜸 — v3 검안 2회 연속 적발된 원인)
+- 크기: 본문 14px / claim 15px sans 500 / 섹션 제목 13px 대문자 letter-spacing .08em --text-dim / 페이지 제목 20px 600
 
 ## 형태
 - radius: 카드 12px, 버튼 8px, 배지 999px
