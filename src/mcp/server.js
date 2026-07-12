@@ -19,7 +19,7 @@ const DEFAULT_CONFIG = Object.freeze({
 const ERROR_CODES = new Set(Object.values(ERR));
 
 function resolveHome() {
-  return path.resolve(process.env.GLYMPH_HOME ?? path.join(os.homedir(), ".glymph"));
+  return path.resolve(process.env.NAUTLI_HOME ?? path.join(os.homedir(), ".nautli"));
 }
 
 function readConfig(home) {

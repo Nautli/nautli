@@ -1,8 +1,8 @@
-export const INSTRUCTIONS_START = "<!-- glymph:instructions -->";
-export const INSTRUCTIONS_END = "<!-- /glymph:instructions -->";
+export const INSTRUCTIONS_START = "<!-- nautli:instructions -->";
+export const INSTRUCTIONS_END = "<!-- /nautli:instructions -->";
 
 export const AI_INSTRUCTIONS = `${INSTRUCTIONS_START}
-## Glymph 기억 사용 규칙
+## nautli 기억 사용 규칙
 
 - 대화를 시작하거나 작업 맥락이 필요할 때 \`briefing\` 또는 \`recall\`로 관련 기억을 먼저 확인한다.
 - 사용자가 명시적으로 기억해 달라고 했거나, 앞으로 다시 쓰일 의미 있는 결정·검증된 교훈·상태 변화가 생겼을 때만 \`remember\`로 한 사실씩 저장한다.

@@ -12,14 +12,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
 
 test("a genuinely isolated new user completes setup, digestion, and review over HTTP", async (t) => {
-  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-newuser-"));
-  const home = path.join(userHome, ".glymph");
-  const previousAllowance = process.env.GLYMPH_ALLOW_TEST_JUDGE;
-  process.env.GLYMPH_ALLOW_TEST_JUDGE = "1";
+  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-newuser-"));
+  const home = path.join(userHome, ".nautli");
+  const previousAllowance = process.env.NAUTLI_ALLOW_TEST_JUDGE;
+  process.env.NAUTLI_ALLOW_TEST_JUDGE = "1";
   const calls = [];
   const runner = (command, args) => {
     calls.push([command, ...args]);
-    if (command === "claude" && args[0] === "mcp" && args[1] === "list") return "glymph: connected\n";
+    if (command === "claude" && args[0] === "mcp" && args[1] === "list") return "nautli: connected\n";
     return "ok\n";
   };
   const started = await startDashboard(home, {
@@ -42,8 +42,8 @@ test("a genuinely isolated new user completes setup, digestion, and review over 
   };
   t.after(async () => {
     await new Promise((resolve) => started.server.close(resolve));
-    if (previousAllowance === undefined) delete process.env.GLYMPH_ALLOW_TEST_JUDGE;
-    else process.env.GLYMPH_ALLOW_TEST_JUDGE = previousAllowance;
+    if (previousAllowance === undefined) delete process.env.NAUTLI_ALLOW_TEST_JUDGE;
+    else process.env.NAUTLI_ALLOW_TEST_JUDGE = previousAllowance;
     fs.rmSync(userHome, { recursive: true, force: true });
   });
 

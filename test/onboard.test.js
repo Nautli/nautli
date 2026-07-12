@@ -22,16 +22,16 @@ import { INSTRUCTIONS_START } from "../src/onboard/instructions.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
-process.env.GLYMPH_ALLOW_TEST_JUDGE = "1";
+process.env.NAUTLI_ALLOW_TEST_JUDGE = "1";
 
 function isolatedHome(t) {
-  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-onboard-"));
-  const home = path.join(userHome, ".glymph");
-  const previous = process.env.GLYMPH_HOME;
-  process.env.GLYMPH_HOME = home;
+  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-onboard-"));
+  const home = path.join(userHome, ".nautli");
+  const previous = process.env.NAUTLI_HOME;
+  process.env.NAUTLI_HOME = home;
   t.after(() => {
-    if (previous === undefined) delete process.env.GLYMPH_HOME;
-    else process.env.GLYMPH_HOME = previous;
+    if (previous === undefined) delete process.env.NAUTLI_HOME;
+    else process.env.NAUTLI_HOME = previous;
     fs.rmSync(userHome, { recursive: true, force: true });
   });
   return { home, userHome };
@@ -42,7 +42,7 @@ test("onboarding steps are isolated and shell commands use the injected runner",
   const calls = [];
   const runner = (command, args) => {
     calls.push([command, ...args]);
-    if (command === "claude" && args[0] === "mcp" && args[1] === "list") return "glymph: connected\n";
+    if (command === "claude" && args[0] === "mcp" && args[1] === "list") return "nautli: connected\n";
     return "ok\n";
   };
 
@@ -55,11 +55,11 @@ test("onboarding steps are isolated and shell commands use the injected runner",
   assert.equal(fs.existsSync(preview.file), false);
   installInstructions(home, { userHome });
   installInstructions(home, { userHome });
-  assert.equal((fs.readFileSync(preview.file, "utf8").match(/glymph:instructions/g) ?? []).length, 2);
+  assert.equal((fs.readFileSync(preview.file, "utf8").match(/nautli:instructions/g) ?? []).length, 2);
 
   installDaemon(home, runner, { userHome, uid: 501 });
   const plist = path.join(userHome, "Library", "LaunchAgents", `${DAEMON_LABEL}.plist`);
-  assert.match(fs.readFileSync(plist, "utf8"), /com\.glymph\.daemon/);
+  assert.match(fs.readFileSync(plist, "utf8"), /com\.nautli\.daemon/);
   assert.ok(calls.some((call) => call[0] === "claude" && call[1] === "mcp" && call[2] === "add"));
   assert.ok(calls.some((call) => call[0] === "launchctl" && call[1] === "bootstrap"));
 

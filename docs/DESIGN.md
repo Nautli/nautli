@@ -1,4 +1,4 @@
-# Glymph 대시보드 DESIGN 토큰 v1 (비주얼 SSOT — 토큰 외 색/폰트 발명 금지)
+# nautli 대시보드 DESIGN 토큰 v1 (비주얼 SSOT — 토큰 외 색/폰트 발명 금지)
 
 ## 콘셉트
 "밤 → 새벽": 데몬이 밤에 일하고 유저는 새벽(아침)을 만난다. 어둡되 음침하지 않게 — nightmare 잔상 차단이 브랜드 과제이므로 **따뜻한 여명 액센트가 필수**.
@@ -36,8 +36,8 @@
 - 토스트: 우하단, 성공 --ok 좌측 바 / 실패 --danger 좌측 바 + 사람말 사유 1문장
 
 ## 브랜드 표기 규칙 (2026-07-12 확정)
-- **모든 곳에서 소문자 `glymph`** — CLI·npm·도메인·로고 워드마크 (bun/deno/vercel 혈통)
+- **모든 곳에서 소문자 `nautli`** — CLI·npm·도메인·로고 워드마크 (bun/deno/vercel 혈통)
 - 어원 레이어: **g**lia(뇌세포)+**lymph**(청소) — 로고에서 g/lymph 색 분리 가능 (여명 주황)
 - 파비콘/앱아이콘: 자음 압축(GLMF류) 금지 — g 모노그램 or 여명 바 심볼. 압축형은 굿즈 이스터에그로만
-- 발음 표기: /glimf/ 글림프. 태그라인: "Your agents learn by day. glymph cleans by night." / "Wake up smarter."
-- 근거: RTFKT식 압축은 원본이 보편 단어일 때만 복원됨 — glymph는 희귀 단어라 압축 시 사망 (제품명-후보-v1 v8~9)
+- 발음 표기: /glimf/ 글림프. 태그라인: "Your agents learn by day. nautli cleans by night." / "Wake up smarter."
+- 근거: RTFKT식 압축은 원본이 보편 단어일 때만 복원됨 — nautli는 희귀 단어라 압축 시 사망 (제품명-후보-v1 v8~9)

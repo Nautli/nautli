@@ -11,10 +11,10 @@ import { startDashboard } from "../src/dashboard/server.js";
 const config = { default_scope: "person" };
 
 async function dashboard(t) {
-  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-dashboard-"));
-  const home = path.join(userHome, ".glymph");
+  const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-dashboard-"));
+  const home = path.join(userHome, ".nautli");
   const runner = (command, args) => {
-    if (command === "claude" && args[0] === "mcp" && args[1] === "list") return "glymph: connected\n";
+    if (command === "claude" && args[0] === "mcp" && args[1] === "list") return "nautli: connected\n";
     return "ok\n";
   };
   const started = await startDashboard(home, {
@@ -156,7 +156,7 @@ test("instructions preview separates location from the pure copy block and expos
   const preview = await (await fetch(`${target.url}/api/instructions/preview`)).json();
   assert.match(preview.preview, /추가될 위치:/);
   assert.match(preview.preview, /추가될 블록:/);
-  assert.match(preview.block, /^<!-- glymph:instructions -->/);
+  assert.match(preview.block, /^<!-- nautli:instructions -->/);
   assert.doesNotMatch(preview.block, /추가될 위치:/);
   const page = await (await fetch(target.url)).text();
   assert.match(page, /id="manual-copy"/);

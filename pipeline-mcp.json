@@ -1,12 +1,12 @@
 {
-  "project": "glymph-mcp",
-  "codebase": "/Users/bugbookee/Desktop/glymph",
+  "project": "nautli-mcp",
+  "codebase": "/Users/bugbookee/Desktop/nautli",
   "steps": [
     {
       "step": "dev-mcp-cli",
       "role": "Developer",
       "model": "codex",
-      "prompt": "너는 glymph v0 개발자다. 워크스페이스의 SPEC.md §7(MCP 서버)·§8(CLI)을 구현하라. src/core/*(schema/store/gate/recall)는 이미 구현돼 있다 — 반드시 실제 파일을 읽고 그 export 시그니처에 맞춰 호출하라(추측 금지).\n\n출력 파일: src/mcp/server.js, src/cli.js\n\n규칙:\n- ESM. 의존성은 @modelcontextprotocol/sdk, zod, better-sqlite3, node 내장만.\n- MCP: McpServer + StdioServerTransport, 툴 remember/recall/briefing (zod 스키마는 SPEC §7). 툴 핸들러 에러는 throw 말고 {error, message} JSON content로 반환.\n- CLI: SPEC §8 서브커맨드 전부. 인자 파싱은 node:util parseArgs. 출력 JSON, exitCode 규약(성공0/거부2/에러1). cli.js 첫 줄 #!/usr/bin/env node.\n- daemon-run 커맨드는 src/daemon/pipeline.js의 runOnce를 동적 import하되, 파일이 아직 없으면 {error:'daemon not built'} 출력하고 exit 1 (다음 스텝에서 생김).\n- tsc/테스트 직접 실행 금지, 파일 출력 후 즉시 종료.\n- 출력 형식: 파일마다 `// === <상대경로>` + ```js 펜스로 전문. 전체 파일만.",
+      "prompt": "너는 nautli v0 개발자다. 워크스페이스의 SPEC.md §7(MCP 서버)·§8(CLI)을 구현하라. src/core/*(schema/store/gate/recall)는 이미 구현돼 있다 — 반드시 실제 파일을 읽고 그 export 시그니처에 맞춰 호출하라(추측 금지).\n\n출력 파일: src/mcp/server.js, src/cli.js\n\n규칙:\n- ESM. 의존성은 @modelcontextprotocol/sdk, zod, better-sqlite3, node 내장만.\n- MCP: McpServer + StdioServerTransport, 툴 remember/recall/briefing (zod 스키마는 SPEC §7). 툴 핸들러 에러는 throw 말고 {error, message} JSON content로 반환.\n- CLI: SPEC §8 서브커맨드 전부. 인자 파싱은 node:util parseArgs. 출력 JSON, exitCode 규약(성공0/거부2/에러1). cli.js 첫 줄 #!/usr/bin/env node.\n- daemon-run 커맨드는 src/daemon/pipeline.js의 runOnce를 동적 import하되, 파일이 아직 없으면 {error:'daemon not built'} 출력하고 exit 1 (다음 스텝에서 생김).\n- tsc/테스트 직접 실행 금지, 파일 출력 후 즉시 종료.\n- 출력 형식: 파일마다 `// === <상대경로>` + ```js 펜스로 전문. 전체 파일만.",
       "input": ["SPEC.md", "src/core/schema.js", "src/core/gate.js", "src/core/recall.js"],
       "files": ["src/mcp/server.js", "src/cli.js"],
       "output": "code"

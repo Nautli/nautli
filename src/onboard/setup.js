@@ -14,7 +14,7 @@ import {
   INSTRUCTIONS_END,
 } from "./instructions.js";
 
-export const DAEMON_LABEL = "com.glymph.daemon";
+export const DAEMON_LABEL = "com.nautli.daemon";
 const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
 const DEFAULT_CONFIG = Object.freeze({ default_scope: "person", judge_cmd: null });
 const ALLOWED_COMMANDS = new Set(["claude", "launchctl"]);
@@ -98,7 +98,7 @@ function claudeStatus(runner) {
   }
   try {
     const list = runnerText(runner, "claude", ["mcp", "list"], { stdio: ["ignore", "pipe", "ignore"] });
-    return { cli_exists: true, registered: /(^|\s)glymph(?:\s|:|$)/m.test(list) };
+    return { cli_exists: true, registered: /(^|\s)nautli(?:\s|:|$)/m.test(list) };
   } catch {
     return { cli_exists: true, registered: false };
   }
@@ -125,7 +125,7 @@ export async function checkClaudeStatus(runner) {
   }
   try {
     const list = await execFileText("claude", ["mcp", "list"]);
-    return { cli_exists: true, registered: /(^|\s)glymph(?:\s|:|$)/m.test(list) };
+    return { cli_exists: true, registered: /(^|\s)nautli(?:\s|:|$)/m.test(list) };
   } catch {
     return { cli_exists: true, registered: false };
   }
@@ -191,7 +191,7 @@ export function initStore(home) {
 }
 
 export function registerMcp(home, runner = defaultRunner) {
-  const args = ["mcp", "add", "glymph", "--", process.execPath, CLI_FILE, "mcp"];
+  const args = ["mcp", "add", "nautli", "--", process.execPath, CLI_FILE, "mcp"];
   const manualCommand = ["claude", ...args].join(" ");
   try {
     runnerText(runner, "claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"] });
@@ -204,7 +204,7 @@ export function registerMcp(home, runner = defaultRunner) {
     );
   }
   try {
-    runnerText(runner, "claude", args, { env: { ...process.env, GLYMPH_HOME: home } });
+    runnerText(runner, "claude", args, { env: { ...process.env, NAUTLI_HOME: home } });
   } catch (cause) {
     throw setupError(
       ERR.E_MCP_REGISTER_FAILED,
@@ -255,7 +255,7 @@ function daemonPlist(home) {
 <plist version="1.0"><dict>
   <key>Label</key><string>${DAEMON_LABEL}</string>
   <key>ProgramArguments</key><array><string>${xml(process.execPath)}</string><string>${xml(CLI_FILE)}</string><string>daemon-run</string></array>
-  <key>EnvironmentVariables</key><dict><key>GLYMPH_HOME</key><string>${xml(home)}</string></dict>
+  <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string></dict>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>30</integer></dict>
   <key>StandardOutPath</key><string>${xml(health)}</string>
   <key>StandardErrorPath</key><string>${xml(path.join(home, "daemon", "error.log"))}</string>
