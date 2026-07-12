@@ -158,7 +158,7 @@ function runDigestInChild(home) {
   const child = spawn(process.execPath, [CLI_FILE, "daemon-run"], {
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, NIGHTMERGE_HOME: home },
+    env: { ...process.env, GLYMPH_HOME: home },
   });
   child.unref();
   return { ok: true, started: true, pid: child.pid };

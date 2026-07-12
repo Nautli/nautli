@@ -12,9 +12,9 @@ import { Store } from "../src/core/store.js";
 const config = { default_scope: "person" };
 
 function fixture(t, verdict = "duplicate") {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-review-"));
-  const previous = process.env.NIGHTMERGE_HOME;
-  process.env.NIGHTMERGE_HOME = home;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-review-"));
+  const previous = process.env.GLYMPH_HOME;
+  process.env.GLYMPH_HOME = home;
   const store = new Store(home);
   const oldFact = remember(store, {
     claim: verdict === "duplicate" ? "검토할 같은 메모의 옛 표현" : "서비스 포트는 3000이다",
@@ -39,8 +39,8 @@ function fixture(t, verdict = "duplicate") {
   })}\n`, "utf8");
   t.after(() => {
     store.close();
-    if (previous === undefined) delete process.env.NIGHTMERGE_HOME;
-    else process.env.NIGHTMERGE_HOME = previous;
+    if (previous === undefined) delete process.env.GLYMPH_HOME;
+    else process.env.GLYMPH_HOME = previous;
     fs.rmSync(home, { recursive: true, force: true });
   });
   return { home, store, oldFact, newFact, pairId };

@@ -11,7 +11,7 @@ import { ERR } from "../src/core/schema.js";
 const config = { default_scope: "person", judge_cmd: null };
 
 function isolatedStore(t) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-recall-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-recall-"));
   const store = new Store(home);
   t.after(() => {
     store.close();

@@ -1,11 +1,11 @@
-# Nightmerge 차체 UX 스펙 v1 (2026-07-12 밤샘 빌드)
+# Glymph 차체 UX 스펙 v1 (2026-07-12 밤샘 빌드)
 
 > 목표: 신규 유저가 마케팅 없이 제품만으로 "설치→AI 연결→습관 심기→데몬→아침 카드"를 완주.
 > 진입점 = 로컬 대시보드. 마케팅(랜딩·영상) 스코프 제외.
 
 ## 유저 스토리 (완주 시나리오)
-1. `git clone … && npm install && npm link` (배포 전) / 배포 후 `npm i -g nightmerge`
-2. `nightmerge dashboard` → 브라우저 http://127.0.0.1:4600 자동 오픈
+1. `git clone … && npm install && npm link` (배포 전) / 배포 후 `npm i -g glymph`
+2. `glymph dashboard` → 브라우저 http://127.0.0.1:4600 자동 오픈
 3. Setup 탭(첫 방문 자동): 체크리스트 5개를 버튼으로 완료
 4. 다음날 아침: Review 탭 배지 → 카드 O/X 클릭
 5. 평소: AI가 remember/recall (유저 무개입), 가끔 Memory 탭에서 검색
@@ -14,17 +14,17 @@
 체크리스트 항목 = 상태아이콘(✓완료/○미완/!오류) + 제목 + 설명 1줄 + 액션 버튼:
 | # | 항목 | 상태 판정 | 버튼 → 동작 |
 |---|---|---|---|
-| 1 | 저장소 초기화 | `~/.nightmerge/index.sqlite` 존재 | [초기화] → POST /api/setup/init |
-| 2 | Claude Code 연결 | `claude` CLI 존재 + `claude mcp list`에 nightmerge | [자동 등록] → claude mcp add 실행. 실패 시 수동 명령 코드블록+[복사] |
-| 3 | AI 습관 지시문 | `~/.claude/CLAUDE.md`에 마커(`<!-- nightmerge:instructions -->`) 존재 | [CLAUDE.md에 설치] / [지시문 복사] |
-| 4 | 밤 소화 데몬 (03:30) | `launchctl list`에 com.bug.nightmerge-daemon(추후 com.nightmerge.daemon) | [데몬 설치] → plist 생성+bootstrap / [지금 1회 실행] → daemon-run 백그라운드+결과 표시 |
+| 1 | 저장소 초기화 | `~/.glymph/index.sqlite` 존재 | [초기화] → POST /api/setup/init |
+| 2 | Claude Code 연결 | `claude` CLI 존재 + `claude mcp list`에 glymph | [자동 등록] → claude mcp add 실행. 실패 시 수동 명령 코드블록+[복사] |
+| 3 | AI 습관 지시문 | `~/.claude/CLAUDE.md`에 마커(`<!-- glymph:instructions -->`) 존재 | [CLAUDE.md에 설치] / [지시문 복사] |
+| 4 | 밤 소화 데몬 (03:30) | `launchctl list`에 com.bug.glymph-daemon(추후 com.glymph.daemon) | [데몬 설치] → plist 생성+bootstrap / [지금 1회 실행] → daemon-run 백그라운드+결과 표시 |
 | 5 | 다른 AI 도구 연결 (옵션) | — | [Cursor 설정 복사] (mcp.json 스니펫) |
 | 6 | 기존 노트 이식 (옵션) | — | "준비 중" 배지 (v0.2) — 정직 표기 |
 - 모든 버튼: 실행 중 스피너 → 결과 토스트(성공 초록/실패는 이유 문장) → 상태 재조회
 - 전부 ✓면 상단에 "설치 완료 — 이제 AI가 알아서 기억합니다" 배너
 
 ## 화면 2: Review (아침 카드) — SPEC §9 카드 규칙 준수
-- 데이터: `~/.nightmerge/review/queue.jsonl` status=pending
+- 데이터: `~/.glymph/review/queue.jsonl` status=pending
 - 카드 구성(위→아래): 유형 배지(중복 정리|모순 발견) + 판정 confidence + **사람언어 한 줄**("이 두 기억이 같은 내용 같아요. 하나로 합칠까요?") + 기억 A/B 원문 (각각 scope·subject·t_valid 병기) + judge 근거(reason, 접힘)
 - 버튼(카드 유형별):
   - 중복: [합치기] [따로 유지] [모름/나중에]
@@ -50,9 +50,9 @@
 ## 공통
 - 네비: Setup / Review(＋pending 배지) / Memory / Stats. 헤더 우측: 데몬 헬스 점(초록=24h 내 exit0)
 - 브랜드 표기 = src/brand.js BRAND 상수 (개명 시 1곳)
-- 서버: `nightmerge dashboard [--port 4600] [--no-open]` — node 내장 http, **127.0.0.1 고정 바인딩**, 외부 의존성 0, 단일 HTML(인라인 CSS/JS)+/api/* JSON
+- 서버: `glymph dashboard [--port 4600] [--no-open]` — node 내장 http, **127.0.0.1 고정 바인딩**, 외부 의존성 0, 단일 HTML(인라인 CSS/JS)+/api/* JSON
 - 보안: POST만 상태 변경, Origin 헤더가 127.0.0.1이 아니면 403, 셸 실행은 화이트리스트 커맨드만(claude mcp add/launchctl/…), 토큰·시크릿 로그 금지
-- CLI 미러: `nightmerge setup`(대화형 5단계, 대시보드와 동일 로직 공유), `nightmerge review`(터미널 O/X), doctor 보강(node 버전·claude CLI·데몬 상태)
+- CLI 미러: `glymph setup`(대화형 5단계, 대시보드와 동일 로직 공유), `glymph review`(터미널 O/X), doctor 보강(node 버전·claude CLI·데몬 상태)
 
 ## v1.1 확정 변경 (sol UX 크리틱 → 디렉터 수용/기각, 2026-07-12)
 **수용:**
@@ -68,7 +68,7 @@
 **리포트 md 뷰어 삭제 수용** — Stats에 마지막 소화 요약 숫자만.
 
 ## 성공 기준 (착수 시 앵커 — 채점 루브릭)
-1. 격리 홈(NIGHTMERGE_HOME) 신규유저 e2e: setup→remember→daemon-run→카드 발생→대시보드에서 O/X→저장소 반영까지 실측 왕복 (30점)
+1. 격리 홈(GLYMPH_HOME) 신규유저 e2e: setup→remember→daemon-run→카드 발생→대시보드에서 O/X→저장소 반영까지 실측 왕복 (30점)
 2. Setup 5항목 버튼이 실제 동작+실패 시 사람말 사유 (20점)
 3. 카드 규칙 준수: 사람언어 번역·출처날짜·위험색 idle 금지·정정 루프 (20점)
 4. 기존 테스트 21/21 유지 + 신규 로직 테스트 추가 (10점)

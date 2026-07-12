@@ -11,7 +11,7 @@ import { STATUS } from "../src/core/schema.js";
 // v0 정책 (유저 라벨 실측 2026-07-11): 모순은 기본 자동 적용 금지 — 고신뢰(0.95)여도 리뷰카드행.
 // 자동 무효화는 config.contradiction_auto=true opt-in에서만.
 test("contradiction defaults to review queue, never auto-invalidates", () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-policy-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-policy-"));
   const store = new Store(home);
   const cfg = { default_scope: "person" };
   const a = remember(store, { claim: "정책 테스트: 포트는 7001이다", scope: "project:p" }, cfg);

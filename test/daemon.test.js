@@ -12,7 +12,7 @@ import { judgePairs } from "../src/daemon/judge.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
-process.env.NIGHTMERGE_ALLOW_TEST_JUDGE = "1";
+process.env.GLYMPH_ALLOW_TEST_JUDGE = "1";
 const config = {
   default_scope: "person",
   judge_cmd: [process.execPath, mockJudge],
@@ -20,7 +20,7 @@ const config = {
 };
 
 function isolatedStore(t) {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-daemon-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-daemon-"));
   const store = new Store(home);
   t.after(() => {
     store.close();
@@ -92,13 +92,13 @@ test("judge command rejects script and eval forms and gates node behind test env
     const result = await judgePairs([pair], store, { judge_cmd }, home);
     assert.equal(result.errors.length, 1);
   }
-  const allowance = process.env.NIGHTMERGE_ALLOW_TEST_JUDGE;
-  delete process.env.NIGHTMERGE_ALLOW_TEST_JUDGE;
+  const allowance = process.env.GLYMPH_ALLOW_TEST_JUDGE;
+  delete process.env.GLYMPH_ALLOW_TEST_JUDGE;
   try {
     const result = await judgePairs([pair], store, { judge_cmd: [process.execPath, mockJudge] }, home);
-    assert.match(result.errors[0].reason, /NIGHTMERGE_ALLOW_TEST_JUDGE/);
+    assert.match(result.errors[0].reason, /GLYMPH_ALLOW_TEST_JUDGE/);
   } finally {
-    process.env.NIGHTMERGE_ALLOW_TEST_JUDGE = allowance;
+    process.env.GLYMPH_ALLOW_TEST_JUDGE = allowance;
   }
 });
 

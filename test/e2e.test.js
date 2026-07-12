@@ -22,8 +22,8 @@ function runCli(home, args, date = "2025-04-01T12:00:00.000Z") {
     encoding: "utf8",
     env: {
       ...process.env,
-      NIGHTMERGE_HOME: home,
-      NIGHTMERGE_ALLOW_TEST_JUDGE: "1",
+      GLYMPH_HOME: home,
+      GLYMPH_ALLOW_TEST_JUDGE: "1",
       NODE_OPTIONS: fixedClock(date),
     },
   });
@@ -32,7 +32,7 @@ function runCli(home, args, date = "2025-04-01T12:00:00.000Z") {
 }
 
 test("CLI story survives daemon digestion and rebuild", (t) => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-e2e-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-e2e-"));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
 
   runCli(home, ["init"]);
@@ -70,7 +70,7 @@ test("CLI story survives daemon digestion and rebuild", (t) => {
 });
 
 test("daemon-run exits one when judging fails", (t) => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-e2e-failed-daemon-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-e2e-failed-daemon-"));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));
   runCli(home, ["init"]);
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
@@ -82,7 +82,7 @@ test("daemon-run exits one when judging fails", (t) => {
   const result = spawnSync(process.execPath, [cli, "daemon-run"], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, NIGHTMERGE_HOME: home },
+    env: { ...process.env, GLYMPH_HOME: home },
   });
   assert.equal(result.status, 1, result.stderr || result.stdout);
   assert.equal(JSON.parse(result.stdout).ok, false);

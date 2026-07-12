@@ -19,7 +19,7 @@ const DEFAULT_CONFIG = Object.freeze({
 const ERROR_CODES = new Set(Object.values(ERR));
 
 function resolveHome() {
-  return path.resolve(process.env.NIGHTMERGE_HOME ?? path.join(os.homedir(), ".nightmerge"));
+  return path.resolve(process.env.GLYMPH_HOME ?? path.join(os.homedir(), ".glymph"));
 }
 
 function readConfig(home) {

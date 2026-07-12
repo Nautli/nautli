@@ -54,8 +54,8 @@ function command(config) {
     }
     const basename = path.basename(cmd);
     if (basename === "node") {
-      if (process.env.NIGHTMERGE_ALLOW_TEST_JUDGE !== "1") {
-        throw new Error("테스트 judge는 NIGHTMERGE_ALLOW_TEST_JUDGE=1에서만 사용할 수 있습니다.");
+      if (process.env.GLYMPH_ALLOW_TEST_JUDGE !== "1") {
+        throw new Error("테스트 judge는 GLYMPH_ALLOW_TEST_JUDGE=1에서만 사용할 수 있습니다.");
       }
       if (args.length !== 1 || !path.isAbsolute(args[0]) || path.extname(args[0]) !== ".js") {
         throw new Error("테스트 judge_cmd는 절대 경로의 JavaScript 파일 하나만 허용합니다.");
@@ -193,7 +193,7 @@ function runBatch(batch, config, cwd) {
 
   return new Promise((resolve, reject) => {
     // cwd = 빈 격리 디렉토리 필수 — 프로젝트 안에서 돌리면 CLI가 에이전트 모드로 리포를 탐색하며
-    // 대화형 응답을 해버린다 (실측 사고: nightmerge 리포 cwd에서 judge가 코드 리뷰를 시작함)
+    // 대화형 응답을 해버린다 (실측 사고: glymph 리포 cwd에서 judge가 코드 리뷰를 시작함)
     const child = spawn(invocation.cmd, invocation.args, {
       stdio: ["pipe", "pipe", "pipe"],
       cwd,

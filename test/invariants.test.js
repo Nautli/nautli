@@ -26,7 +26,7 @@ test("source never removes rows from the facts table", () => {
 });
 
 test("briefing cannot inject external configuration strings", (t) => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nightmerge-invariant-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "glymph-invariant-"));
   const store = new Store(home);
   t.after(() => {
     store.close();
