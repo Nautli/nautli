@@ -288,7 +288,18 @@ export function createDashboardServer(home, options = {}) {
         else if (step === "instructions-remove") result = removeInstructions(home, { userHome });
         else if (step === "daemon") result = installDaemon(home, runner, { userHome });
         else if (step === "daemon-remove") result = uninstallDaemon(home, runner, { userHome });
-        else if (step === "digest") result = await (options.runDigest ?? runDigestInChild)(home);
+        else if (step === "digest") {
+          const claude = claudeCache?.value ?? await checkClaudeStatus(runner).catch(() => null);
+          if (claude && claude.cli_exists === false) {
+            json(response, 400, {
+              error: ERR.E_CLAUDE_CLI_MISSING,
+              message: "소화에는 Claude CLI가 필요해요. 먼저 'Claude Code 연결' 단계를 완료해 주세요.",
+              manual_command: "npm install -g @anthropic-ai/claude-code && claude",
+            });
+            return;
+          }
+          result = await (options.runDigest ?? runDigestInChild)(home);
+        }
         else if (step === "sample") result = seedSampleFacts(home);
         else if (step === "sample-remove") result = removeSampleFacts(home);
         else {
