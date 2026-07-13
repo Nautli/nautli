@@ -60,7 +60,9 @@ test("onboarding steps are isolated and shell commands use the injected runner",
   installDaemon(home, runner, { userHome, uid: 501 });
   const plist = path.join(userHome, "Library", "LaunchAgents", `${DAEMON_LABEL}.plist`);
   assert.match(fs.readFileSync(plist, "utf8"), /com\.nautli\.daemon/);
-  assert.ok(calls.some((call) => call[0] === "claude" && call[1] === "mcp" && call[2] === "add"));
+  const mcpAdd = calls.find((call) => call[0] === "claude" && call[1] === "mcp" && call[2] === "add");
+  // NA-021: user 스코프 필수 — local이면 설치 폴더 밖 프로젝트에서 MCP가 안 보임
+  assert.deepEqual(mcpAdd.slice(3, 5), ["-s", "user"]);
   assert.ok(calls.some((call) => call[0] === "launchctl" && call[1] === "bootstrap"));
 
   const status = statusAll(home, { runner, userHome });

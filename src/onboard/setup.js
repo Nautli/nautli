@@ -191,7 +191,8 @@ export function initStore(home) {
 }
 
 export function registerMcp(home, runner = defaultRunner) {
-  const args = ["mcp", "add", "nautli", "--", process.execPath, CLI_FILE, "mcp"];
+  // -s user: 기본(local)이면 설치 폴더 밖 프로젝트에서 nautli MCP가 안 보인다 (NA-021 — "모든 프로젝트 공유" 약속의 핵심)
+  const args = ["mcp", "add", "-s", "user", "nautli", "--", process.execPath, CLI_FILE, "mcp"];
   const manualCommand = ["claude", ...args].join(" ");
   try {
     runnerText(runner, "claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"] });
