@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { remember } from "../src/core/gate.js";
@@ -83,4 +84,46 @@ test("activity API rejects an invalid since timestamp", async (t) => {
   const response = await fetch(`${dashboard.url}/api/activity?since=not-a-date`);
   assert.equal(response.status, 400);
   assert.equal((await response.json()).error, "E_INVALID_INPUT");
+});
+
+test("activity with since keeps the newest events when over limit", (t) => {
+  const { home } = tempHome(t);
+  const store = new Store(home);
+  const base = Date.now() - 30_000;
+  for (let i = 0; i < 10; i += 1) {
+    remember(store, {
+      claim: `overflow 검증 기억 ${i}`,
+      scope: "project:overflow",
+      at: new Date(base + i * 1000).toISOString(),
+    }, config);
+  }
+  const since = new Date(base - 1000).toISOString();
+  const events = store.activity({ since, limit: 3 });
+  assert.equal(events.length, 3);
+  const claims = events.map((event) => event.claim);
+  assert.deepEqual(claims, ["overflow 검증 기억 7", "overflow 검증 기억 8", "overflow 검증 기억 9"]);
+});
+
+test("dashboard rejects requests with a foreign host header", async (t) => {
+  const { home } = tempHome(t);
+  const dashboard = await startDashboard(home, { port: 0, open: false });
+  t.after(async () => {
+    await new Promise((resolve) => dashboard.server.close(resolve));
+  });
+  const url = new URL(`${dashboard.url}/api/activity?since=${encodeURIComponent(new Date().toISOString())}`);
+  const { status, body } = await new Promise((resolve, reject) => {
+    const request = http.get({
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname + url.search,
+      headers: { host: "evil.example.com" },
+    }, (response) => {
+      let raw = "";
+      response.on("data", (chunk) => { raw += chunk; });
+      response.on("end", () => resolve({ status: response.statusCode, body: raw }));
+    });
+    request.on("error", reject);
+  });
+  assert.equal(status, 403);
+  assert.equal(JSON.parse(body).error, "E_HOST_FORBIDDEN");
 });

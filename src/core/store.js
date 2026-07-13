@@ -326,8 +326,7 @@ export class Store {
         if (!Number.isFinite(atTime) || atTime <= sinceTime) continue;
         const event = activityEvent(raw);
         if (event) events.push(event);
-        if (!hasSince && events.length >= eventLimit) return events.reverse();
-        if (hasSince && events.length > eventLimit) events.shift();
+        if (events.length >= eventLimit) return events.reverse();
       }
     }
     return events.reverse();
