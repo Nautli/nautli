@@ -51,9 +51,10 @@ export function newId(now = Date.now()) {
 }
 
 export function validScope(scope) {
+  // project 이름은 유니코드 문자·숫자 허용 (한글 프로젝트명 — 한국 유저의 CLAUDE.md 지시문이 project:<프로젝트명>을 시킨다)
   return scope === "person"
     || scope === "procedure"
-    || /^project:[a-z0-9]+(?:-[a-z0-9]+)*$/.test(scope);
+    || /^project:[\p{L}\p{N}]+(?:[-_.][\p{L}\p{N}]+)*$/u.test(scope);
 }
 
 export function normalizeClaim(claim) {

@@ -22,6 +22,14 @@ import {
   statusAll,
   uninstallDaemon,
 } from "../onboard/setup.js";
+import {
+  checkupCandidates,
+  checkupStatus,
+  dismissCheckup,
+  importCheckup,
+  readCheckupReport,
+  startCheckup,
+} from "../onboard/checkup.js";
 import { HTML } from "./public.js";
 
 const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
@@ -272,6 +280,33 @@ export function createDashboardServer(home, options = {}) {
         } finally {
           store.close();
         }
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/checkup/candidates") {
+        json(response, 200, { candidates: checkupCandidates({ userHome }) });
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/checkup/status") {
+        json(response, 200, checkupStatus(home));
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/checkup/report") {
+        json(response, 200, readCheckupReport(home));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/checkup/start") {
+        const input = await bodyJson(request);
+        json(response, 200, (options.startCheckup ?? startCheckup)(home, input.path, { userHome }));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/checkup/import") {
+        if (!fs.existsSync(path.join(home, "index.sqlite"))) initStore(home);
+        json(response, 200, importCheckup(home, readConfig(home)));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/checkup/dismiss") {
+        json(response, 200, dismissCheckup(home));
         return;
       }
 

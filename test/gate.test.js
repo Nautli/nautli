@@ -83,3 +83,13 @@ test("supersedes adds the new fact and transitions the old fact", (t) => {
   assert.equal(store.getFact(oldFact.id).t_invalid, "2025-02-01");
   assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
 });
+
+test("korean project scopes are accepted (W1 한국 유저 — 지시문이 project:<프로젝트명>을 시킴)", (t) => {
+  const store = isolatedStore(t);
+  const outcome = remember(store, { claim: "한글 스코프 검증용 기억", scope: "project:백로그" }, config);
+  assert.equal(outcome.status, "added");
+  assert.deepEqual(remember(store, { claim: "기억", scope: "project:공백 있는이름" }, config), {
+    status: "rejected",
+    reason: ERR.E_UNKNOWN_SCOPE,
+  });
+});
