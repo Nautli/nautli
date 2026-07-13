@@ -1,89 +1,109 @@
 # nautli
 
-모든 AI가 공유하는 하나의 뇌. Claude Code, Cursor 등 여러 AI 도구가 하나의 로컬 기억을 같이 쓰고, 자는 동안 소화 데몬이 중복을 합치고 모순을 정리합니다. 정본은 서버가 아니라 당신 디스크의 파일입니다.
+**Every AI memory tool stores. nautli digests.**
 
-- 기억은 fact 단위로 쌓이고, 애매한 정리는 자동 실행 대신 리뷰 카드로 사람에게 물어봅니다.
-- 서드파티 서버 없음. LLM 판정(중복·모순)만 본인 Claude 구독(claude CLI)을 거쳐 처리됩니다.
-- 스펙 정본: [SPEC.md](SPEC.md)
+One local brain for all your AI agents. Claude Code, Cursor, and other MCP clients share a single local memory. While you sleep, a digestion daemon merges duplicates, turns contradictions into review cards, and forgets junk. The source of truth is plain files on your disk, not someone else's server.
 
-## 시작하기
+```text
+You, in Claude Code:     "Remember: our API runs on port 4000."
+You, in Cursor, later:   "What port does our API use?"
+Cursor:                  4000  (recalled from the same local brain)
+```
 
-요구사항: Node.js 20+, [Claude Code CLI](https://claude.com/claude-code) 로그인 상태. (better-sqlite3는 네이티브 모듈이라 대부분 플랫폼은 prebuilt 바이너리를 받고, 없는 조합이면 설치 중 python3 + 빌드 툴체인으로 컴파일합니다.)
+[한국어 문서: README.ko.md](README.ko.md)
+
+## Install
 
 ```bash
 npx nautli dashboard
 ```
 
-`dashboard`가 설정 화면을 엽니다(127.0.0.1 전용). 화면이 나머지를 안내합니다:
+The dashboard opens on 127.0.0.1 only and walks you through everything:
 
-1. **내 기억 건강검진**: 이미 쓰고 있는 옵시디언 볼트나 CLAUDE.md를 스캔해서 중복·모순·낡은 기억을 점수와 리포트로 보여줍니다. 맛보기는 노트 40개, 10분 안팎. 마음에 들면 추출된 기억을 한 번에 가져올 수 있습니다.
-2. **Claude Code 연결**: MCP 등록(remember / recall / briefing 툴).
-3. **AI 습관 지시문**: Claude가 기억 도구를 실제로 쓰도록 CLAUDE.md에 지시문 한 블록 추가.
-4. **밤 소화 데몬**: 매일 밤 3:30, 중복 병합과 모순 카드화. 언제든 제거 버튼으로 되돌릴 수 있습니다.
+1. **Memory checkup**: scans the notes you already have (an Obsidian vault, CLAUDE.md, agent memory files) and shows a health score with real duplicates, contradictions, and stale facts from your own data. The preview scans 40 notes in about 10 minutes. Import what it found in one click, or start clean.
+2. **Connect Claude Code**: one-click MCP registration (remember / recall / briefing tools).
+3. **Habit instructions**: adds one block to your CLAUDE.md so the AI actually uses its memory.
+4. **Nightly digestion daemon**: every night at 3:30, duplicates get merged and contradictions become review cards. Fully removable with one button.
 
-전역 설치를 원하면:
+### Requirements, honestly
 
-```bash
-npm i -g nautli
-nautli dashboard
-```
+| | |
+|---|---|
+| Node.js | 20 or newer |
+| Claude Code CLI | installed and logged in. Duplicate and contradiction judgments run through your own Claude subscription |
+| python3 | only needed for the memory checkup step |
+| OS | macOS for the automatic nightly daemon (launchctl). The core CLI and MCP server run anywhere Node runs; on other platforms run `npx nautli daemon-run` yourself or via cron |
 
-소스에서 직접 실행하려면 (기여자용):
+better-sqlite3 is a native module. Most platforms download a prebuilt binary; unusual platform and Node combinations fall back to compiling, which needs python3 and a C++ toolchain.
 
-```bash
-git clone https://github.com/nautli/nautli.git && cd nautli
-npm install
-node src/cli.js dashboard
-```
+### Which AI tools work today
 
-## AI에게 설치 시키기
+| Tool | Status |
+|---|---|
+| Claude Code | automatic, one-click registration |
+| Cursor | manual, copy the provided mcp.json snippet |
+| Other MCP clients | the stdio MCP server is standard, but untested beyond the two above |
+| ChatGPT / Gemini apps | not yet supported |
 
-Claude Code 같은 코딩 에이전트에게 이 블록을 그대로 주면 사람 개입 없이 끝납니다(전 과정 비대화형):
+### Let a coding agent install it for you
 
-```bash
-npx nautli setup --yes    # 저장소 초기화 + MCP 등록 + 지시문 + 밤 데몬 + 소화 1회
-npx nautli doctor         # 설치 상태 점검
-```
-
-`setup --yes`는 위 대시보드 4단계를 한 번에 실행합니다. 단계별로 하려면 `--step init|mcp|instructions|daemon|digest`.
-
-## CLI로 쓰기
+Paste this to Claude Code or any coding agent; the whole flow is non-interactive:
 
 ```bash
-npx nautli init                                          # ~/.nautli 생성
-npx nautli remember "우리 API 포트는 4000이다" --scope project:myapp
-npx nautli recall "포트" --scope project:myapp
-npx nautli daemon-run                                    # 소화 1회 수동 실행
-npx nautli rebuild                                       # 정본(events/*.jsonl)에서 인덱스 재구성
+npx nautli setup --yes    # storage + MCP registration + instructions + nightly daemon + one digest run
+npx nautli doctor         # verify the install
 ```
 
-MCP 수동 등록:
+Global install, if you prefer: `npm i -g nautli`, then `nautli dashboard`. Contributors: `git clone https://github.com/nautli/nautli.git && cd nautli && npm install && node src/cli.js dashboard`.
+
+## Why another memory tool
+
+Memory that only grows turns into a junk drawer: three copies of every fact, two of them out of date, and your AI picks one at random. Most memory tools store and retrieve. nautli treats memory as something that must be digested:
+
+- **Digestion, not accumulation.** A nightly daemon merges duplicates and resolves what it can safely.
+- **Review cards, not silent edits.** Ambiguous judgments are never auto-applied. Contradictions become morning cards you answer with one click, and your answer becomes a new fact.
+- **Non-lossy by design.** Facts are never deleted. Superseded and invalidated facts are archived with their full history, and `rebuild` restores the index from your files at any time.
+- **Bi-temporal facts.** Every fact knows when it was true and when it was recorded, so "we moved from port 3000 to 4000" is history, not a conflict.
+- **Local first.** Your memory is files in `~/.nautli/`. Switch AI tools, keep your brain.
+
+## Measured quality so far
+
+- Wrong auto-merges: 0 out of 24 auto-merges across three external vaults plus our own
+- Contradiction detection recall: 100% on the labeled evaluation set
+- Wrong auto-applied actions: 0, because anything ambiguous goes to a review card by policy
+- The honest weak spot: junk filtering. Single digit junk on our own data, far worse on external vaults in early tests. A three-stage filter is in progress, and numbers will be published either way
+
+## Data boundary
+
+- Memories, event logs, and reports are local files under `~/.nautli/`. Nothing is uploaded to any server of ours; we do not have one.
+- The only text that leaves your machine is judgment prompts (duplicate and contradiction checks) sent through your own Claude subscription to Anthropic.
+- Facts are never DELETEd, only soft-archived. `npx nautli rebuild` reconstructs everything from the source files.
+
+## CLI
+
+```bash
+npx nautli init                                              # create ~/.nautli
+npx nautli remember "our API port is 4000" --scope project:myapp
+npx nautli recall "port" --scope project:myapp
+npx nautli daemon-run                                        # run one digestion manually
+npx nautli rebuild                                           # rebuild the index from source files
+```
+
+Manual MCP registration:
 
 ```bash
 claude mcp add -s user nautli -- npx nautli mcp
 ```
 
-## 데이터 경계
+## Architecture
 
-- 기억·이벤트 로그·리포트 전부 `~/.nautli/` 로컬 파일. 어떤 원격 서버에도 업로드하지 않습니다.
-- 건강검진과 밤 소화의 LLM 판정 텍스트만 본인 Claude 구독을 거쳐 Anthropic에서 처리됩니다.
-- fact는 DELETE하지 않습니다(soft archive). `rebuild`로 정본 파일에서 언제든 복원됩니다.
+`src/core` storage, write gate, recall / `src/mcp` stdio server / `src/cli.js` / `src/daemon` pair, judge, apply, report, render / `src/dashboard` local dashboard / `src/onboard` setup and checkup. Full spec: [SPEC.md](SPEC.md).
 
-## 구조 (SPEC §1)
+Invariants (violations are bugs, pinned by tests): user files are the source of truth (rebuild round-trip) / no DELETE on facts / single-pass writes, cleanup only in the daemon / core works even if the daemon dies / no promotion injection into recall / when in doubt, no-op (asymmetric cost of a wrong merge).
 
-`src/core` 저장·게이트·recall / `src/mcp` stdio 서버 / `src/cli.js` / `src/daemon` pair, judge, apply, report, render / `src/dashboard` 로컬 대시보드 / `src/onboard` 설정·건강검진
+## Known limits (v0.3)
 
-## 불변식 (위반은 버그, 테스트로 고정)
-
-정본은 유저 파일(rebuild 왕복) / facts DELETE 금지 / 쓰기 단일패스, 정리는 데몬만 / 데몬이 죽어도 코어 동작 / recall에 프로모션 주입 금지 / 애매하면 no-op(오병합 비대칭)
-
-## 알려진 한계 (v0.3)
-
-- t_valid가 날짜 단위라 같은 날 모순은 recorded 시각과 문맥으로 판정(judge에 위임)
-- judge LLM 비결정성: 격리 cwd, 포맷 예시, 0파싱 재시도, 실패 배치 no-op의 4중 방어
-- 임베딩 미탑재(FTS 프리픽스만), v1.1 예약
-- 중복 병합 방향이 t_valid 기준이라 부분집합이 최신이면 상위집합이 접힐 위험. v0.2 백로그에서 judge keep 필드로 교체 예정
-
-## v0.2+ 백로그
-
-judge keep 필드(병합 방향) / 스코프 통째 망각 / 정정 루프(리뷰카드 답변이 새 fact 생성) / 트랜스크립트 재처리 / verdict enum 확장(keep·update·delete·insert_new) / judge 이중검증(무LLM 휴리스틱 교차) / `nautli restore <id>` / briefing keep_first 앵커 층 / 벌크 임포트 한정 cheap dedup 전단필터(소화 데몬 경로는 실측 기각: judge행 중복쌍의 sim 중앙값 0.57이라 효과 없음)
+- t_valid is date-granular; same-day contradictions are judged from recorded time and context
+- LLM judge nondeterminism is defended four ways: isolated cwd, format examples, zero-parse retry, failed batches become no-ops
+- No embeddings yet (FTS prefix search only), planned for v1.1
+- Merge direction is t_valid based; if a subset fact is newer than its superset, the superset can be folded. Fix planned via a judge keep field
