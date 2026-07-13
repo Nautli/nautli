@@ -20,7 +20,7 @@ npx nautli dashboard
 
 The dashboard opens on 127.0.0.1 only and walks you through everything:
 
-1. **Memory checkup**: scans the notes you already have (an Obsidian vault, CLAUDE.md, agent memory files) and shows a health score with real duplicates, contradictions, and stale facts from your own data. The preview scans 40 notes in about 10 minutes. Import what it found in one click, or start clean.
+1. **Memory checkup**: scans the notes you already have (an Obsidian vault, CLAUDE.md, agent memory files) and shows a health score with real duplicates, contradictions, and stale facts from your own data. The preview scans up to 40 notes and typically takes around 10 minutes. Import what it found in one click, or start clean.
 2. **Connect Claude Code**: one-click MCP registration (remember / recall / briefing tools).
 3. **Habit instructions**: adds one block to your CLAUDE.md so the AI actually uses its memory.
 4. **Nightly digestion daemon**: every night at 3:30, duplicates get merged and contradictions become review cards. Fully removable with one button.
@@ -68,8 +68,10 @@ Memory that only grows turns into a junk drawer: three copies of every fact, two
 
 ## Measured quality so far
 
-- Wrong auto-merges: 0 out of 24 auto-merges across three external vaults plus our own
-- Contradiction detection recall: 100% on the labeled evaluation set
+Numbers below are from our internal evaluation: a 4,000+ atom run on our own vault plus holdout runs on three external testers' vaults. The labeled eval set and methodology write-up will be published in this repo; until then, treat these as author-reported.
+
+- Wrong auto-merges: 0 out of 24 auto-merges observed (small sample, so read this as "0 observed", not "impossible")
+- Contradiction detection recall: 100% on our labeled set
 - Wrong auto-applied actions: 0, because anything ambiguous goes to a review card by policy
 - The honest weak spot: junk filtering. Single digit junk on our own data, far worse on external vaults in early tests. A three-stage filter is in progress, and numbers will be published either way
 
@@ -101,7 +103,7 @@ claude mcp add -s user nautli -- npx nautli mcp
 
 Invariants (violations are bugs, pinned by tests): user files are the source of truth (rebuild round-trip) / no DELETE on facts / single-pass writes, cleanup only in the daemon / core works even if the daemon dies / no promotion injection into recall / when in doubt, no-op (asymmetric cost of a wrong merge).
 
-## Known limits (v0.3)
+## Known limits
 
 - t_valid is date-granular; same-day contradictions are judged from recorded time and context
 - LLM judge nondeterminism is defended four ways: isolated cwd, format examples, zero-parse retry, failed batches become no-ops
