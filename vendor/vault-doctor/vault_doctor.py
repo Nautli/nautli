@@ -136,11 +136,12 @@ def is_excluded(rel, patterns):
 
 
 class Ctx:
-    def __init__(self, vault, work, max_files, excludes=()):
+    def __init__(self, vault, work, max_files, excludes=(), sample_seed=None):
         self.vault = vault
         self.work = work
         self.max_files = max_files
         self.excludes = list(excludes)
+        self.sample_seed = sample_seed or hashlib.sha256(vault.encode()).hexdigest()
         self.cwd_empty = os.path.join(work, "cwd_empty")  # CLI 격리용 빈 폴더
         os.makedirs(self.cwd_empty, exist_ok=True)
         # 격리 폴더는 항상 비어 있어야 함 (CLAUDE.md 등 유입 방지)
@@ -235,6 +236,7 @@ def stage_manifest(ctx):
                           "date": datetime.date.fromtimestamp(st.st_mtime).isoformat(),
                           "scope": scope_of(rel)})
     files.sort(key=lambda f: f["rel"])
+    random.Random(ctx.sample_seed).shuffle(files)
     if ctx.max_files:
         files = files[:ctx.max_files]
     batches, cur, cur_sz = [], [], 0
@@ -583,6 +585,7 @@ def main():
     ap.add_argument("--work-home", default=os.path.expanduser(f"~/.{BRAND}"),
                     help=f"작업/리포트 저장 위치 (기본 ~/.{BRAND})")
     ap.add_argument("--max-files", type=int, default=0, help="스모크 테스트용: 앞에서 N개 파일만")
+    ap.add_argument("--sample-seed", help="표본 셔플 시드 (기본: 볼트 경로 sha256)")
     ap.add_argument("--exclude", action="append", default=[],
                     help="제외할 폴더/글롭 (반복 가능, 예: --exclude 일기 --exclude '*.excalidraw.md') — 제외분은 LLM에 안 감")
     ap.add_argument("--max-judge-pairs", type=int, default=1500, help="LLM 판정 쌍 상한 (비용 캡)")
@@ -607,7 +610,7 @@ def main():
     if args.fresh and os.path.isdir(work):
         shutil.rmtree(work)
     os.makedirs(work, exist_ok=True)
-    ctx = Ctx(vault, work, args.max_files, excludes=args.exclude)
+    ctx = Ctx(vault, work, args.max_files, excludes=args.exclude, sample_seed=args.sample_seed)
 
     print(f"{BRAND} — {vault}")
     print(f"작업 폴더: {work} (중단해도 재실행하면 이어서 돈다)\n")

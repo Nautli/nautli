@@ -69,6 +69,36 @@ function completeFact(fact, at) {
   };
 }
 
+function isRecallEvent(event) {
+  return event?.type === "recall" && event.ev === undefined;
+}
+
+function activityEvent(event) {
+  if (isRecallEvent(event)) {
+    return {
+      type: "recall",
+      query: typeof event.query === "string" ? event.query : "",
+      scope: event.scope ?? null,
+      hits: Array.isArray(event.hits) ? event.hits.filter((id) => typeof id === "string") : [],
+      source: typeof event.source === "string" ? event.source : "core",
+      at: event.at,
+    };
+  }
+  if (event?.ev !== "fact.added" || !event.fact) return null;
+  return {
+    type: "remember",
+    fact_id: event.fact.id,
+    claim: event.fact.claim,
+    scope: event.fact.scope,
+    source: typeof event.source === "string"
+      ? event.source
+      : typeof event.fact.provenance?.source === "string"
+        ? event.fact.provenance.source
+        : "core",
+    at: event.at,
+  };
+}
+
 export class Store {
   constructor(home) {
     if (typeof home !== "string" || home.length === 0) {
@@ -141,6 +171,8 @@ export class Store {
   }
 
   applyEvent(evt) {
+    // 활동 로그는 fact 이벤트와 같은 append-only 정본에 공존하지만 파생 인덱스 대상은 아니다.
+    if (isRecallEvent(evt)) return;
     try {
       const apply = this.db.transaction(() => {
         if (evt?.ev === "fact.added") {
@@ -199,8 +231,51 @@ export class Store {
   addFact(fact) {
     const at = new Date().toISOString();
     const complete = completeFact(fact, at);
-    this.appendEvent({ ev: "fact.added", at, fact: complete });
+    const source = typeof complete.provenance?.source === "string"
+      ? complete.provenance.source
+      : "core";
+    this.appendEvent({ ev: "fact.added", type: "remember", source, at, fact: complete });
     return this.getFact(complete.id);
+  }
+
+  appendRecall({ query = "", scope, hits = [], source = "core", at } = {}) {
+    return this.appendEvent({
+      type: "recall",
+      query: typeof query === "string" ? query : "",
+      scope: scope ?? null,
+      hits: Array.isArray(hits) ? hits.filter((id) => typeof id === "string") : [],
+      source: typeof source === "string" && source.trim() !== "" ? source : "core",
+      ...(typeof at === "string" ? { at } : {}),
+    });
+  }
+
+  activity({ since, limit = 200 } = {}) {
+    let sinceTime = Number.NEGATIVE_INFINITY;
+    if (since !== undefined) {
+      sinceTime = Date.parse(since);
+      if (typeof since !== "string" || !Number.isFinite(sinceTime)) {
+        throw codedError(ERR.E_INVALID_INPUT);
+      }
+    }
+    const eventsDirectory = path.join(this.home, "events");
+    const files = fs.readdirSync(eventsDirectory)
+      .filter((file) => /^\d{4}-\d{2}\.jsonl$/.test(file))
+      .sort();
+    const events = [];
+    for (const file of files) {
+      for (const line of fs.readFileSync(path.join(eventsDirectory, file), "utf8").split("\n")) {
+        if (line.trim() === "") continue;
+        let event;
+        try {
+          event = activityEvent(JSON.parse(line));
+        } catch {
+          continue;
+        }
+        const atTime = Date.parse(event?.at);
+        if (event && Number.isFinite(atTime) && atTime > sinceTime) events.push(event);
+      }
+    }
+    return events.slice(-Math.max(0, Math.trunc(limit)));
   }
 
   transition(id, to, patch = {}, actor) {

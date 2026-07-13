@@ -293,6 +293,7 @@ export async function main(argv = process.argv.slice(2)) {
           scope: parsed.values.scope,
           type: parsed.values.type,
           supersedes: parsed.values.supersedes,
+          source: "cli",
         }, readConfig(home));
         writeJson(result);
         process.exitCode = result.status === "rejected" ? 2 : 0;
@@ -310,6 +311,7 @@ export async function main(argv = process.argv.slice(2)) {
         const options = {
           scope: parsed.values.scope,
           as_of: parsed.values["as-of"],
+          source: "cli",
         };
         if (budget !== undefined) options.budget_tokens = budget;
         writeJson(recall(store, parsed.positionals[0], options));

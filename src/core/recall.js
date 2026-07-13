@@ -55,6 +55,7 @@ export function recall(store, task, opts = {}) {
   const scope = opts.scope;
   const asOf = opts.as_of;
   const includeArchived = opts.include_archived ?? false;
+  const source = opts.source ?? "core";
   const candidates = new Map();
   const ranks = new Map();
 
@@ -99,16 +100,22 @@ export function recall(store, task, opts = {}) {
     tokensUsed += tokens;
   }
 
-  if (facts.length === 0) {
-    return { briefing: "", facts: [], tokens_used: 0, warning: ERR.W_EMPTY };
-  }
-
-  return { briefing: lines.join("\n"), facts, tokens_used: tokensUsed };
+  const result = facts.length === 0
+    ? { briefing: "", facts: [], tokens_used: 0, warning: ERR.W_EMPTY }
+    : { briefing: lines.join("\n"), facts, tokens_used: tokensUsed };
+  store.appendRecall({
+    query: queryText,
+    scope,
+    hits: facts.map((fact) => fact.id),
+    source,
+  });
+  return result;
 }
 
 export function briefing(store, context = "", scope, config = {}) {
   return recall(store, context, {
     budget_tokens: 2000,
     scope: scope ?? config.default_scope,
+    source: config.source ?? "core",
   });
 }

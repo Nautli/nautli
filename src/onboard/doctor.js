@@ -1,7 +1,28 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { Store } from "../core/store.js";
 import { statusAll } from "./setup.js";
+
+export function checkCommand(command, args, runner = spawnSync) {
+  try {
+    const result = runner(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    if (result && typeof result === "object") {
+      return !result.error && (result.status === undefined || result.status === 0);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function checkClaudeLogin(runner = spawnSync) {
+  const cliExists = checkCommand("claude", ["--version"], runner);
+  return {
+    cli_exists: cliExists,
+    logged_in: cliExists && checkCommand("claude", ["auth", "status"], runner),
+  };
+}
 
 function countAddedEvents(home) {
   const directory = path.join(home, "events");

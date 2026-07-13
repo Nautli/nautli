@@ -8,6 +8,7 @@ import { ERR, validScope } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { remember } from "../core/gate.js";
 import { appendCards } from "../core/review.js";
+import { checkClaudeLogin, checkCommand } from "./doctor.js";
 
 const DOCTOR_SCRIPT = fileURLToPath(new URL("../../vendor/vault-doctor/vault_doctor.py", import.meta.url));
 // 맛보기 진단 기본 캡 — 온보딩은 "몇 분" 안에 끝나야 한다 (풀 진단은 CLI 몫)
@@ -20,11 +21,12 @@ function codedError(code, message) {
   return error;
 }
 
-function countNotes(dir, cap = 4000) {
+function countNotes(dir, cap = 4000, excludedDirs = []) {
   let count = 0;
-  const queue = [dir];
+  const excluded = new Set(excludedDirs);
+  const queue = [{ directory: dir, top: null }];
   while (queue.length > 0 && count < cap) {
-    const current = queue.pop();
+    const { directory: current, top } = queue.pop();
     let entries;
     try {
       entries = fs.readdirSync(current, { withFileTypes: true });
@@ -33,11 +35,44 @@ function countNotes(dir, cap = 4000) {
     }
     for (const entry of entries) {
       if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
-      if (entry.isDirectory()) queue.push(path.join(current, entry.name));
+      const childTop = top ?? entry.name;
+      if (top === null && excluded.has(entry.name)) continue;
+      if (entry.isDirectory()) queue.push({ directory: path.join(current, entry.name), top: childTop });
       else if (entry.name.endsWith(".md")) count += 1;
     }
   }
   return count;
+}
+
+function topLevelDirs(dir) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules")
+    .map((entry) => ({ name: entry.name, files: countNotes(path.join(dir, entry.name)) }))
+    .filter((entry) => entry.files > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function normalizeExcludedDirs(value, available) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    throw codedError(ERR.E_INVALID_INPUT, "제외 폴더 목록을 확인해 주세요.");
+  }
+  const allowed = new Set(available.map((entry) => entry.name));
+  const selected = [...new Set(value.map((entry) => entry.trim()).filter(Boolean))].sort();
+  if (selected.some((entry) => !allowed.has(entry))) {
+    throw codedError(ERR.E_INVALID_INPUT, "최상위 폴더만 제외할 수 있어요.");
+  }
+  return selected;
+}
+
+export function vaultSampleSeed(vaultPath) {
+  return createHash("sha256").update(path.resolve(vaultPath)).digest("hex");
 }
 
 // 유저 홈에서 진단 후보를 찾는다: 옵시디언 볼트(.obsidian 폴더) + Claude 하네스(~/.claude)
@@ -71,7 +106,17 @@ export function checkupCandidates({ userHome = os.homedir(), roots, maxDepth = 3
   if (fs.existsSync(path.join(claudeHome, "CLAUDE.md"))) {
     found.set(claudeHome, { path: claudeHome, kind: "claude-harness", label: "Claude 하네스 (~/.claude)" });
   }
-  return [...found.values()].map((candidate) => ({ ...candidate, notes: countNotes(candidate.path) }))
+  return [...found.values()].map((candidate) => {
+    const notes = countNotes(candidate.path);
+    const directories = topLevelDirs(candidate.path);
+    return {
+      ...candidate,
+      notes,
+      files: notes,
+      top_level_dirs: directories,
+      directories,
+    };
+  })
     .filter((candidate) => candidate.notes > 0)
     .sort((a, b) => b.notes - a.notes)
     .slice(0, 8);
@@ -137,9 +182,42 @@ export function validateVaultPath(vaultPath, { userHome = os.homedir(), home } =
   return resolved;
 }
 
-export function startCheckup(home, vaultPath, { userHome = os.homedir(), spawner = spawn } = {}) {
+export function checkupPreflight(home, vaultPath, options = {}) {
+  const {
+    userHome = os.homedir(),
+    runner = spawnSync,
+    excludedDirs = options.excluded_dirs,
+  } = options;
   const resolved = validateVaultPath(vaultPath, { userHome, home });
-  if (countNotes(resolved, 1) === 0) throw codedError(ERR.E_INVALID_INPUT, "마크다운 노트가 없는 폴더예요.");
+  const topLevel = topLevelDirs(resolved);
+  const excluded = normalizeExcludedDirs(excludedDirs, topLevel);
+  const files = countNotes(resolved, 4000, excluded);
+  const python = checkCommand("python3", ["--version"], runner);
+  const claude = checkClaudeLogin(runner);
+  return {
+    ok: python && claude.cli_exists && claude.logged_in && files > 0,
+    vault: resolved,
+    python3: { available: python },
+    claude,
+    files,
+    sampled_files: Math.min(files, TASTE.maxFiles),
+    estimated_minutes: Math.max(1, Math.ceil(Math.min(files, TASTE.maxFiles) / 30 * 8)),
+    top_level_dirs: topLevel,
+    directories: topLevel,
+    excluded_dirs: excluded,
+    sample_seed: vaultSampleSeed(resolved),
+  };
+}
+
+export function startCheckup(home, vaultPath, options = {}) {
+  const {
+    userHome = os.homedir(),
+    spawner = spawn,
+    excludedDirs = options.excluded_dirs,
+  } = options;
+  const resolved = validateVaultPath(vaultPath, { userHome, home });
+  const excluded = normalizeExcludedDirs(excludedDirs, topLevelDirs(resolved));
+  if (countNotes(resolved, 1, excluded) === 0) throw codedError(ERR.E_INVALID_INPUT, "선택한 폴더에 진단할 마크다운 노트가 없어요.");
   const existing = readCurrent(home);
   if (existing && existing.state === "running" && pidAlive(existing.pid)) {
     throw codedError(ERR.E_STORE_BUSY, "진단이 이미 돌고 있어요. 끝나면 결과가 여기 떠요.");
@@ -148,7 +226,10 @@ export function startCheckup(home, vaultPath, { userHome = os.homedir(), spawner
   if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, "python3가 필요해요. macOS는 xcode-select --install 로 설치할 수 있어요.");
   const workHome = path.join(checkupHome(home), "doctor");
   fs.mkdirSync(workHome, { recursive: true });
-  const slug = `${path.basename(resolved)}-${createHash("sha1").update(resolved).digest("hex").slice(0, 6)}-s${TASTE.maxFiles}`;
+  const excludeSuffix = excluded.length > 0
+    ? `-x${createHash("sha1").update(excluded.join(",")).digest("hex").slice(0, 6)}`
+    : "";
+  const slug = `${path.basename(resolved)}-${createHash("sha1").update(resolved).digest("hex").slice(0, 6)}-s${TASTE.maxFiles}${excludeSuffix}`;
   const runDir = path.resolve(workHome, "runs", slug);
   const logPath = path.join(checkupHome(home), "checkup.log");
   const log = fs.openSync(logPath, "a");
@@ -156,14 +237,17 @@ export function startCheckup(home, vaultPath, { userHome = os.homedir(), spawner
     DOCTOR_SCRIPT, resolved,
     "--work-home", workHome,
     "--max-files", String(TASTE.maxFiles),
+    "--sample-seed", vaultSampleSeed(resolved),
     "--junk-sample", String(TASTE.junkSample),
     "--max-judge-pairs", String(TASTE.maxJudgePairs),
   ];
+  for (const directory of excluded) args.push("--exclude", directory);
   if (fs.existsSync(runDir)) args.push("--fresh");
   const child = spawner("python3", args, { detached: true, stdio: ["ignore", log, log] });
   const started = {
     state: "running", vault: resolved, work_home: workHome, run_dir: runDir,
     started_at: new Date().toISOString(), pid: child.pid ?? null, mode: "taste",
+    excluded_dirs: excluded, sample_seed: vaultSampleSeed(resolved),
   };
   child.on?.("error", (error) => {
     writeCurrent(home, { ...started, state: "failed", error: `python3 진단을 시작하지 못했어요. ${error.message || "실행 상태를 확인해 주세요."}` });
@@ -171,7 +255,7 @@ export function startCheckup(home, vaultPath, { userHome = os.homedir(), spawner
   child.unref?.();
   fs.closeSync(log);
   writeCurrent(home, started);
-  return { ok: true, started: true, vault: resolved, pid: child.pid ?? null };
+  return { ok: true, started: true, vault: resolved, pid: child.pid ?? null, excluded_dirs: excluded };
 }
 
 function readJson(file) {
@@ -235,6 +319,38 @@ function topCards(runDir, limit = 2) {
   return cards;
 }
 
+function partialFindings(runDir) {
+  if (!runDir) return { contradictions: 0, duplicates: 0, teaser: null };
+  const collected = [];
+  const done = path.join(runDir, "done_judge");
+  if (fs.existsSync(done)) {
+    for (const file of fs.readdirSync(done).filter((name) => name.endsWith(".jsonl")).sort()) {
+      collected.push(...readJsonl(path.join(done, file)));
+    }
+  }
+  collected.push(...readJsonl(path.join(runDir, "judgments.jsonl")));
+  const judgments = [...new Map(collected
+    .filter((judgment) => typeof judgment?.pair_id === "string")
+    .map((judgment) => [judgment.pair_id, judgment])).values()];
+  const contradictions = judgments.filter((judgment) => judgment.verdict === "contradiction"
+    && Number(judgment.confidence ?? 0) >= 0.6);
+  const duplicates = judgments.filter((judgment) => judgment.verdict === "duplicate");
+  const first = judgments.find((judgment) => judgment.verdict === "duplicate"
+    || (judgment.verdict === "contradiction" && Number(judgment.confidence ?? 0) >= 0.6));
+  if (!first) return { contradictions: 0, duplicates: 0, teaser: null };
+  const pair = readJsonl(path.join(runDir, "pairs.jsonl"))
+    .find((candidate) => `${candidate.a}|${candidate.b}` === first.pair_id);
+  return {
+    contradictions: contradictions.length,
+    duplicates: duplicates.length,
+    teaser: pair ? {
+      kind: first.verdict,
+      a: { claim: pair.claim_a, src: pair.src_a ?? null },
+      b: { claim: pair.claim_b, src: pair.src_b ?? null },
+    } : null,
+  };
+}
+
 export function checkupStatus(home) {
   const current = readCurrent(home);
   if (!current) return { state: "none" };
@@ -260,6 +376,7 @@ export function checkupStatus(home) {
       vault: current.vault, summary, cards: topCards(runDir),
       imported: current.imported ?? null, report_file: path.join(runDir, "report.md"),
       partial, failed_batches: failedBatches, files_sampled: filesSampled,
+      excluded_dirs: current.excluded_dirs ?? [],
     };
   }
   const batchesTotal = manifest?.batches?.length ?? null;
@@ -276,6 +393,8 @@ export function checkupStatus(home) {
   if (!pidAlive(current.pid)) return failedStatus();
   return {
     state: "running", vault: current.vault, started_at: current.started_at,
+    excluded_dirs: current.excluded_dirs ?? [],
+    findings: partialFindings(runDir),
     progress: judging
       ? { phase: "judge", batches_done: batchesDone, batches_total: batchesTotal, judge_done: judgeDone, judge_total: lastJudgeTotal(home) }
       : { phase: "extract", batches_done: batchesDone, batches_total: batchesTotal },

@@ -65,7 +65,7 @@ export function createServer(store, config) {
       t_valid: z.string().optional(),
       confidence: z.number().optional(),
     },
-  }, safe((input) => remember(store, input, config)));
+  }, safe((input) => remember(store, { ...input, source: "mcp" }, config)));
 
   server.registerTool("recall", {
     inputSchema: {
@@ -74,14 +74,14 @@ export function createServer(store, config) {
       scope: z.string().optional(),
       as_of: z.string().optional(),
     },
-  }, safe(({ task, ...options }) => recall(store, task, options)));
+  }, safe(({ task, ...options }) => recall(store, task, { ...options, source: "mcp" })));
 
   server.registerTool("briefing", {
     inputSchema: {
       context: z.string().optional(),
       scope: z.string().optional(),
     },
-  }, safe(({ context, scope }) => buildBriefing(store, context, scope, config)));
+  }, safe(({ context, scope }) => buildBriefing(store, context, scope, { ...config, source: "mcp" })));
 
   return server;
 }

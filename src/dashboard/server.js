@@ -24,6 +24,7 @@ import {
 } from "../onboard/setup.js";
 import {
   checkupCandidates,
+  checkupPreflight,
   checkupStatus,
   dismissCheckup,
   importCheckup,
@@ -134,7 +135,11 @@ function memoryFor(home, searchParams) {
   try {
     const scope = searchParams.get("scope") || undefined;
     const includeDead = ["1", "true"].includes((searchParams.get("includeDead") ?? "").toLocaleLowerCase());
-    const result = recall(store, searchParams.get("q") ?? "", { scope, include_archived: includeDead });
+    const result = recall(store, searchParams.get("q") ?? "", {
+      scope,
+      include_archived: includeDead,
+      source: "dashboard",
+    });
     const byId = new Map(result.facts.map((fact) => [fact.id, fact]));
     if (includeDead) {
       const query = (searchParams.get("q") ?? "").trim().toLocaleLowerCase();
@@ -157,6 +162,17 @@ function memoryFor(home, searchParams) {
       facts: [...byId.keys()].map((id) => store.getFact(id)).filter(Boolean)
         .map((fact) => ({ ...fact, supersedes: supersedes.get(fact.id) ?? [] })),
     };
+  } finally {
+    store.close();
+  }
+}
+
+function activityFor(home, searchParams) {
+  if (!fs.existsSync(path.join(home, "events"))) return { events: [] };
+  const store = new Store(home);
+  try {
+    const since = searchParams.has("since") ? searchParams.get("since") : undefined;
+    return { events: store.activity({ since }) };
   } finally {
     store.close();
   }
@@ -327,6 +343,11 @@ export function createDashboardServer(home, options = {}) {
         return;
       }
 
+      if (request.method === "GET" && url.pathname === "/api/activity") {
+        json(response, 200, activityFor(home, url.searchParams));
+        return;
+      }
+
       if (request.method === "GET" && url.pathname === "/api/graph") {
         json(response, 200, graphFor(home));
         return;
@@ -336,7 +357,11 @@ export function createDashboardServer(home, options = {}) {
         const input = await bodyJson(request);
         const store = new Store(home);
         try {
-          const result = remember(store, { claim: input.claim, scope: input.scope }, readConfig(home));
+          const result = remember(store, {
+            claim: input.claim,
+            scope: input.scope,
+            source: "dashboard",
+          }, readConfig(home));
           if (result.status !== "added") {
             const error = new Error(result.reason);
             error.code = result.reason;
@@ -354,6 +379,22 @@ export function createDashboardServer(home, options = {}) {
         json(response, 200, { candidates: checkupCandidates({ userHome }) });
         return;
       }
+      if (request.method === "GET" && url.pathname === "/api/checkup/preflight") {
+        json(response, 200, checkupPreflight(home, url.searchParams.get("path"), {
+          userHome,
+          runner,
+        }));
+        return;
+      }
+      if (request.method === "POST" && url.pathname === "/api/checkup/preflight") {
+        const input = await bodyJson(request);
+        json(response, 200, checkupPreflight(home, input.path, {
+          userHome,
+          runner,
+          excludedDirs: input.excluded_dirs,
+        }));
+        return;
+      }
       if (request.method === "GET" && url.pathname === "/api/checkup/status") {
         json(response, 200, checkupStatus(home));
         return;
@@ -364,7 +405,33 @@ export function createDashboardServer(home, options = {}) {
       }
       if (request.method === "POST" && url.pathname === "/api/checkup/start") {
         const input = await bodyJson(request);
-        json(response, 200, (options.startCheckup ?? startCheckup)(home, input.path, { userHome }));
+        const preflight = checkupPreflight(home, input.path, {
+          userHome,
+          runner,
+          excludedDirs: input.excluded_dirs,
+        });
+        if (!preflight.python3.available) {
+          throw Object.assign(new Error("python3가 필요해요. macOS는 xcode-select --install 로 설치할 수 있어요."), { code: ERR.E_INVALID_INPUT });
+        }
+        if (!preflight.claude.cli_exists) {
+          throw Object.assign(new Error("Claude CLI를 설치한 뒤 로그인해 주세요."), {
+            code: ERR.E_CLAUDE_CLI_MISSING,
+            manual_command: "npm install -g @anthropic-ai/claude-code && claude",
+          });
+        }
+        if (!preflight.claude.logged_in) {
+          throw Object.assign(new Error("Claude CLI 로그인이 필요해요. 터미널에서 claude를 실행해 로그인해 주세요."), {
+            code: ERR.E_INVALID_INPUT,
+            manual_command: "claude",
+          });
+        }
+        if (preflight.files === 0) {
+          throw Object.assign(new Error("선택한 폴더에 진단할 마크다운 노트가 없어요."), { code: ERR.E_INVALID_INPUT });
+        }
+        json(response, 200, (options.startCheckup ?? startCheckup)(home, input.path, {
+          userHome,
+          excludedDirs: input.excluded_dirs,
+        }));
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/checkup/import") {

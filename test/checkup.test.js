@@ -8,12 +8,14 @@ import { Store } from "../src/core/store.js";
 import { initStore } from "../src/onboard/setup.js";
 import {
   checkupCandidates,
+  checkupPreflight,
   readCurrent,
   checkupStatus,
   dismissCheckup,
   importCheckup,
   startCheckup,
   validateVaultPath,
+  vaultSampleSeed,
 } from "../src/onboard/checkup.js";
 
 function tempHome(t, prefix) {
@@ -64,6 +66,113 @@ test("startCheckup records a running state and refuses a second concurrent run",
   assert.equal(started.started, true);
   assert.equal(checkupStatus(home).state, "running");
   assert.throws(() => startCheckup(home, vault, { userHome, spawner }), /이미 돌고/);
+});
+
+test("checkup preflight checks python3 and Claude CLI login", (t) => {
+  const userHome = tempHome(t, "nautli-preflight-");
+  const home = path.join(userHome, ".nautli");
+  const vault = path.join(userHome, "vault");
+  fs.mkdirSync(vault, { recursive: true });
+  fs.writeFileSync(path.join(vault, "note.md"), "# 기억 노트");
+  const calls = [];
+  const loggedOut = (command, args) => {
+    calls.push([command, ...args]);
+    return { status: command === "claude" && args[0] === "auth" ? 1 : 0 };
+  };
+  const failed = checkupPreflight(home, vault, { userHome, runner: loggedOut });
+  assert.equal(failed.python3.available, true);
+  assert.equal(failed.claude.cli_exists, true);
+  assert.equal(failed.claude.logged_in, false);
+  assert.equal(failed.ok, false);
+  assert.ok(calls.some((call) => call.join(" ") === "python3 --version"));
+  assert.ok(calls.some((call) => call.join(" ") === "claude auth status"));
+
+  const ready = checkupPreflight(home, vault, { userHome, runner: () => ({ status: 0 }) });
+  assert.equal(ready.ok, true);
+  assert.equal(ready.files, 1);
+});
+
+test("checkup sample seed is reproducible and excluded_dirs become vendor excludes", (t) => {
+  const userHome = tempHome(t, "nautli-sample-");
+  const vault = path.join(userHome, "vault");
+  fs.mkdirSync(path.join(vault, ".obsidian"), { recursive: true });
+  fs.mkdirSync(path.join(vault, "keep"), { recursive: true });
+  fs.mkdirSync(path.join(vault, "skip"), { recursive: true });
+  fs.writeFileSync(path.join(vault, "keep", "a.md"), "# keep");
+  fs.writeFileSync(path.join(vault, "skip", "b.md"), "# skip");
+  fs.writeFileSync(path.join(vault, "root.md"), "# root");
+
+  const candidate = checkupCandidates({ userHome, roots: [vault], maxDepth: 1 })[0];
+  assert.deepEqual(candidate.top_level_dirs, [
+    { name: "keep", files: 1 },
+    { name: "skip", files: 1 },
+  ]);
+  const preflight = checkupPreflight(path.join(userHome, ".nautli-a"), vault, {
+    userHome,
+    excludedDirs: ["skip"],
+    runner: () => ({ status: 0 }),
+  });
+  assert.equal(preflight.files, 2);
+  assert.deepEqual(preflight.excluded_dirs, ["skip"]);
+  assert.equal(preflight.sample_seed, vaultSampleSeed(fs.realpathSync(vault)));
+
+  const invocations = [];
+  const spawner = (command, args) => {
+    invocations.push([command, ...args]);
+    return { pid: 999999991 + invocations.length, unref() {}, on() {} };
+  };
+  startCheckup(path.join(userHome, ".nautli-a"), vault, {
+    userHome,
+    spawner,
+    excludedDirs: ["skip"],
+  });
+  startCheckup(path.join(userHome, ".nautli-b"), vault, {
+    userHome,
+    spawner,
+    excludedDirs: ["skip"],
+  });
+  const seedAt = invocations[0].indexOf("--sample-seed");
+  assert.ok(seedAt > 0);
+  assert.equal(invocations[0][seedAt + 1], invocations[1][seedAt + 1]);
+  const excludeAt = invocations[0].indexOf("--exclude");
+  assert.equal(invocations[0][excludeAt + 1], "skip");
+  assert.match(readCurrent(path.join(userHome, ".nautli-a")).run_dir, /-x[0-9a-f]{6}$/u);
+});
+
+test("checkupStatus exposes partial contradiction and duplicate findings with a teaser", (t) => {
+  const userHome = tempHome(t, "nautli-partial-");
+  const home = path.join(userHome, ".nautli");
+  const vault = path.join(userHome, "vault");
+  fs.mkdirSync(vault, { recursive: true });
+  fs.writeFileSync(path.join(vault, "note.md"), "# 기억 노트");
+  startCheckup(home, vault, {
+    userHome,
+    spawner: () => ({ pid: process.pid, unref() {}, on() {} }),
+  });
+  const runDir = readCurrent(home).run_dir;
+  fs.mkdirSync(path.join(runDir, "done_extract"), { recursive: true });
+  fs.mkdirSync(path.join(runDir, "done_judge"), { recursive: true });
+  fs.writeFileSync(path.join(runDir, "manifest.json"), JSON.stringify({ files: 2, batches: [[]] }));
+  fs.writeFileSync(path.join(runDir, "done_extract", "b000.jsonl"), "");
+  fs.writeFileSync(path.join(runDir, "pairs.jsonl"), `${JSON.stringify({
+    a: "fa_a", b: "fa_b", claim_a: "포트는 3100", claim_b: "포트는 3200",
+    src_a: "a.md", src_b: "b.md",
+  })}\n`);
+  fs.writeFileSync(path.join(runDir, "done_judge", "j000.jsonl"), [
+    JSON.stringify({ pair_id: "fa_a|fa_b", verdict: "contradiction", confidence: 0.9 }),
+    JSON.stringify({ pair_id: "fa_c|fa_d", verdict: "duplicate", confidence: 0.8 }),
+  ].join("\n"));
+  const status = checkupStatus(home);
+  assert.equal(status.state, "running");
+  assert.deepEqual(status.findings, {
+    contradictions: 1,
+    duplicates: 1,
+    teaser: {
+      kind: "contradiction",
+      a: { claim: "포트는 3100", src: "a.md" },
+      b: { claim: "포트는 3200", src: "b.md" },
+    },
+  });
 });
 
 test("checkupStatus surfaces summary and cards, importCheckup loads atoms through the gate", (t) => {
