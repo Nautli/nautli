@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { listCards } from "../src/core/review.js";
 import { Store } from "../src/core/store.js";
 import { initStore } from "../src/onboard/setup.js";
 import {
@@ -83,6 +84,10 @@ test("checkupStatus surfaces summary and cards, importCheckup loads atoms throug
   ].join("\n"));
   fs.writeFileSync(path.join(runDir, "judgments.jsonl"), [
     JSON.stringify({ pair_id: "fa_1|fa_2", verdict: "contradiction", confidence: 0.9, newer: "b" }),
+    // fa_3은 게이트에서 fa_1과 같은 fact로 접힘 → 자기쌍(x:x) 카드 생성 금지 검증
+    JSON.stringify({ pair_id: "fa_1|fa_3", verdict: "duplicate", confidence: 0.7, newer: null }),
+    // 확실 중복(conf>=0.9)은 데몬 기준상 카드행 아님
+    JSON.stringify({ pair_id: "fa_2|fa_3", verdict: "duplicate", confidence: 0.95, newer: null }),
   ].join("\n"));
   fs.writeFileSync(path.join(runDir, "atoms.jsonl"), [
     JSON.stringify({ id: "fa_1", claim: "체크업 임포트 검증용 포트는 3100", scope: "project:vault", type: "semantic", source: "a.md", t_valid: "2026-01-01" }),
@@ -100,6 +105,14 @@ test("checkupStatus surfaces summary and cards, importCheckup loads atoms throug
   const result = importCheckup(home, { default_scope: "person" });
   assert.equal(result.imported, 2);
   assert.equal(result.duplicates, 1); // fa_3 = fa_1과 동일 claim → 게이트가 거름
+  // NA-017: 모순 판정은 임포트 즉시 리뷰 카드로 승격, 자기쌍(fa_1|fa_3 → 동일 fact)과 확실중복(0.95)은 제외
+  assert.equal(result.cards, 1);
+  const queued = listCards(home);
+  assert.equal(queued.length, 1);
+  assert.equal(queued[0].verdict, "contradiction");
+  assert.equal(queued[0].source, "checkup");
+  assert.match(queued[0].pair_id, /^fa_[a-z0-9]+:fa_[a-z0-9]+$/u);
+  assert.notEqual(queued[0].pair_id.split(":")[0], queued[0].pair_id.split(":")[1]);
   const store = new Store(home);
   try {
     const facts = store.query();

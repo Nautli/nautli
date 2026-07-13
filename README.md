@@ -1,43 +1,65 @@
-# nautli (가칭)
+# nautli
 
-네 모든 AI가 공유하는 하나의 뇌. 기억은 fact 단위로 쌓이고, 소화 데몬이 자는 동안 정리하며(중복 병합·모순 무효화·망각), 정본은 네 디스크의 파일이다.
+모든 AI가 공유하는 하나의 뇌. Claude Code, Cursor 등 여러 AI 도구가 하나의 로컬 기억을 같이 쓰고, 자는 동안 소화 데몬이 중복을 합치고 모순을 정리합니다. 정본은 서버가 아니라 당신 디스크의 파일입니다.
 
-- 스펙 정본: [SPEC.md](SPEC.md) / 전략: `Evanwiki/신사업/크로스AI-메모리-_hub.md`
-- 상태: v0 (2026-07-11 밤샘 빌드). 테스트 20/20, 실 judge 유저스토리 검증 완료.
+- 기억은 fact 단위로 쌓이고, 애매한 정리는 자동 실행 대신 리뷰 카드로 사람에게 물어봅니다.
+- 서드파티 서버 없음. LLM 판정(중복·모순)만 본인 Claude 구독(claude CLI)을 거쳐 처리됩니다.
+- 스펙 정본: [SPEC.md](SPEC.md)
 
-## 빠른 시작
+## 시작하기
+
+요구사항: Node.js 20+, [Claude Code CLI](https://claude.com/claude-code) 로그인 상태.
+
 ```bash
-cd ~/Desktop/nautli && npm install   # 이미 됨
-node src/cli.js init                    # ~/.nautli 생성
+git clone <repo-url> nautli && cd nautli
+npm install
+node src/cli.js dashboard
+```
+
+`dashboard`가 설정 화면을 엽니다(127.0.0.1 전용). 화면이 나머지를 안내합니다:
+
+1. **내 기억 건강검진**: 이미 쓰고 있는 옵시디언 볼트나 CLAUDE.md를 스캔해서 중복·모순·낡은 기억을 점수와 리포트로 보여줍니다. 맛보기는 노트 40개, 10분 안팎. 마음에 들면 추출된 기억을 한 번에 가져올 수 있습니다.
+2. **Claude Code 연결**: MCP 등록(remember / recall / briefing 툴).
+3. **AI 습관 지시문**: Claude가 기억 도구를 실제로 쓰도록 CLAUDE.md에 지시문 한 블록 추가.
+4. **밤 소화 데몬**: 매일 밤 3:30, 중복 병합과 모순 카드화. 언제든 제거 버튼으로 되돌릴 수 있습니다.
+
+## CLI로 쓰기
+
+```bash
+node src/cli.js init                                          # ~/.nautli 생성
 node src/cli.js remember "우리 API 포트는 4000이다" --scope project:myapp
 node src/cli.js recall "포트" --scope project:myapp
-node src/cli.js daemon-run              # 소화 1회 (judge = claude CLI, 구독 $0)
-node src/cli.js rebuild                 # 인덱스 재구성 (정본=events/*.jsonl 증명)
+node src/cli.js daemon-run                                    # 소화 1회 수동 실행
+node src/cli.js rebuild                                       # 정본(events/*.jsonl)에서 인덱스 재구성
 ```
 
-## Claude Code에 MCP 등록 (도그푸딩)
+MCP 수동 등록:
+
 ```bash
-claude mcp add nautli -- node ~/Desktop/nautli/src/mcp/server.js
-# 툴: remember / recall / briefing
+claude mcp add nautli -- node <클론 경로>/src/mcp/server.js
 ```
+
+## 데이터 경계
+
+- 기억·이벤트 로그·리포트 전부 `~/.nautli/` 로컬 파일. 어떤 원격 서버에도 업로드하지 않습니다.
+- 건강검진과 밤 소화의 LLM 판정 텍스트만 본인 Claude 구독을 거쳐 Anthropic에서 처리됩니다.
+- fact는 DELETE하지 않습니다(soft archive). `rebuild`로 정본 파일에서 언제든 복원됩니다.
 
 ## 구조 (SPEC §1)
-`src/core` 저장·게이트·recall — `src/mcp` stdio 서버 — `src/cli.js` — `src/daemon` pair→judge→apply→report→render
 
-## 불변식 (위반=버그, 테스트로 고정)
-정본=유저 파일(rebuild 왕복) / facts DELETE 금지 / 쓰기 단일패스·정리는 데몬만 / 데몬 죽어도 코어 동작 / recall에 프로모션 주입 금지 / 애매하면 no-op(오병합 비대칭)
+`src/core` 저장·게이트·recall / `src/mcp` stdio 서버 / `src/cli.js` / `src/daemon` pair, judge, apply, report, render / `src/dashboard` 로컬 대시보드 / `src/onboard` 설정·건강검진
 
-## 알려진 한계 (v0)
-- t_valid 날짜 단위 → 같은 날 모순은 recorded 시각+문맥으로 판정 (judge에 위임)
-- judge LLM 비결정성 → 격리 cwd+포맷 예시+0파싱 재시도+실패 배치 no-op 4중 방어
-- 임베딩 미탑재 (FTS 프리픽스만) — v1.1 예약
-- 중복 병합 방향이 t_valid 기준 → 부분집합이 최신이면 상위집합이 접힐 위험 (교차검수에서 발견, 실손실 0). v0.2: judge에 keep 필드 추가해 "정보 적은 쪽을 접는" 규칙으로 교체
+## 불변식 (위반은 버그, 테스트로 고정)
 
-## v0.2 백로그 (정본 — 유저 라벨 신호 + 외부리포 차용검토 2026-07-11)
-유저 라벨 신호분: ①judge keep 필드(위 병합 방향) ②스코프 통째 망각(죽은 프로젝트 일괄 archive) ③정정 루프(리뷰카드 답변→새 fact 생성) ④트랜스크립트 재처리.
-외부리포 차용분(근거=Evanwiki/신사업/크로스AI-메모리-외부리포-차용검토-v1.md):
-- **cheap dedup 전단필터 (⚠️소화 데몬용 아님 — 벌크 임포트 경로 한정)**: PoC 실측(2026-07-11)으로 데몬 경로에선 기각 — judge행 1,780쌍 중 sim≥0.98은 1쌍(0.1%). 원인: 쓰기 게이트가 완전중복을 입구에서 이미 막아 데몬까지 온 중복은 패러프레이즈(sim 중앙값 0.57)뿐. 문턱을 0.85로 내리면 오스킵 2건 발생. CrewAI는 게이트 없이 다 받아서 유효한 것. → **게이트 안 거치는 벌크 임포트/트랜스크립트 재처리(위 ④) 전처리로만 채용**
-- **verdict enum 확장**: keep/update/delete/insert_new + keep 필드 통합 (CrewAI)
-- **judge 이중검증**: 모델 선언 vs 무LLM 휴리스틱 교차검증으로 환각 병합 방지 (Hermes curator `_reconcile_classification` 패턴)
-- **`nautli restore <id>`**: `.archive/`행 fact CLI 복구 동사 — 리뷰카드 오답 정정과 연결 (Hermes 계약)
-- **keep_first 앵커 층**: briefing 조립 시 압축·요약 불가 코어 fact 층(정체성·불변 제약) 분리 (OpenHands condenser)
+정본은 유저 파일(rebuild 왕복) / facts DELETE 금지 / 쓰기 단일패스, 정리는 데몬만 / 데몬이 죽어도 코어 동작 / recall에 프로모션 주입 금지 / 애매하면 no-op(오병합 비대칭)
+
+## 알려진 한계 (v0.3)
+
+- t_valid가 날짜 단위라 같은 날 모순은 recorded 시각과 문맥으로 판정(judge에 위임)
+- judge LLM 비결정성: 격리 cwd, 포맷 예시, 0파싱 재시도, 실패 배치 no-op의 4중 방어
+- 임베딩 미탑재(FTS 프리픽스만), v1.1 예약
+- 중복 병합 방향이 t_valid 기준이라 부분집합이 최신이면 상위집합이 접힐 위험. v0.2 백로그에서 judge keep 필드로 교체 예정
+
+## v0.2+ 백로그
+
+judge keep 필드(병합 방향) / 스코프 통째 망각 / 정정 루프(리뷰카드 답변이 새 fact 생성) / 트랜스크립트 재처리 / verdict enum 확장(keep·update·delete·insert_new) / judge 이중검증(무LLM 휴리스틱 교차) / `nautli restore <id>` / briefing keep_first 앵커 층 / 벌크 임포트 한정 cheap dedup 전단필터(소화 데몬 경로는 실측 기각: judge행 중복쌍의 sim 중앙값 0.57이라 효과 없음)

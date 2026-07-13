@@ -59,6 +59,28 @@ function writeQueue(home, entries) {
   }
 }
 
+function unorderedPairKey(pairId) {
+  const ids = typeof pairId === "string" ? pairId.split(":") : [];
+  return ids.length === 2 ? ids.sort().join(":") : pairId;
+}
+
+export function appendCards(home, entries) {
+  return withReviewLock(home, () => {
+    const queue = readQueue(home);
+    const queuedPairs = new Set(queue.map((entry) => unorderedPairKey(entry.pair_id)));
+    let added = 0;
+    for (const entry of entries) {
+      const key = unorderedPairKey(entry?.pair_id);
+      if (typeof entry?.pair_id !== "string" || queuedPairs.has(key)) continue;
+      queue.push(entry);
+      queuedPairs.add(key);
+      added += 1;
+    }
+    if (added > 0) writeQueue(home, queue);
+    return added;
+  });
+}
+
 function pairFacts(store, pairId) {
   const ids = typeof pairId === "string" ? pairId.split(":") : [];
   if (ids.length !== 2) throw codedError(ERR.E_INVALID_INPUT);

@@ -31,12 +31,32 @@ const DEFAULT_CONFIG = Object.freeze({
 
 const ERROR_CODES = new Set(Object.values(ERR));
 
+const USAGE = `nautli - 모든 AI가 공유하는 하나의 뇌
+
+dashboard  설정과 기억을 관리하는 대시보드를 열어요.
+init       기억 저장소를 초기화해요.
+setup      AI 연결과 밤 소화를 설정해요.
+remember   새 기억을 저장해요.
+recall     저장된 기억을 검색해요.
+daemon-run 밤 소화를 한 번 실행해요.
+rebuild    기억 저장소 인덱스를 다시 만들어요.
+stats      기억 저장소 통계를 보여줘요.
+doctor     설치와 저장소 상태를 점검해요.
+review     검토가 필요한 카드를 처리해요.
+mcp        MCP 서버를 실행해요.
+
+처음이면: node src/cli.js dashboard`;
+
 function homePath() {
   return path.resolve(process.env.NAUTLI_HOME ?? path.join(os.homedir(), ".nautli"));
 }
 
 function writeJson(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
+}
+
+function writeUsage() {
+  process.stdout.write(`${USAGE}\n`);
 }
 
 function codedError(code, message = code) {
@@ -195,8 +215,15 @@ export async function main(argv = process.argv.slice(2)) {
     const [command, ...args] = argv;
     const home = homePath();
 
+    if (command === undefined || command === "help" || command === "--help" || command === "-h") {
+      writeUsage();
+      process.exitCode = 0;
+      return;
+    }
+
     if (command === "init") {
       writeJson(initialize(home, args));
+      process.stderr.write("다음 단계: node src/cli.js dashboard (설정 화면이 열려요)\n");
       process.exitCode = 0;
       return;
     }

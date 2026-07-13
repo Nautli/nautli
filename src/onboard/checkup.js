@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { ERR, validScope } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { remember } from "../core/gate.js";
+import { appendCards } from "../core/review.js";
 
 const DOCTOR_SCRIPT = fileURLToPath(new URL("../../vendor/vault-doctor/vault_doctor.py", import.meta.url));
 // 맛보기 진단 기본 캡 — 온보딩은 "몇 분" 안에 끝나야 한다 (풀 진단은 CLI 몫)
@@ -189,6 +190,30 @@ function readJsonl(file) {
   }
 }
 
+function readLogTail(home, maxBytes = 4096) {
+  const file = path.join(checkupHome(home), "checkup.log");
+  let descriptor;
+  try {
+    descriptor = fs.openSync(file, "r");
+    const size = fs.fstatSync(descriptor).size;
+    const length = Math.min(size, maxBytes);
+    const buffer = Buffer.alloc(length);
+    fs.readSync(descriptor, buffer, 0, length, size - length);
+    return buffer.toString("utf8");
+  } catch {
+    return "";
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+  }
+}
+
+function lastJudgeTotal(home) {
+  const matches = [...readLogTail(home).matchAll(/judge j\d+\/(\d+)/gu)];
+  if (matches.length === 0) return null;
+  const total = Number(matches.at(-1)[1]);
+  return Number.isSafeInteger(total) ? total : null;
+}
+
 // 리포트 카드용 대표 사례: 모순(확신 높은 순) 우선, 다음 중간확신 중복 — vault_doctor build_cards와 같은 규칙
 function topCards(runDir, limit = 2) {
   const judgments = readJsonl(path.join(runDir, "judgments.jsonl"));
@@ -215,17 +240,15 @@ export function checkupStatus(home) {
   if (!current) return { state: "none" };
   if (current.state === "dismissed") return { state: "dismissed" };
   const failedStatus = () => {
-    let logTail = "";
-    try {
-      const text = fs.readFileSync(path.join(checkupHome(home), "checkup.log"), "utf8");
-      logTail = text.split("\n").filter((line) => line.trim()).slice(-3).join("\n");
-    } catch { /* 로그 없으면 빈 값 */ }
+    const logTail = readLogTail(home).split("\n").filter((line) => line.trim()).slice(-3).join("\n");
     return { state: "failed", vault: current.vault, log_tail: current.error || logTail };
   };
   const startedAt = Date.parse(current.started_at);
   const timedOut = current.state === "running" && Number.isFinite(startedAt) && Date.now() - startedAt >= 90 * 60 * 1000;
   if (current.state === "failed" || timedOut) return failedStatus();
   const runDir = current.run_dir;
+  const manifest = runDir ? readJson(path.join(runDir, "manifest.json")) : null;
+  const filesSampled = typeof manifest?.files === "number" ? manifest.files : null;
   const summary = runDir ? readJson(path.join(runDir, "summary.json")) : null;
   if (summary) {
     const failedBatches = summary.failed_extract_batches ?? 0;
@@ -234,19 +257,26 @@ export function checkupStatus(home) {
       state: current.imported_at ? "imported" : "done",
       vault: current.vault, summary, cards: topCards(runDir),
       imported: current.imported ?? null, report_file: path.join(runDir, "report.md"),
-      partial, failed_batches: failedBatches,
+      partial, failed_batches: failedBatches, files_sampled: filesSampled,
     };
   }
-  const manifest = runDir ? readJson(path.join(runDir, "manifest.json")) : null;
   const batchesTotal = manifest?.batches?.length ?? null;
   let batchesDone = 0;
   if (runDir && fs.existsSync(path.join(runDir, "done_extract"))) {
     batchesDone = fs.readdirSync(path.join(runDir, "done_extract")).length;
   }
+  const judging = batchesTotal !== null && batchesDone === batchesTotal
+    && fs.existsSync(path.join(runDir, "pairs.jsonl"));
+  let judgeDone = 0;
+  if (judging && fs.existsSync(path.join(runDir, "done_judge"))) {
+    judgeDone = fs.readdirSync(path.join(runDir, "done_judge")).length;
+  }
   if (!pidAlive(current.pid)) return failedStatus();
   return {
     state: "running", vault: current.vault, started_at: current.started_at,
-    progress: { batches_done: batchesDone, batches_total: batchesTotal },
+    progress: judging
+      ? { phase: "judge", batches_done: batchesDone, batches_total: batchesTotal, judge_done: judgeDone, judge_total: lastJudgeTotal(home) }
+      : { phase: "extract", batches_done: batchesDone, batches_total: batchesTotal },
   };
 }
 
@@ -271,7 +301,9 @@ export function importCheckup(home, config) {
   const atoms = runDir ? readJsonl(path.join(runDir, "atoms.jsonl")) : [];
   if (atoms.length === 0) throw codedError(ERR.E_NOT_FOUND, "진단에서 추출된 기억이 없어요.");
   const store = new Store(home);
-  const result = { imported: 0, duplicates: 0, rejected: 0, total: Math.min(atoms.length, IMPORT_CAP), omitted: Math.max(0, atoms.length - IMPORT_CAP) };
+  const atomFactIds = new Map();
+  const atomsById = new Map(atoms.map((atom) => [atom.id, atom]));
+  const result = { imported: 0, duplicates: 0, rejected: 0, cards: 0, total: Math.min(atoms.length, IMPORT_CAP), omitted: Math.max(0, atoms.length - IMPORT_CAP) };
   try {
     for (const atom of atoms.slice(0, IMPORT_CAP)) {
       const originalScope = atom.type === "procedural" ? "procedure" : String(atom.scope ?? "");
@@ -282,9 +314,13 @@ export function importCheckup(home, config) {
       if (typeof validAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(validAt)) input.t_valid = validAt;
       try {
         const outcome = remember(store, input, config);
-        if (outcome.status === "added") result.imported += 1;
-        else if (outcome.reason === ERR.W_DUPLICATE) result.duplicates += 1;
-        else result.rejected += 1;
+        if (outcome.status === "added") {
+          result.imported += 1;
+          atomFactIds.set(atom.id, outcome.id);
+        } else if (outcome.reason === ERR.W_DUPLICATE) {
+          result.duplicates += 1;
+          atomFactIds.set(atom.id, outcome.id);
+        } else result.rejected += 1;
       } catch {
         result.rejected += 1;
       }
@@ -292,6 +328,29 @@ export function importCheckup(home, config) {
   } finally {
     store.close();
   }
+  const cards = readJsonl(path.join(runDir, "judgments.jsonl")).flatMap((judgment) => {
+    const atomIds = typeof judgment.pair_id === "string" ? judgment.pair_id.split("|") : [];
+    const factIdA = atomFactIds.get(atomIds[0]);
+    const factIdB = atomFactIds.get(atomIds[1]);
+    const atomA = atomsById.get(atomIds[0]);
+    const atomB = atomsById.get(atomIds[1]);
+    const confidence = Number(judgment.confidence);
+    const reviewable = (judgment.verdict === "duplicate" && confidence >= 0.6 && confidence < 0.9)
+      || (judgment.verdict === "contradiction" && confidence >= 0.6);
+    // 게이트 dedup으로 두 atom이 같은 fact로 접히면 자기쌍(x:x) 카드가 되므로 제외
+    if (!reviewable || !factIdA || !factIdB || factIdA === factIdB || !atomA || !atomB) return [];
+    return [{
+      pair_id: `${factIdA}:${factIdB}`,
+      verdict: judgment.verdict,
+      confidence: judgment.confidence,
+      newer: judgment.newer,
+      reason: judgment.reason,
+      claims: { a: atomA.claim, b: atomB.claim },
+      status: "pending",
+      source: "checkup",
+    }];
+  });
+  result.cards = appendCards(home, cards);
   writeCurrent(home, { ...current, imported_at: new Date().toISOString(), imported: result });
   return result;
 }
