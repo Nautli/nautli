@@ -163,8 +163,12 @@ WIKILINK = re.compile(r"\[\[([^\]\[|#]+)")
 def stage_scan(ctx):
     out = ctx.path("scan.json")
     if os.path.exists(out):
-        return json.load(open(out, encoding="utf-8"))
+        scan = json.load(open(out, encoding="utf-8"))
+        scan.setdefault("sampled", False)
+        return scan
     files, basenames = [], set()
+    scan_cap = max(200, ctx.max_files * 5) if ctx.max_files else 0
+    sampled = False
     for dirpath, dirnames, filenames in os.walk(ctx.vault):
         dirnames[:] = [d for d in dirnames if not d.startswith(".")]
         for fn in sorted(filenames):
@@ -172,8 +176,13 @@ def stage_scan(ctx):
                 p = os.path.join(dirpath, fn)
                 if is_excluded(os.path.relpath(p, ctx.vault), ctx.excludes):
                     continue
+                if scan_cap and len(files) >= scan_cap:
+                    sampled = True
+                    break
                 files.append(p)
                 basenames.add(fn[:-3].strip().lower())
+        if sampled:
+            break
     fm = links = dead = total_bytes = 0
     for p in files:
         try:
@@ -194,7 +203,8 @@ def stage_scan(ctx):
     scan = {"notes": len(files), "bytes": total_bytes, "frontmatter": fm,
             "frontmatter_rate": round(fm / len(files), 3) if files else 0,
             "wikilinks": links, "dead_links": dead,
-            "dead_link_rate": round(dead / links, 3) if links else 0}
+            "dead_link_rate": round(dead / links, 3) if links else 0,
+            "sampled": sampled}
     json.dump(scan, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     ctx.log(f"scan notes={scan['notes']} dead_links={dead}/{links}")
     return scan

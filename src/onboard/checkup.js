@@ -1,9 +1,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { ERR } from "../core/schema.js";
+import { ERR, validScope } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { remember } from "../core/gate.js";
 
@@ -96,7 +97,7 @@ export function readCurrent(home) {
 function writeCurrent(home, value) {
   fs.mkdirSync(checkupHome(home), { recursive: true });
   const file = currentFile(home);
-  const temp = `${file}.tmp`;
+  const temp = `${file}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(temp, JSON.stringify(value, null, 1));
   fs.renameSync(temp, file);
 }
@@ -113,22 +114,41 @@ function pidAlive(pid) {
 
 export function validateVaultPath(vaultPath, { userHome = os.homedir(), home } = {}) {
   if (typeof vaultPath !== "string" || vaultPath.trim() === "") throw codedError(ERR.E_INVALID_INPUT, "진단할 폴더 경로를 입력해 주세요.");
-  const resolved = path.resolve(vaultPath.replace(/^~(?=\/|$)/, userHome));
-  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) throw codedError(ERR.E_NOT_FOUND, "폴더를 찾을 수 없어요. 경로를 확인해 주세요.");
-  const homeBoundary = path.resolve(userHome) + path.sep;
-  if (resolved !== path.resolve(userHome) && !resolved.startsWith(homeBoundary)) throw codedError(ERR.E_INVALID_INPUT, "내 홈 폴더 안의 경로만 진단할 수 있어요.");
-  if (home && (resolved === path.resolve(home) || resolved.startsWith(path.resolve(home) + path.sep))) throw codedError(ERR.E_INVALID_INPUT, "nautli 저장소 자신은 진단 대상이 아니에요.");
+  let resolved;
+  let resolvedUserHome;
+  let resolvedHome;
+  try {
+    resolved = fs.realpathSync(path.resolve(vaultPath.replace(/^~(?=\/|$)/, userHome)));
+  } catch {
+    throw codedError(ERR.E_NOT_FOUND, "폴더를 찾을 수 없어요. 경로를 확인해 주세요.");
+  }
+  // userHome/NAUTLI_HOME이 아직 없을 수 있다(생짜 신규 유저) — 경계 기준은 존재하면 canonical, 없으면 resolve로
+  const canonical = (p) => { try { return fs.realpathSync(path.resolve(p)); } catch { return path.resolve(p); } };
+  resolvedUserHome = canonical(userHome);
+  resolvedHome = home ? canonical(home) : null;
+  if (!fs.statSync(resolved).isDirectory()) throw codedError(ERR.E_NOT_FOUND, "폴더를 찾을 수 없어요. 경로를 확인해 주세요.");
+  const userRelative = path.relative(resolvedUserHome, resolved);
+  if (userRelative.startsWith(`..${path.sep}`) || userRelative === ".." || path.isAbsolute(userRelative)) throw codedError(ERR.E_INVALID_INPUT, "내 홈 폴더 안의 경로만 진단할 수 있어요.");
+  if (resolvedHome) {
+    const homeRelative = path.relative(resolvedHome, resolved);
+    if (homeRelative === "" || (!homeRelative.startsWith(`..${path.sep}`) && homeRelative !== ".." && !path.isAbsolute(homeRelative))) throw codedError(ERR.E_INVALID_INPUT, "nautli 저장소 자신은 진단 대상이 아니에요.");
+  }
   return resolved;
 }
 
 export function startCheckup(home, vaultPath, { userHome = os.homedir(), spawner = spawn } = {}) {
   const resolved = validateVaultPath(vaultPath, { userHome, home });
+  if (countNotes(resolved, 1) === 0) throw codedError(ERR.E_INVALID_INPUT, "마크다운 노트가 없는 폴더예요.");
   const existing = readCurrent(home);
   if (existing && existing.state === "running" && pidAlive(existing.pid)) {
     throw codedError(ERR.E_STORE_BUSY, "진단이 이미 돌고 있어요. 끝나면 결과가 여기 떠요.");
   }
+  const python = spawnSync("python3", ["--version"], { stdio: "ignore" });
+  if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, "python3가 필요해요. macOS는 xcode-select --install 로 설치할 수 있어요.");
   const workHome = path.join(checkupHome(home), "doctor");
   fs.mkdirSync(workHome, { recursive: true });
+  const slug = `${path.basename(resolved)}-${createHash("sha1").update(resolved).digest("hex").slice(0, 6)}-s${TASTE.maxFiles}`;
+  const runDir = path.resolve(workHome, "runs", slug);
   const logPath = path.join(checkupHome(home), "checkup.log");
   const log = fs.openSync(logPath, "a");
   const args = [
@@ -138,24 +158,19 @@ export function startCheckup(home, vaultPath, { userHome = os.homedir(), spawner
     "--junk-sample", String(TASTE.junkSample),
     "--max-judge-pairs", String(TASTE.maxJudgePairs),
   ];
+  if (fs.existsSync(runDir)) args.push("--fresh");
   const child = spawner("python3", args, { detached: true, stdio: ["ignore", log, log] });
+  const started = {
+    state: "running", vault: resolved, work_home: workHome, run_dir: runDir,
+    started_at: new Date().toISOString(), pid: child.pid ?? null, mode: "taste",
+  };
+  child.on?.("error", (error) => {
+    writeCurrent(home, { ...started, state: "failed", error: `python3 진단을 시작하지 못했어요. ${error.message || "실행 상태를 확인해 주세요."}` });
+  });
   child.unref?.();
   fs.closeSync(log);
-  writeCurrent(home, {
-    state: "running", vault: resolved, work_home: workHome,
-    started_at: new Date().toISOString(), pid: child.pid ?? null, mode: "taste",
-  });
+  writeCurrent(home, started);
   return { ok: true, started: true, vault: resolved, pid: child.pid ?? null };
-}
-
-function findRunDir(workHome, vault) {
-  const runs = path.join(workHome, "runs");
-  if (!fs.existsSync(runs)) return null;
-  const base = path.basename(vault.replace(/\/$/, ""));
-  const dirs = fs.readdirSync(runs).filter((name) => name.startsWith(`${base}-`));
-  if (dirs.length === 0) return null;
-  dirs.sort((a, b) => fs.statSync(path.join(runs, b)).mtimeMs - fs.statSync(path.join(runs, a)).mtimeMs);
-  return path.join(runs, dirs[0]);
 }
 
 function readJson(file) {
@@ -199,13 +214,27 @@ export function checkupStatus(home) {
   const current = readCurrent(home);
   if (!current) return { state: "none" };
   if (current.state === "dismissed") return { state: "dismissed" };
-  const runDir = findRunDir(current.work_home, current.vault);
+  const failedStatus = () => {
+    let logTail = "";
+    try {
+      const text = fs.readFileSync(path.join(checkupHome(home), "checkup.log"), "utf8");
+      logTail = text.split("\n").filter((line) => line.trim()).slice(-3).join("\n");
+    } catch { /* 로그 없으면 빈 값 */ }
+    return { state: "failed", vault: current.vault, log_tail: current.error || logTail };
+  };
+  const startedAt = Date.parse(current.started_at);
+  const timedOut = current.state === "running" && Number.isFinite(startedAt) && Date.now() - startedAt >= 90 * 60 * 1000;
+  if (current.state === "failed" || timedOut) return failedStatus();
+  const runDir = current.run_dir;
   const summary = runDir ? readJson(path.join(runDir, "summary.json")) : null;
   if (summary) {
+    const failedBatches = summary.failed_extract_batches ?? 0;
+    const partial = failedBatches > 0 || ((summary.notes ?? 0) > 0 && (summary.atoms ?? 0) === 0);
     return {
       state: current.imported_at ? "imported" : "done",
       vault: current.vault, summary, cards: topCards(runDir),
       imported: current.imported ?? null, report_file: path.join(runDir, "report.md"),
+      partial, failed_batches: failedBatches,
     };
   }
   const manifest = runDir ? readJson(path.join(runDir, "manifest.json")) : null;
@@ -214,14 +243,7 @@ export function checkupStatus(home) {
   if (runDir && fs.existsSync(path.join(runDir, "done_extract"))) {
     batchesDone = fs.readdirSync(path.join(runDir, "done_extract")).length;
   }
-  if (!pidAlive(current.pid)) {
-    let logTail = "";
-    try {
-      const text = fs.readFileSync(path.join(checkupHome(home), "checkup.log"), "utf8");
-      logTail = text.split("\n").filter((line) => line.trim()).slice(-3).join("\n");
-    } catch { /* 로그 없으면 빈 값 */ }
-    return { state: "failed", vault: current.vault, log_tail: logTail };
-  }
+  if (!pidAlive(current.pid)) return failedStatus();
   return {
     state: "running", vault: current.vault, started_at: current.started_at,
     progress: { batches_done: batchesDone, batches_total: batchesTotal },
@@ -244,17 +266,20 @@ export function dismissCheckup(home) {
 export function importCheckup(home, config) {
   const current = readCurrent(home);
   if (!current) throw codedError(ERR.E_NOT_FOUND, "가져올 진단 결과가 없어요.");
-  const runDir = findRunDir(current.work_home, current.vault);
+  if (current.imported_at) return current.imported;
+  const runDir = current.run_dir;
   const atoms = runDir ? readJsonl(path.join(runDir, "atoms.jsonl")) : [];
   if (atoms.length === 0) throw codedError(ERR.E_NOT_FOUND, "진단에서 추출된 기억이 없어요.");
   const store = new Store(home);
-  const result = { imported: 0, duplicates: 0, rejected: 0, total: Math.min(atoms.length, IMPORT_CAP) };
+  const result = { imported: 0, duplicates: 0, rejected: 0, total: Math.min(atoms.length, IMPORT_CAP), omitted: Math.max(0, atoms.length - IMPORT_CAP) };
   try {
     for (const atom of atoms.slice(0, IMPORT_CAP)) {
-      const scope = atom.type === "procedural" ? "procedure"
-        : /^(person|procedure|project:.+)$/.test(atom.scope ?? "") ? atom.scope : "project:vault";
+      const originalScope = atom.type === "procedural" ? "procedure" : String(atom.scope ?? "");
+      const cleanedScope = originalScope.trim().replace(/\s+/gu, "-").replace(/[^\p{L}\p{N}:_.-]+/gu, "-");
+      const scope = validScope(originalScope) ? originalScope : validScope(cleanedScope) ? cleanedScope : "project:vault";
       const input = { claim: atom.claim, scope, subject: atom.subject || undefined, source: "checkup" };
-      if (atom.date && /^\d{4}-\d{2}-\d{2}$/.test(atom.date)) input.t_valid = atom.date;
+      const validAt = atom.t_valid ?? atom.date;
+      if (typeof validAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(validAt)) input.t_valid = validAt;
       try {
         const outcome = remember(store, input, config);
         if (outcome.status === "added") result.imported += 1;
