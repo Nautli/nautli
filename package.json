@@ -1,6 +1,6 @@
 {
   "name": "nautli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One local brain for all your AI agents. Facts in, contradictions resolved, junk forgotten. While you sleep.",
   "main": "src/cli.js",
   "scripts": {
