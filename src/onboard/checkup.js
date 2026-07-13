@@ -243,10 +243,12 @@ export function checkupStatus(home) {
     const logTail = readLogTail(home).split("\n").filter((line) => line.trim()).slice(-3).join("\n");
     return { state: "failed", vault: current.vault, log_tail: current.error || logTail };
   };
+  const runDir = current.run_dir;
   const startedAt = Date.parse(current.started_at);
   const timedOut = current.state === "running" && Number.isFinite(startedAt) && Date.now() - startedAt >= 90 * 60 * 1000;
-  if (current.state === "failed" || timedOut) return failedStatus();
-  const runDir = current.run_dir;
+  // 결과가 이미 있으면(summary/imported) 90분 타임아웃으로 뒤집지 않는다 — 완료 후 시간이 지나면 failed로 위장되던 회귀
+  const hasResult = Boolean(current.imported_at) || (runDir && fs.existsSync(path.join(runDir, "summary.json")));
+  if (current.state === "failed" || (timedOut && !hasResult)) return failedStatus();
   const manifest = runDir ? readJson(path.join(runDir, "manifest.json")) : null;
   const filesSampled = typeof manifest?.files === "number" ? manifest.files : null;
   const summary = runDir ? readJson(path.join(runDir, "summary.json")) : null;

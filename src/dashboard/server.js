@@ -162,6 +162,68 @@ function memoryFor(home, searchParams) {
   }
 }
 
+function graphScopeLabel(scope) {
+  if (scope === "person") return "개인";
+  if (scope === "procedure") return "절차";
+  return String(scope ?? "").replace(/^project:/u, "프로젝트 ");
+}
+
+function graphFor(home) {
+  if (!fs.existsSync(path.join(home, "index.sqlite"))) return { nodes: [], links: [] };
+  const store = new Store(home);
+  try {
+    const active = store.query({ status: "active", limit: 601 });
+    const truncated = active.length > 600;
+    const selected = active.slice(0, 600);
+    const facts = new Map(selected.map((fact) => [fact.id, fact]));
+    const links = [];
+    const linkKeys = new Set();
+    const addLink = (a, b, kind) => {
+      if (!facts.has(a) || !facts.has(b)) return;
+      const key = `${a}\u0000${b}\u0000${kind}`;
+      if (linkKeys.has(key)) return;
+      linkKeys.add(key);
+      links.push({ a, b, kind });
+    };
+
+    for (const fact of store.query()) {
+      if (!fact.superseded_by || !facts.has(fact.superseded_by)) continue;
+      facts.set(fact.id, fact);
+      addLink(fact.id, fact.superseded_by, "supersedes");
+    }
+
+    for (const card of listCards(home)) {
+      if (card.verdict !== "contradiction" && card.verdict !== "duplicate") continue;
+      const [a, b] = card.pair_id.split(":");
+      addLink(a, b, card.verdict);
+    }
+
+    const scopes = [...new Set([...facts.values()].map((fact) => fact.scope))];
+    const nodes = [
+      ...scopes.map((scope) => ({
+        id: `scope:${scope}`,
+        kind: "scope",
+        label: graphScopeLabel(scope),
+        scope,
+        status: "active",
+      })),
+      ...[...facts.values()].map((fact) => ({
+        id: fact.id,
+        kind: "fact",
+        label: fact.claim.slice(0, 60),
+        scope: fact.scope,
+        status: fact.status,
+      })),
+    ];
+    for (const fact of facts.values()) {
+      links.push({ a: fact.id, b: `scope:${fact.scope}`, kind: "scope" });
+    }
+    return { nodes, links, ...(truncated ? { truncated: true } : {}) };
+  } finally {
+    store.close();
+  }
+}
+
 function runDigestInChild(home) {
   const child = spawn(process.execPath, [CLI_FILE, "daemon-run"], {
     detached: true,
@@ -262,6 +324,11 @@ export function createDashboardServer(home, options = {}) {
 
       if (request.method === "GET" && url.pathname === "/api/memory") {
         json(response, 200, memoryFor(home, url.searchParams));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/graph") {
+        json(response, 200, graphFor(home));
         return;
       }
 

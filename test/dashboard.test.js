@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { remember } from "../src/core/gate.js";
+import { STATUS } from "../src/core/schema.js";
 import { Store } from "../src/core/store.js";
 import { initStore } from "../src/onboard/setup.js";
 import { startDashboard } from "../src/dashboard/server.js";
@@ -41,6 +42,41 @@ test("dashboard status combines setup, doctor, stats, and pending count", async 
   assert.equal(status.doctor.index_exists, true);
   assert.equal(status.stats.total, 0);
   assert.equal(status.pending, 0);
+});
+
+test("dashboard graph includes scope, supersedes, and pending review links", async (t) => {
+  const target = await dashboard(t);
+  const store = new Store(target.home);
+  const oldFact = remember(store, {
+    claim: "그래프에 표시할 옛 기억",
+    scope: "project:graph",
+    t_valid: "2025-01-01",
+  }, config);
+  const newFact = remember(store, {
+    claim: "그래프에 표시할 새 기억",
+    scope: "project:graph",
+    t_valid: "2025-02-01",
+  }, config);
+  store.transition(oldFact.id, STATUS.SUPERSEDED, {
+    superseded_by: newFact.id,
+    t_invalid: "2025-02-01",
+  }, "daemon");
+  fs.writeFileSync(path.join(target.home, "review", "queue.jsonl"), `${JSON.stringify({
+    pair_id: `${oldFact.id}:${newFact.id}`,
+    verdict: "contradiction",
+    status: "pending",
+  })}\n`, "utf8");
+  store.close();
+
+  const response = await fetch(`${target.url}/api/graph`);
+  assert.equal(response.status, 200);
+  const graph = await response.json();
+  assert.ok(graph.nodes.some((node) => node.kind === "scope" && node.scope === "project:graph"));
+  assert.ok(graph.nodes.some((node) => node.kind === "fact" && node.id === oldFact.id));
+  assert.ok(graph.nodes.some((node) => node.kind === "fact" && node.id === newFact.id));
+  assert.ok(graph.links.some((link) => link.kind === "scope"));
+  assert.ok(graph.links.some((link) => link.kind === "supersedes"));
+  assert.ok(graph.links.some((link) => link.kind === "contradiction"));
 });
 
 test("dashboard card POST delegates pair-id idempotency to review", async (t) => {

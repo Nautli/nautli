@@ -122,6 +122,12 @@ test("checkupStatus surfaces summary and cards, importCheckup loads atoms throug
     store.close();
   }
   assert.equal(checkupStatus(home).state, "imported");
+  // 회귀: 완료·임포트 후 90분이 지나도 running 타임아웃이 failed로 뒤집으면 안 된다
+  const aged = readCurrent(home);
+  fs.writeFileSync(path.join(home, "checkup", "current.json"), JSON.stringify({
+    ...aged, state: "running", started_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+  }));
+  assert.equal(checkupStatus(home).state, "imported");
   dismissCheckup(home);
   assert.equal(checkupStatus(home).state, "dismissed");
 });
