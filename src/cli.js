@@ -45,7 +45,7 @@ doctor     설치와 저장소 상태를 점검해요.
 review     검토가 필요한 카드를 처리해요.
 mcp        MCP 서버를 실행해요.
 
-처음이면: node src/cli.js dashboard`;
+처음이면: npx nautli dashboard`;
 
 function homePath() {
   return path.resolve(process.env.NAUTLI_HOME ?? path.join(os.homedir(), ".nautli"));
@@ -223,7 +223,7 @@ export async function main(argv = process.argv.slice(2)) {
 
     if (command === "init") {
       writeJson(initialize(home, args));
-      process.stderr.write("다음 단계: node src/cli.js dashboard (설정 화면이 열려요)\n");
+      process.stderr.write("다음 단계: npx nautli dashboard (설정 화면이 열려요)\n");
       process.exitCode = 0;
       return;
     }
