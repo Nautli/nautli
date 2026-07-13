@@ -201,3 +201,82 @@ test("instructions preview separates location from the pure copy block and expos
   assert.match(page, /소화 중… 최대 2분/);
   assert.match(page, /finally\{if\(button\.isConnected\)/);
 });
+
+test("dashboard continuity recall returns the detected fact and records a dashboard recall", async (t) => {
+  const target = await dashboard(t);
+  const store = new Store(target.home);
+  const added = remember(store, {
+    claim: "나는 커밋 메시지를 한국어로 쓴다",
+    scope: "person",
+    source: "mcp",
+  }, config);
+  store.close();
+
+  const since = new Date(Date.now() - 60_000).toISOString();
+  const response = await fetch(`${target.url}/api/continuity/recall`, {
+    method: "POST",
+    headers: { origin: target.origin, "content-type": "application/json" },
+    body: JSON.stringify({ fact_id: added.id }),
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    fact: { id: added.id, claim: "나는 커밋 메시지를 한국어로 쓴다", scope: "person" },
+  });
+  const activity = await (await fetch(`${target.url}/api/activity?since=${encodeURIComponent(since)}`)).json();
+  assert.ok(activity.events.some((event) => event.type === "remember" && event.source === "mcp"));
+  assert.ok(activity.events.some((event) => event.type === "recall"
+    && event.source === "dashboard" && event.hits.includes(added.id)));
+});
+
+test("dashboard share-card contract contains only aggregate render fields", async (t) => {
+  const target = await dashboard(t);
+  const runDir = path.join(target.home, "checkup", "doctor", "runs", "share-test");
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, "summary.json"), JSON.stringify({
+    score: 62,
+    notes: 30,
+    atoms: 8,
+    duplicates: 4,
+    contradictions: 2,
+    junk_rate: 0.125,
+  }));
+  fs.writeFileSync(path.join(runDir, "manifest.json"), JSON.stringify({ files: 30, batches: [] }));
+  fs.writeFileSync(path.join(target.home, "checkup", "current.json"), JSON.stringify({
+    state: "running",
+    vault: path.join(target.home, "private-project"),
+    run_dir: runDir,
+    started_at: new Date(Date.now() - 7.5 * 60_000).toISOString(),
+    pid: null,
+  }));
+
+  const response = await fetch(`${target.url}/api/checkup/share-card`);
+  assert.equal(response.status, 200);
+  const card = await response.json();
+  assert.deepEqual(Object.keys(card).sort(), [
+    "contradictions", "cta", "duplicates", "junk_percent", "minutes", "sampled_notes", "score",
+  ]);
+  assert.deepEqual(card, {
+    contradictions: 2,
+    duplicates: 4,
+    junk_percent: 13,
+    sampled_notes: 30,
+    minutes: 8,
+    score: 62,
+    cta: "What's hiding in yours? npx nautli dashboard",
+  });
+  assert.doesNotMatch(JSON.stringify(card), /claim|path|project|vault|private-project/i);
+});
+
+test("dashboard page exposes continuity, hardened checkup, and local share-card UX", async (t) => {
+  const target = await dashboard(t);
+  const page = await (await fetch(target.url)).text();
+  assert.match(page, /첫 진짜 기억/);
+  assert.match(page, /붙여넣으셨나요\?/);
+  assert.match(page, /Claude가 응답하면 자동으로 감지됩니다/);
+  assert.match(page, /방금 두 도구가 같은 뇌를 썼습니다/);
+  assert.match(page, /선택한 폴더의 노트 텍스트가 내 Claude 구독을 거쳐 Anthropic에서 처리됩니다\. 요약·점수만 로컬에 저장되고 어디에도 업로드되지 않습니다\./);
+  assert.match(page, /data-checkup-dir/);
+  assert.match(page, /지금까지: 모순/);
+  assert.match(page, /data-share-download/);
+  assert.match(page, /toBlob/);
+});

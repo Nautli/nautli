@@ -77,6 +77,13 @@ export function remember(store, input, config) {
   const hash = claimHash(claim);
   const duplicate = store.byHash(hash);
   if (duplicate?.status === STATUS.ACTIVE) {
+    store.appendEvent({
+      type: "remember",
+      result: "duplicate",
+      fact_id: duplicate.id,
+      claim,
+      source: input.source ?? "core",
+    });
     return { id: duplicate.id, status: "duplicate", reason: ERR.W_DUPLICATE };
   }
 

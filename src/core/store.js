@@ -73,6 +73,10 @@ function isRecallEvent(event) {
   return event?.type === "recall" && event.ev === undefined;
 }
 
+function isRememberActivityEvent(event) {
+  return event?.type === "remember" && event.ev === undefined;
+}
+
 function activityEvent(event) {
   if (isRecallEvent(event)) {
     return {
@@ -82,6 +86,17 @@ function activityEvent(event) {
       hits: Array.isArray(event.hits) ? event.hits.filter((id) => typeof id === "string") : [],
       source: typeof event.source === "string" ? event.source : "core",
       at: event.at,
+    };
+  }
+  if (isRememberActivityEvent(event)) {
+    if (event.result !== "duplicate" || typeof event.claim !== "string") return null;
+    return {
+      type: "remember",
+      result: "duplicate",
+      claim: event.claim,
+      source: typeof event.source === "string" ? event.source : "core",
+      at: event.at,
+      ...(typeof event.fact_id === "string" ? { fact_id: event.fact_id } : {}),
     };
   }
   if (event?.ev !== "fact.added" || !event.fact) return null;
@@ -97,6 +112,34 @@ function activityEvent(event) {
         : "core",
     at: event.at,
   };
+}
+
+function* reverseLines(file) {
+  const descriptor = fs.openSync(file, "r");
+  const chunkSize = 64 * 1024;
+  let position = fs.fstatSync(descriptor).size;
+  let remainder = Buffer.alloc(0);
+  try {
+    while (position > 0) {
+      const length = Math.min(chunkSize, position);
+      position -= length;
+      const chunk = Buffer.allocUnsafe(length);
+      fs.readSync(descriptor, chunk, 0, length, position);
+      const data = remainder.length === 0 ? chunk : Buffer.concat([chunk, remainder]);
+      let end = data.length;
+      let newline = data.lastIndexOf(0x0a, end - 1);
+      while (newline >= 0) {
+        if (newline + 1 < end) yield data.subarray(newline + 1, end).toString("utf8");
+        end = newline;
+        if (end === 0) break;
+        newline = data.lastIndexOf(0x0a, end - 1);
+      }
+      remainder = Buffer.from(data.subarray(0, end));
+    }
+    if (remainder.length > 0) yield remainder.toString("utf8");
+  } finally {
+    fs.closeSync(descriptor);
+  }
 }
 
 export class Store {
@@ -172,7 +215,7 @@ export class Store {
 
   applyEvent(evt) {
     // 활동 로그는 fact 이벤트와 같은 append-only 정본에 공존하지만 파생 인덱스 대상은 아니다.
-    if (isRecallEvent(evt)) return;
+    if (isRecallEvent(evt) || isRememberActivityEvent(evt)) return;
     try {
       const apply = this.db.transaction(() => {
         if (evt?.ev === "fact.added") {
@@ -250,32 +293,44 @@ export class Store {
   }
 
   activity({ since, limit = 200 } = {}) {
+    const hasSince = since !== undefined;
     let sinceTime = Number.NEGATIVE_INFINITY;
-    if (since !== undefined) {
+    if (hasSince) {
       sinceTime = Date.parse(since);
       if (typeof since !== "string" || !Number.isFinite(sinceTime)) {
         throw codedError(ERR.E_INVALID_INPUT);
       }
     }
     const eventsDirectory = path.join(this.home, "events");
+    const sinceMonth = Number.isFinite(sinceTime)
+      ? new Date(sinceTime).toISOString().slice(0, 7)
+      : null;
     const files = fs.readdirSync(eventsDirectory)
       .filter((file) => /^\d{4}-\d{2}\.jsonl$/.test(file))
-      .sort();
+      .filter((file) => sinceMonth === null || file.slice(0, 7) >= sinceMonth)
+      .sort()
+      .reverse();
+    const eventLimit = Math.max(0, Math.trunc(limit));
+    if (eventLimit === 0) return [];
     const events = [];
     for (const file of files) {
-      for (const line of fs.readFileSync(path.join(eventsDirectory, file), "utf8").split("\n")) {
+      for (const line of reverseLines(path.join(eventsDirectory, file))) {
         if (line.trim() === "") continue;
-        let event;
+        let raw;
         try {
-          event = activityEvent(JSON.parse(line));
+          raw = JSON.parse(line);
         } catch {
           continue;
         }
-        const atTime = Date.parse(event?.at);
-        if (event && Number.isFinite(atTime) && atTime > sinceTime) events.push(event);
+        const atTime = Date.parse(raw?.at);
+        if (!Number.isFinite(atTime) || atTime <= sinceTime) continue;
+        const event = activityEvent(raw);
+        if (event) events.push(event);
+        if (!hasSince && events.length >= eventLimit) return events.reverse();
+        if (hasSince && events.length > eventLimit) events.shift();
       }
     }
-    return events.slice(-Math.max(0, Math.trunc(limit)));
+    return events.reverse();
   }
 
   transition(id, to, patch = {}, actor) {

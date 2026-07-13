@@ -178,6 +178,79 @@ function activityFor(home, searchParams) {
   }
 }
 
+function continuityRecallFor(home, factId) {
+  if (typeof factId !== "string" || factId.trim() === "" || !fs.existsSync(path.join(home, "index.sqlite"))) {
+    const error = new Error(ERR.E_NOT_FOUND);
+    error.code = ERR.E_NOT_FOUND;
+    throw error;
+  }
+  const store = new Store(home);
+  try {
+    const fact = store.getFact(factId);
+    if (!fact) {
+      const error = new Error(ERR.E_NOT_FOUND);
+      error.code = ERR.E_NOT_FOUND;
+      throw error;
+    }
+    const result = recall(store, fact.claim, { scope: fact.scope, source: "dashboard" });
+    if (!result.facts.some((candidate) => candidate.id === fact.id)) {
+      const error = new Error(ERR.E_NOT_FOUND);
+      error.code = ERR.E_NOT_FOUND;
+      throw error;
+    }
+    return { fact: { id: fact.id, claim: fact.claim, scope: fact.scope } };
+  } finally {
+    store.close();
+  }
+}
+
+function shareCardFor(home) {
+  const status = checkupStatus(home);
+  if (status.state !== "done" && status.state !== "imported") {
+    const error = new Error(ERR.E_NOT_FOUND);
+    error.code = ERR.E_NOT_FOUND;
+    throw error;
+  }
+  const summary = status.summary ?? {};
+  const sampledNotes = Number.isFinite(status.files_sampled)
+    ? status.files_sampled
+    : Number(summary.notes ?? 0);
+  let minutes = null;
+  try {
+    const current = JSON.parse(fs.readFileSync(path.join(home, "checkup", "current.json"), "utf8"));
+    const startedAt = Date.parse(current.started_at);
+    const completedAt = fs.statSync(path.join(current.run_dir, "summary.json")).mtimeMs;
+    if (Number.isFinite(startedAt) && completedAt >= startedAt) {
+      minutes = Math.max(1, Math.ceil((completedAt - startedAt) / 60_000));
+    }
+  } catch {
+    // 이전 리포트에는 시간 메타데이터가 없을 수 있어 표본 기반 예상값을 쓴다.
+  }
+  return {
+    contradictions: Number(summary.contradictions ?? 0),
+    duplicates: Number(summary.duplicates ?? 0),
+    junk_percent: summary.junk_rate == null ? null : Math.round(Number(summary.junk_rate) * 100),
+    sampled_notes: sampledNotes,
+    minutes: minutes ?? Math.max(1, Math.ceil(Math.min(sampledNotes, 40) / 30 * 8)),
+    score: Number(summary.score ?? 0),
+    cta: "What's hiding in yours? npx nautli dashboard",
+  };
+}
+
+function cursorStatus(userHome) {
+  const file = path.join(userHome, ".cursor", "mcp.json");
+  try {
+    const config = JSON.parse(fs.readFileSync(file, "utf8"));
+    const entry = config?.mcpServers?.nautli;
+    return {
+      complete: Boolean(entry && entry.command === "nautli" && Array.isArray(entry.args) && entry.args.includes("mcp")),
+      available: true,
+    };
+  } catch {
+    return { complete: false, available: true };
+  }
+}
+
 function graphScopeLabel(scope) {
   if (scope === "person") return "개인";
   if (scope === "procedure") return "절차";
@@ -283,7 +356,13 @@ export function createDashboardServer(home, options = {}) {
     const address = server.address();
     const port = typeof address === "object" && address ? address.port : options.port ?? 4600;
     const allowedOrigins = new Set([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
+    const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
     const url = new URL(request.url ?? "/", `http://127.0.0.1:${port}`);
+
+    if (!allowedHosts.has(request.headers.host)) {
+      json(response, 403, { error: "E_HOST_FORBIDDEN", message: "이 컴퓨터의 대시보드 요청만 처리할 수 있어요." });
+      return;
+    }
 
     if (request.method === "POST" && !allowedOrigins.has(request.headers.origin)) {
       json(response, 403, { error: "E_ORIGIN_FORBIDDEN", message: "이 대시보드에서 보낸 요청만 처리할 수 있어요." });
@@ -308,6 +387,7 @@ export function createDashboardServer(home, options = {}) {
         const setupOptions = { userHome, checkClaude: false };
         if (cachedClaude) setupOptions.claude = cachedClaude;
         const setup = statusAll(home, setupOptions);
+        setup.optional.cursor = cursorStatus(userHome);
         const diagnosis = doctor(home, { setup });
         const stats = statsFor(home);
         const pending = listCards(home).length;
@@ -345,6 +425,12 @@ export function createDashboardServer(home, options = {}) {
 
       if (request.method === "GET" && url.pathname === "/api/activity") {
         json(response, 200, activityFor(home, url.searchParams));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/continuity/recall") {
+        const input = await bodyJson(request);
+        json(response, 200, continuityRecallFor(home, input.fact_id));
         return;
       }
 
@@ -401,6 +487,10 @@ export function createDashboardServer(home, options = {}) {
       }
       if (request.method === "GET" && url.pathname === "/api/checkup/report") {
         json(response, 200, readCheckupReport(home));
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/api/checkup/share-card") {
+        json(response, 200, shareCardFor(home));
         return;
       }
       if (request.method === "POST" && url.pathname === "/api/checkup/start") {
