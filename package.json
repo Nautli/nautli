@@ -1,14 +1,41 @@
 {
   "name": "nautli",
   "version": "0.1.0",
-  "description": "",
-  "main": "index.js",
+  "description": "One local brain for all your AI agents. Facts in, contradictions resolved, junk forgotten. While you sleep.",
+  "main": "src/cli.js",
   "scripts": {
     "test": "node --test \"test/*.test.js\""
   },
-  "keywords": [],
+  "keywords": [
+    "mcp",
+    "memory",
+    "claude",
+    "claude-code",
+    "cursor",
+    "ai-agents",
+    "local-first",
+    "knowledge-base"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nautli/nautli.git"
+  },
+  "homepage": "https://github.com/nautli/nautli#readme",
+  "bugs": {
+    "url": "https://github.com/nautli/nautli/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "src",
+    "vendor",
+    "README.md",
+    "SPEC.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.11.1"

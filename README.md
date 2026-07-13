@@ -8,12 +8,10 @@
 
 ## 시작하기
 
-요구사항: Node.js 20+, [Claude Code CLI](https://claude.com/claude-code) 로그인 상태.
+요구사항: Node.js 20+, [Claude Code CLI](https://claude.com/claude-code) 로그인 상태. (better-sqlite3는 네이티브 모듈이라 대부분 플랫폼은 prebuilt 바이너리를 받고, 없는 조합이면 설치 중 python3 + 빌드 툴체인으로 컴파일합니다.)
 
 ```bash
-git clone <repo-url> nautli && cd nautli
-npm install
-node src/cli.js dashboard
+npx nautli dashboard
 ```
 
 `dashboard`가 설정 화면을 엽니다(127.0.0.1 전용). 화면이 나머지를 안내합니다:
@@ -23,15 +21,28 @@ node src/cli.js dashboard
 3. **AI 습관 지시문**: Claude가 기억 도구를 실제로 쓰도록 CLAUDE.md에 지시문 한 블록 추가.
 4. **밤 소화 데몬**: 매일 밤 3:30, 중복 병합과 모순 카드화. 언제든 제거 버튼으로 되돌릴 수 있습니다.
 
+전역 설치를 원하면:
+
+```bash
+npm i -g nautli
+nautli dashboard
+```
+
+소스에서 직접 실행하려면 (기여자용):
+
+```bash
+git clone https://github.com/nautli/nautli.git && cd nautli
+npm install
+node src/cli.js dashboard
+```
+
 ## AI에게 설치 시키기
 
 Claude Code 같은 코딩 에이전트에게 이 블록을 그대로 주면 사람 개입 없이 끝납니다(전 과정 비대화형):
 
 ```bash
-git clone <repo-url> nautli && cd nautli
-npm install
-node src/cli.js setup --yes    # 저장소 초기화 + MCP 등록 + 지시문 + 밤 데몬 + 소화 1회
-node src/cli.js doctor         # 설치 상태 점검
+npx nautli setup --yes    # 저장소 초기화 + MCP 등록 + 지시문 + 밤 데몬 + 소화 1회
+npx nautli doctor         # 설치 상태 점검
 ```
 
 `setup --yes`는 위 대시보드 4단계를 한 번에 실행합니다. 단계별로 하려면 `--step init|mcp|instructions|daemon|digest`.
@@ -39,17 +50,17 @@ node src/cli.js doctor         # 설치 상태 점검
 ## CLI로 쓰기
 
 ```bash
-node src/cli.js init                                          # ~/.nautli 생성
-node src/cli.js remember "우리 API 포트는 4000이다" --scope project:myapp
-node src/cli.js recall "포트" --scope project:myapp
-node src/cli.js daemon-run                                    # 소화 1회 수동 실행
-node src/cli.js rebuild                                       # 정본(events/*.jsonl)에서 인덱스 재구성
+npx nautli init                                          # ~/.nautli 생성
+npx nautli remember "우리 API 포트는 4000이다" --scope project:myapp
+npx nautli recall "포트" --scope project:myapp
+npx nautli daemon-run                                    # 소화 1회 수동 실행
+npx nautli rebuild                                       # 정본(events/*.jsonl)에서 인덱스 재구성
 ```
 
 MCP 수동 등록:
 
 ```bash
-claude mcp add -s user nautli -- node <클론 경로>/src/mcp/server.js
+claude mcp add -s user nautli -- npx nautli mcp
 ```
 
 ## 데이터 경계

@@ -344,6 +344,6 @@ export async function main(argv = process.argv.slice(2)) {
 }
 
 const isMain = process.argv[1]
-  && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+  && pathToFileURL(fs.realpathSync(process.argv[1])).href === import.meta.url;
 
 if (isMain) await main();
