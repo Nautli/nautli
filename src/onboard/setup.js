@@ -16,7 +16,10 @@ import {
 
 export const DAEMON_LABEL = "com.nautli.daemon";
 const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
-const DEFAULT_CONFIG = Object.freeze({ default_scope: "person", judge_cmd: null });
+const DEFAULT_CONFIG = Object.freeze({
+  default_scope: "person",
+  judge_cmd: null,
+});
 const ALLOWED_COMMANDS = new Set(["claude", "codex", "launchctl"]);
 
 function codedError(code, message = code, cause) {
@@ -32,7 +35,9 @@ function setupError(code, message, manualCommand, cause) {
 }
 
 function defaultRunner(command, args, options = {}) {
-  if (!ALLOWED_COMMANDS.has(command)) throw codedError(ERR.E_INVALID_INPUT, `Command not allowed: ${command}`);
+  if (!ALLOWED_COMMANDS.has(command)) {
+    throw codedError(ERR.E_INVALID_INPUT, `Command not allowed: ${command}`);
+  }
   return execFileSync(command, args, { encoding: "utf8", ...options });
 }
 
@@ -44,14 +49,22 @@ function runnerText(runner, command, args, options) {
 function userPaths(userHome) {
   return {
     instructions: path.join(userHome, ".claude", "CLAUDE.md"),
-    plist: path.join(userHome, "Library", "LaunchAgents", `${DAEMON_LABEL}.plist`),
+    plist: path.join(
+      userHome,
+      "Library",
+      "LaunchAgents",
+      `${DAEMON_LABEL}.plist`,
+    ),
   };
 }
 
 export function readConfig(home) {
   const file = path.join(home, "config.json");
   if (!fs.existsSync(file)) return { ...DEFAULT_CONFIG };
-  return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(file, "utf8")) };
+  return {
+    ...DEFAULT_CONFIG,
+    ...JSON.parse(fs.readFileSync(file, "utf8")),
+  };
 }
 
 export function writeConfig(home, updates = {}) {
@@ -59,6 +72,7 @@ export function writeConfig(home, updates = {}) {
   const file = path.join(home, "config.json");
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
   const config = { ...readConfig(home), ...updates };
+
   try {
     fs.writeFileSync(tmp, `${JSON.stringify(config)}\n`, "utf8");
     fs.renameSync(tmp, file);
@@ -66,13 +80,26 @@ export function writeConfig(home, updates = {}) {
     fs.rmSync(tmp, { force: true });
     throw error;
   }
+
   return config;
 }
 
 function readHealth(home) {
   const file = path.join(home, "daemon", "health.log");
-  if (!fs.existsSync(file)) return { exists: false, healthy: false, last_run: null, age_ms: null, result: null };
-  const lines = fs.readFileSync(file, "utf8").split("\n").filter((line) => line.trim() !== "");
+  if (!fs.existsSync(file)) {
+    return {
+      exists: false,
+      healthy: false,
+      last_run: null,
+      age_ms: null,
+      result: null,
+    };
+  }
+
+  const lines = fs.readFileSync(file, "utf8")
+    .split("\n")
+    .filter((line) => line.trim() !== "");
+
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     try {
       const value = JSON.parse(lines[index]);
@@ -91,7 +118,14 @@ function readHealth(home) {
       // launchd가 남긴 비-JSON 출력은 건너뛴다.
     }
   }
-  return { exists: true, healthy: false, last_run: null, age_ms: null, result: null };
+
+  return {
+    exists: true,
+    healthy: false,
+    last_run: null,
+    age_ms: null,
+    result: null,
+  };
 }
 
 function nextDigestAt(now = new Date()) {
@@ -102,18 +136,33 @@ function nextDigestAt(now = new Date()) {
 }
 
 function instructionInstalled(file) {
-  return fs.existsSync(file) && fs.readFileSync(file, "utf8").includes(INSTRUCTIONS_START);
+  return fs.existsSync(file)
+    && fs.readFileSync(file, "utf8").includes(INSTRUCTIONS_START);
 }
 
 function claudeStatus(runner) {
   try {
-    runnerText(runner, "claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 });
+    runnerText(
+      runner,
+      "claude",
+      ["--version"],
+      { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 },
+    );
   } catch {
     return { cli_exists: false, registered: false };
   }
+
   try {
-    const list = runnerText(runner, "claude", ["mcp", "list"], { stdio: ["ignore", "pipe", "ignore"] });
-    return { cli_exists: true, registered: /(^|\s)nautli(?:\s|:|$)/m.test(list) };
+    const list = runnerText(
+      runner,
+      "claude",
+      ["mcp", "list"],
+      { stdio: ["ignore", "pipe", "ignore"] },
+    );
+    return {
+      cli_exists: true,
+      registered: /(^|\s)nautli(?:\s|:|$)/m.test(list),
+    };
   } catch {
     return { cli_exists: true, registered: false };
   }
@@ -121,13 +170,27 @@ function claudeStatus(runner) {
 
 function codexStatus(runner) {
   try {
-    runnerText(runner, "codex", ["--version"], { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 });
+    runnerText(
+      runner,
+      "codex",
+      ["--version"],
+      { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 },
+    );
   } catch {
     return { cli_exists: false, registered: false };
   }
+
   try {
-    const list = runnerText(runner, "codex", ["mcp", "list"], { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 });
-    return { cli_exists: true, registered: /(^|\s)nautli(?:\s|:|$)/m.test(list) };
+    const list = runnerText(
+      runner,
+      "codex",
+      ["mcp", "list"],
+      { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 },
+    );
+    return {
+      cli_exists: true,
+      registered: /(^|\s)nautli(?:\s|:|$)/m.test(list),
+    };
   } catch {
     return { cli_exists: true, registered: false };
   }
@@ -135,10 +198,15 @@ function codexStatus(runner) {
 
 function execFileText(command, args) {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { encoding: "utf8", timeout: 2_000 }, (error, stdout) => {
-      if (error) reject(error);
-      else resolve(String(stdout ?? ""));
-    });
+    execFile(
+      command,
+      args,
+      { encoding: "utf8", timeout: 2_000 },
+      (error, stdout) => {
+        if (error) reject(error);
+        else resolve(String(stdout ?? ""));
+      },
+    );
   });
 }
 
@@ -147,14 +215,42 @@ export async function checkClaudeStatus(runner) {
     await new Promise((resolve) => setImmediate(resolve));
     return claudeStatus(runner);
   }
+
   try {
     await execFileText("claude", ["--version"]);
   } catch {
     return { cli_exists: false, registered: false };
   }
+
   try {
     const list = await execFileText("claude", ["mcp", "list"]);
-    return { cli_exists: true, registered: /(^|\s)nautli(?:\s|:|$)/m.test(list) };
+    return {
+      cli_exists: true,
+      registered: /(^|\s)nautli(?:\s|:|$)/m.test(list),
+    };
+  } catch {
+    return { cli_exists: true, registered: false };
+  }
+}
+
+export async function checkCodexStatus(runner) {
+  if (runner) {
+    await new Promise((resolve) => setImmediate(resolve));
+    return codexStatus(runner);
+  }
+
+  try {
+    await execFileText("codex", ["--version"]);
+  } catch {
+    return { cli_exists: false, registered: false };
+  }
+
+  try {
+    const list = await execFileText("codex", ["mcp", "list"]);
+    return {
+      cli_exists: true,
+      registered: /(^|\s)nautli(?:\s|:|$)/m.test(list),
+    };
   } catch {
     return { cli_exists: true, registered: false };
   }
@@ -171,7 +267,10 @@ function localDateTime(value) {
     hour12: false,
   }).formatToParts(value);
   const part = (type) => parts.find((entry) => entry.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")} ${part("hour")}:${part("minute")}:${part("second")}`;
+  return [
+    `${part("year")}-${part("month")}-${part("day")}`,
+    `${part("hour")}:${part("minute")}:${part("second")}`,
+  ].join(" ");
 }
 
 export function statusAll(home, {
@@ -184,16 +283,23 @@ export function statusAll(home, {
   codex: suppliedCodex,
 } = {}) {
   const { instructions, plist } = userPaths(userHome);
-  const claude = suppliedClaude ?? (checkClaude
-    ? claudeStatus(runner)
-    : { cli_exists: null, registered: null, status: "checking" });
-  const codex = suppliedCodex ?? (checkCodex
-    ? codexStatus(runner)
-    : { cli_exists: null, registered: null, status: "checking" });
+  const claude = suppliedClaude ?? (
+    checkClaude
+      ? claudeStatus(runner)
+      : { cli_exists: null, registered: null, status: "checking" }
+  );
+  const codex = suppliedCodex ?? (
+    checkCodex
+      ? codexStatus(runner)
+      : { cli_exists: null, registered: null, status: "checking" }
+  );
   const health = readHealth(home);
   const nextRun = new Date(nextDigestAt(now));
+
   const required = {
-    store: { complete: fs.existsSync(path.join(home, "index.sqlite")) },
+    store: {
+      complete: fs.existsSync(path.join(home, "index.sqlite")),
+    },
     mcp: {
       complete: claude.registered === true || codex.registered === true,
       cli_exists: claude.cli_exists,
@@ -202,7 +308,10 @@ export function statusAll(home, {
       claude,
       codex,
     },
-    instructions: { complete: instructionInstalled(instructions), file: instructions },
+    instructions: {
+      complete: instructionInstalled(instructions),
+      file: instructions,
+    },
     daemon: {
       complete: fs.existsSync(plist) && health.healthy,
       plist_exists: fs.existsSync(plist),
@@ -212,6 +321,7 @@ export function statusAll(home, {
       next_run_ms: nextRun.getTime(),
     },
   };
+
   return {
     required,
     optional: {
@@ -226,17 +336,42 @@ export function initStore(home) {
   fs.mkdirSync(home, { recursive: true });
   const store = new Store(home);
   store.close();
+
   const config = path.join(home, "config.json");
-  if (!fs.existsSync(config)) fs.writeFileSync(config, `${JSON.stringify(DEFAULT_CONFIG)}\n`, "utf8");
-  return { ok: true, home, index: path.join(home, "index.sqlite") };
+  if (!fs.existsSync(config)) {
+    fs.writeFileSync(config, `${JSON.stringify(DEFAULT_CONFIG)}\n`, "utf8");
+  }
+
+  return {
+    ok: true,
+    home,
+    index: path.join(home, "index.sqlite"),
+  };
 }
 
 export function registerMcp(home, runner = defaultRunner) {
-  // -s user: 기본(local)이면 설치 폴더 밖 프로젝트에서 nautli MCP가 안 보인다 (NA-021 — "모든 프로젝트 공유" 약속의 핵심)
-  const args = ["mcp", "add", "-s", "user", "nautli", "--", process.execPath, CLI_FILE, "mcp"];
+  // -s user: 기본(local)이면 설치 폴더 밖 프로젝트에서 nautli MCP가 안 보인다
+  // (NA-021 — "모든 프로젝트 공유" 약속의 핵심)
+  const args = [
+    "mcp",
+    "add",
+    "-s",
+    "user",
+    "nautli",
+    "--",
+    process.execPath,
+    CLI_FILE,
+    "mcp",
+  ];
   const manualCommand = ["claude", ...args].join(" ");
+
   try {
-    runnerText(runner, "claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"] });
+    runnerText(
+      runner,
+      "claude",
+      ["--version"],
+      { stdio: ["ignore", "pipe", "ignore"] },
+    );
   } catch (cause) {
     throw setupError(
       ERR.E_CLAUDE_CLI_MISSING,
@@ -245,8 +380,14 @@ export function registerMcp(home, runner = defaultRunner) {
       cause,
     );
   }
+
   try {
-    runnerText(runner, "claude", args, { env: { ...process.env, NAUTLI_HOME: home } });
+    runnerText(
+      runner,
+      "claude",
+      args,
+      { env: { ...process.env, NAUTLI_HOME: home } },
+    );
   } catch (cause) {
     throw setupError(
       ERR.E_MCP_REGISTER_FAILED,
@@ -255,14 +396,29 @@ export function registerMcp(home, runner = defaultRunner) {
       cause,
     );
   }
+
   return { ok: true, command: ["claude", ...args] };
 }
 
 export function registerMcpCodex(home, runner = defaultRunner) {
-  const args = ["mcp", "add", "nautli", "--", process.execPath, CLI_FILE, "mcp"];
+  const args = [
+    "mcp",
+    "add",
+    "nautli",
+    "--",
+    process.execPath,
+    CLI_FILE,
+    "mcp",
+  ];
   const manualCommand = ["codex", ...args].join(" ");
+
   try {
-    runnerText(runner, "codex", ["--version"], { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 });
+    runnerText(
+      runner,
+      "codex",
+      ["--version"],
+      { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 },
+    );
   } catch (cause) {
     throw setupError(
       ERR.E_CODEX_CLI_MISSING,
@@ -271,8 +427,14 @@ export function registerMcpCodex(home, runner = defaultRunner) {
       cause,
     );
   }
+
   try {
-    runnerText(runner, "codex", args, { env: { ...process.env, NAUTLI_HOME: home } });
+    runnerText(
+      runner,
+      "codex",
+      args,
+      { env: { ...process.env, NAUTLI_HOME: home } },
+    );
   } catch (cause) {
     throw setupError(
       ERR.E_MCP_REGISTER_FAILED,
@@ -281,39 +443,89 @@ export function registerMcpCodex(home, runner = defaultRunner) {
       cause,
     );
   }
+
   return { ok: true, command: ["codex", ...args] };
 }
 
-export function installInstructions(home, { userHome = os.homedir(), previewOnly = false } = {}) {
+export function installInstructions(
+  home,
+  { userHome = os.homedir(), previewOnly = false } = {},
+) {
   void home;
   const file = userPaths(userHome).instructions;
   const preview = `추가될 위치: ${file}\n\n추가될 블록:\n${AI_INSTRUCTIONS}`;
-  if (previewOnly) return { ok: true, installed: false, preview, block: AI_INSTRUCTIONS, file };
+
+  if (previewOnly) {
+    return {
+      ok: true,
+      installed: false,
+      preview,
+      block: AI_INSTRUCTIONS,
+      file,
+    };
+  }
+
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+
   if (!current.includes(INSTRUCTIONS_START)) {
-    const prefix = current === "" || current.endsWith("\n") ? current : `${current}\n`;
-    fs.writeFileSync(file, `${prefix}${prefix === "" ? "" : "\n"}${AI_INSTRUCTIONS}\n`, "utf8");
+    const prefix = current === "" || current.endsWith("\n")
+      ? current
+      : `${current}\n`;
+    fs.writeFileSync(
+      file,
+      `${prefix}${prefix === "" ? "" : "\n"}${AI_INSTRUCTIONS}\n`,
+      "utf8",
+    );
   }
-  return { ok: true, installed: true, changed: !current.includes(INSTRUCTIONS_START), preview, block: AI_INSTRUCTIONS, file };
+
+  return {
+    ok: true,
+    installed: true,
+    changed: !current.includes(INSTRUCTIONS_START),
+    preview,
+    block: AI_INSTRUCTIONS,
+    file,
+  };
 }
 
-export function removeInstructions(home, { userHome = os.homedir() } = {}) {
+export function removeInstructions(
+  home,
+  { userHome = os.homedir() } = {},
+) {
   void home;
   const file = userPaths(userHome).instructions;
-  if (!fs.existsSync(file)) return { ok: true, removed: false, file };
+  if (!fs.existsSync(file)) {
+    return { ok: true, removed: false, file };
+  }
+
   const current = fs.readFileSync(file, "utf8");
   const start = current.indexOf(INSTRUCTIONS_START);
   const end = current.indexOf(INSTRUCTIONS_END, start);
-  if (start < 0 || end < 0) return { ok: true, removed: false, file };
-  const before = current.slice(0, start).replace(/[ \t]+$/u, "").replace(/\n{2,}$/u, "\n");
-  const after = current.slice(end + INSTRUCTIONS_END.length).replace(/^\s*\n/u, "");
-  fs.writeFileSync(file, `${before}${after}`.replace(/^\n+|\n+$/gu, "") + (before || after ? "\n" : ""), "utf8");
+  if (start < 0 || end < 0) {
+    return { ok: true, removed: false, file };
+  }
+
+  const before = current.slice(0, start)
+    .replace(/[ \t]+$/u, "")
+    .replace(/\n{2,}$/u, "\n");
+  const after = current.slice(end + INSTRUCTIONS_END.length)
+    .replace(/^\s*\n/u, "");
+
+  fs.writeFileSync(
+    file,
+    `${before}${after}`.replace(/^\n+|\n+$/gu, "") + (before || after ? "\n" : ""),
+    "utf8",
+  );
+
   return { ok: true, removed: true, file };
 }
 
 function xml(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 function daemonPlist(home) {
@@ -331,11 +543,19 @@ function daemonPlist(home) {
 `;
 }
 
-export function installDaemon(home, runner = defaultRunner, { userHome = os.homedir(), uid = process.getuid?.() ?? 0 } = {}) {
+export function installDaemon(
+  home,
+  runner = defaultRunner,
+  {
+    userHome = os.homedir(),
+    uid = process.getuid?.() ?? 0,
+  } = {},
+) {
   initStore(home);
   const file = userPaths(userHome).plist;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, daemonPlist(home), "utf8");
+
   const args = ["bootstrap", `gui/${uid}`, file];
   try {
     runnerText(runner, "launchctl", args);
@@ -347,20 +567,38 @@ export function installDaemon(home, runner = defaultRunner, { userHome = os.home
       cause,
     );
   }
-  return { ok: true, label: DAEMON_LABEL, plist: file };
+
+  return {
+    ok: true,
+    label: DAEMON_LABEL,
+    plist: file,
+  };
 }
 
-export function uninstallDaemon(home, runner = defaultRunner, { userHome = os.homedir(), uid = process.getuid?.() ?? 0 } = {}) {
+export function uninstallDaemon(
+  home,
+  runner = defaultRunner,
+  {
+    userHome = os.homedir(),
+    uid = process.getuid?.() ?? 0,
+  } = {},
+) {
   void home;
   const file = userPaths(userHome).plist;
+
   if (fs.existsSync(file)) {
     try {
-      runnerText(runner, "launchctl", ["bootout", `gui/${uid}`, file]);
+      runnerText(runner, "launchctl", [
+        "bootout",
+        `gui/${uid}`,
+        file,
+      ]);
     } finally {
       fs.rmSync(file, { force: true });
     }
     return { ok: true, removed: true, plist: file };
   }
+
   return { ok: true, removed: false, plist: file };
 }
 
@@ -373,23 +611,45 @@ function appendHealth(home, value) {
 export async function runDigestOnce(home, { dry = false } = {}) {
   initStore(home);
   const store = new Store(home);
+
   try {
     const result = await runOnce(store, home, readConfig(home), { dry });
-    const failed = !dry && ((result.pairs > 0 && result.judgments === 0)
-      || (Array.isArray(result.judge_errors) && result.judge_errors.length > 0));
+    const failed = !dry && (
+      (result.pairs > 0 && result.judgments === 0)
+      || (
+        Array.isArray(result.judge_errors)
+        && result.judge_errors.length > 0
+      )
+    );
+
     if (failed) {
       const batchReason = result.judge_errors?.[0]?.reason;
       const reason = batchReason
         ? `체험 소화 판정에 실패했어요: ${batchReason}`
         : "체험 소화할 기억은 찾았지만 판정 결과를 받지 못했어요. Claude CLI 연결을 확인해 주세요.";
       const failure = { ok: false, reason, ...result };
-      appendHealth(home, { at: new Date().toISOString(), exit: 1, result: failure, error: reason });
+
+      appendHealth(home, {
+        at: new Date().toISOString(),
+        exit: 1,
+        result: failure,
+        error: reason,
+      });
       return failure;
     }
-    appendHealth(home, { at: new Date().toISOString(), exit: 0, result });
+
+    appendHealth(home, {
+      at: new Date().toISOString(),
+      exit: 0,
+      result,
+    });
     return { ok: true, ...result };
   } catch (error) {
-    appendHealth(home, { at: new Date().toISOString(), exit: 1, error: error?.code ?? error?.message ?? String(error) });
+    appendHealth(home, {
+      at: new Date().toISOString(),
+      exit: 1,
+      error: error?.code ?? error?.message ?? String(error),
+    });
     throw error;
   } finally {
     store.close();
@@ -400,7 +660,8 @@ function sampleFacts(home) {
   if (!fs.existsSync(path.join(home, "index.sqlite"))) return [];
   const store = new Store(home);
   try {
-    return store.query().filter((fact) => fact.provenance?.source === "sample");
+    return store.query()
+      .filter((fact) => fact.provenance?.source === "sample");
   } finally {
     store.close();
   }
@@ -410,32 +671,69 @@ export function seedSampleFacts(home) {
   initStore(home);
   const store = new Store(home);
   const config = readConfig(home);
+
   try {
-    if (store.query().some((fact) => fact.provenance?.source === "sample" && fact.status === STATUS.ACTIVE)) {
-      return { ok: true, seeded: 0, facts: sampleFacts(home).map((fact) => fact.id) };
+    if (
+      store.query().some(
+        (fact) => fact.provenance?.source === "sample"
+          && fact.status === STATUS.ACTIVE,
+      )
+    ) {
+      return {
+        ok: true,
+        seeded: 0,
+        facts: sampleFacts(home).map((fact) => fact.id),
+      };
     }
+
     const inputs = [
-      { claim: "체험용 검토중복 메모: 회의 요약은 팀 문서에 기록한다", scope: "project:sample-duplicate", t_valid: "2026-01-01" },
-      { claim: "체험용 검토중복 메모: 팀 문서에 회의 요약을 기록한다", scope: "project:sample-duplicate", t_valid: "2026-01-02" },
-      { claim: "체험용 서비스 포트는 3100이다", scope: "project:sample-contradiction", t_valid: "2026-01-01" },
-      { claim: "체험용 서비스 포트는 3200으로 변경되었다", scope: "project:sample-contradiction", t_valid: "2026-01-02" },
+      {
+        claim: "체험용 검토중복 메모: 회의 요약은 팀 문서에 기록한다",
+        scope: "project:sample-duplicate",
+        t_valid: "2026-01-01",
+      },
+      {
+        claim: "체험용 검토중복 메모: 팀 문서에 회의 요약을 기록한다",
+        scope: "project:sample-duplicate",
+        t_valid: "2026-01-02",
+      },
+      {
+        claim: "체험용 서비스 포트는 3100이다",
+        scope: "project:sample-contradiction",
+        t_valid: "2026-01-01",
+      },
+      {
+        claim: "체험용 서비스 포트는 3200으로 변경되었다",
+        scope: "project:sample-contradiction",
+        t_valid: "2026-01-02",
+      },
     ];
+
     const ids = inputs.map((input) => remember(store, {
       ...input,
       source: "sample",
       confidence: 0.9,
     }, config)).map((result) => result.id);
-    return { ok: true, seeded: ids.length, facts: ids };
+
+    return {
+      ok: true,
+      seeded: ids.length,
+      facts: ids,
+    };
   } finally {
     store.close();
   }
 }
 
 export function removeSampleFacts(home) {
-  if (!fs.existsSync(path.join(home, "index.sqlite"))) return { ok: true, removed: 0 };
+  if (!fs.existsSync(path.join(home, "index.sqlite"))) {
+    return { ok: true, removed: 0 };
+  }
+
   const store = new Store(home);
   let removed = 0;
   const ids = new Set();
+
   try {
     for (const fact of store.query()) {
       if (fact.provenance?.source !== "sample") continue;
@@ -448,21 +746,32 @@ export function removeSampleFacts(home) {
   } finally {
     store.close();
   }
+
   const queue = path.join(home, "review", "queue.jsonl");
   if (fs.existsSync(queue) && ids.size > 0) {
     withReviewLock(home, () => {
-      const kept = fs.readFileSync(queue, "utf8").split("\n").filter((line) => {
-        if (line.trim() === "") return false;
-        try {
-          return !String(JSON.parse(line).pair_id ?? "").split(":").some((id) => ids.has(id));
-        } catch {
-          return true;
-        }
-      });
+      const kept = fs.readFileSync(queue, "utf8")
+        .split("\n")
+        .filter((line) => {
+          if (line.trim() === "") return false;
+          try {
+            return !String(JSON.parse(line).pair_id ?? "")
+              .split(":")
+              .some((id) => ids.has(id));
+          } catch {
+            return true;
+          }
+        });
+
       const tmp = `${queue}.tmp-${process.pid}`;
-      fs.writeFileSync(tmp, kept.length === 0 ? "" : `${kept.join("\n")}\n`, "utf8");
+      fs.writeFileSync(
+        tmp,
+        kept.length === 0 ? "" : `${kept.join("\n")}\n`,
+        "utf8",
+      );
       fs.renameSync(tmp, queue);
     });
   }
+
   return { ok: true, removed };
 }

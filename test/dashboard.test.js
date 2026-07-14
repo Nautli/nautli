@@ -11,14 +11,15 @@ import { startDashboard } from "../src/dashboard/server.js";
 
 const config = { default_scope: "person" };
 
-async function dashboard(t) {
+async function dashboard(t, options = {}) {
   const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-dashboard-"));
   const home = path.join(userHome, ".nautli");
-  const runner = (command, args) => {
+  const runner = options.runner ?? ((command, args) => {
     if (command === "claude" && args[0] === "mcp" && args[1] === "list") return "nautli: connected\n";
     return "ok\n";
-  };
+  });
   const started = await startDashboard(home, {
+    ...options,
     port: 0,
     open: false,
     userHome,
@@ -279,4 +280,100 @@ test("dashboard page exposes continuity, hardened checkup, and local share-card 
   assert.match(page, /지금까지: 모순/);
   assert.match(page, /data-share-download/);
   assert.match(page, /toBlob/);
+});
+
+test("dashboard scan contract keeps usage null until explicit opt in", async (t) => {
+  const agents = [
+    { name: "claude", installed: true, connected: true },
+    { name: "codex", installed: true, connected: false },
+    { name: "cursor", installed: false, connected: null },
+    { name: "gemini", installed: false, connected: null },
+  ];
+  const target = await dashboard(t, {
+    detectAgents: async () => agents,
+    scanUsage: async () => ({
+      claude_sessions30d: 12,
+      codex_sessions30d: 3,
+      capped: false,
+      partial: false,
+    }),
+  });
+
+  const before = await (await fetch(`${target.url}/api/scan`)).json();
+  assert.equal(before.ok, true);
+  assert.deepEqual(before.agents, agents);
+  assert.equal(before.usage, null);
+
+  const scannedResponse = await fetch(`${target.url}/api/scan`, {
+    method: "POST",
+    headers: {
+      origin: target.origin,
+      "content-type": "application/json",
+    },
+    body: "{}",
+  });
+  assert.equal(scannedResponse.status, 200);
+  const scanned = await scannedResponse.json();
+  assert.equal(scanned.ok, true);
+  assert.deepEqual(scanned.usage, {
+    claude_sessions30d: 12,
+    codex_sessions30d: 3,
+  });
+
+  const after = await (await fetch(`${target.url}/api/scan`)).json();
+  assert.deepEqual(after.usage, scanned.usage);
+});
+
+test("dashboard checklist is derived from existing feature states", async (t) => {
+  const target = await dashboard(t);
+  const page = await (await fetch(target.url)).text();
+
+  assert.match(page, /function checklistState\(\)/);
+  assert.match(page, /state\.continuity\.a===\"done\"/);
+  assert.match(page, /checkup\.state===\"done\"/);
+  assert.match(page, /claude\.connected&&codex\.connected/);
+  assert.match(page, /state\.status\.setup\.optional\.cursor/);
+  assert.match(page, /title:\"공유 카드 만들기\"/);
+  assert.match(page, /다음 할 일/);
+  assert.match(page, /다 됐어요\. 이제 nautli는 알아서 굴러가요/);
+  assert.doesNotMatch(page, /title:\"GitHub/);
+});
+
+test("dashboard star nag is recorded once and wired to a successful card action", async (t) => {
+  const target = await dashboard(t);
+  const markSeen = () => fetch(`${target.url}/api/star-nag-seen`, {
+    method: "POST",
+    headers: {
+      origin: target.origin,
+      "content-type": "application/json",
+    },
+    body: "{}",
+  });
+
+  const first = await (await markSeen()).json();
+  const second = await (await markSeen()).json();
+  assert.equal(first.recorded, true);
+  assert.equal(second.recorded, false);
+  assert.equal(second.star_nag_shown_at, first.star_nag_shown_at);
+
+  const page = await (await fetch(target.url)).text();
+  assert.match(page, /첫 카드 처리 완료\. nautli가 쓸만하면 별 하나 주세요/);
+  assert.match(page, /post\(\"\/api\/star-nag-seen\"\)/);
+  assert.match(page, /handled\.ok!==true/);
+  assert.match(page, /https:\/\/github\.com\/Nautli\/nautli/);
+  assert.match(page, /data-star-later/);
+});
+
+test("dashboard onboarding copy keeps the inline hero and privacy contract", async (t) => {
+  const target = await dashboard(t);
+  const page = await (await fetch(target.url)).text();
+
+  assert.match(page, /감지된 AI /);
+  assert.match(page, /내 AI 사용량 확인하기/);
+  assert.match(page, /로컬에서만 · 파일 목록과 수정 시각만 · 네트워크 요청 0회/);
+  assert.match(page, /최근 30일 Claude /);
+  assert.match(page, /다음 대화부터는 여기 남아요\./);
+  assert.match(page, /agent\.name===\"codex\"/);
+  assert.match(page, /data-scan-usage/);
+  assert.doesNotMatch(page, /[—–]/u);
 });

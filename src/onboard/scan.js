@@ -103,12 +103,14 @@ async function scanRoot(root, state, key) {
     if (state.clock() - state.startedAt >= state.budgetMs) state.partial = true;
     return;
   }
+
   const stack = [root];
   while (stack.length > 0 && !state.partial && !state.capped) {
     if (state.clock() - state.startedAt >= state.budgetMs) {
       state.partial = true;
       break;
     }
+
     const directory = stack.pop();
     let names;
     try {
@@ -116,11 +118,13 @@ async function scanRoot(root, state, key) {
     } catch {
       continue;
     }
+
     for (const name of names) {
       if (state.clock() - state.startedAt >= state.budgetMs) {
         state.partial = true;
         break;
       }
+
       const target = path.join(directory, name);
       let metadata;
       try {
@@ -128,6 +132,7 @@ async function scanRoot(root, state, key) {
       } catch {
         continue;
       }
+
       if (metadata.isSymbolicLink()) continue;
       if (metadata.isDirectory()) {
         stack.push(target);
@@ -138,6 +143,7 @@ async function scanRoot(root, state, key) {
         state.capped = true;
         break;
       }
+
       state.filesSeen += 1;
       if (metadata.mtimeMs >= state.recentSince) state[key] += 1;
     }
@@ -163,10 +169,20 @@ export async function scanUsage({
     recentSince: startedAt - THIRTY_DAYS_MS,
     startedAt,
   };
-  await scanRoot(path.join(userHome, ".claude", "projects"), state, "claude_sessions30d");
+
+  await scanRoot(
+    path.join(userHome, ".claude", "projects"),
+    state,
+    "claude_sessions30d",
+  );
   if (!state.partial && !state.capped) {
-    await scanRoot(path.join(userHome, ".codex", "sessions"), state, "codex_sessions30d");
+    await scanRoot(
+      path.join(userHome, ".codex", "sessions"),
+      state,
+      "codex_sessions30d",
+    );
   }
+
   return {
     claude_sessions30d: state.claude_sessions30d,
     codex_sessions30d: state.codex_sessions30d,
@@ -201,6 +217,7 @@ export function writeScanCache(home, value) {
   const file = path.join(home, "scan.json");
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
   const cache = { ...value, version: SCAN_VERSION };
+
   try {
     fs.writeFileSync(tmp, `${JSON.stringify(cache)}\n`, "utf8");
     fs.renameSync(tmp, file);
@@ -208,5 +225,6 @@ export function writeScanCache(home, value) {
     fs.rmSync(tmp, { force: true });
     throw error;
   }
+
   return cache;
 }
