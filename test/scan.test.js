@@ -8,6 +8,7 @@ import { ERR } from "../src/core/schema.js";
 import {
   registerMcpCodex,
   statusAll,
+  writeConfig,
 } from "../src/onboard/setup.js";
 import {
   scanUsage,
@@ -66,7 +67,7 @@ function agentRunner(calls = []) {
 
 async function dashboard(
   t,
-  { runner = agentRunner() } = {},
+  { runner = agentRunner(), ...options } = {},
 ) {
   const userHome = fs.mkdtempSync(
     path.join(os.tmpdir(), "nautli-scan-api-"),
@@ -77,6 +78,7 @@ async function dashboard(
     open: false,
     userHome,
     runner,
+    ...options,
   });
 
   t.after(async () => {
@@ -154,6 +156,30 @@ test(
 );
 
 test(
+  "scanUsage excludes session files more than five minutes in the future",
+  async (t) => {
+    const { userHome } = isolatedHome(
+      t,
+      "nautli-scan-future-mtime-",
+    );
+    const root = path.join(
+      userHome,
+      ".claude",
+      "projects",
+      "project-a",
+    );
+    fs.mkdirSync(root, { recursive: true });
+    const file = path.join(root, "future.jsonl");
+    fs.writeFileSync(file, "future session\n", "utf8");
+    const future = new Date(Date.now() + 10 * 60 * 1_000);
+    fs.utimesSync(file, future, future);
+
+    const usage = await scanUsage({ userHome });
+    assert.equal(usage.claude_sessions30d, 0);
+  },
+);
+
+test(
   "scanUsage stops after three thousand session files",
   async (t) => {
     const { userHome } = isolatedHome(
@@ -215,6 +241,90 @@ test(
     );
     const after = await afterResponse.json();
     assert.deepEqual(after.usage, result.usage);
+  },
+);
+
+test(
+  "GET scan marks opted-in usage older than twenty-four hours as stale",
+  async (t) => {
+    const target = await dashboard(t);
+    writeConfig(target.home, {
+      usage_scan_opted_in_at: new Date().toISOString(),
+    });
+    writeScanCache(target.home, {
+      scanned_at: new Date(
+        Date.now() - 25 * 60 * 60 * 1_000,
+      ).toISOString(),
+      partial: false,
+      capped: false,
+      agents: [],
+      usage: {
+        claude_sessions30d: 4,
+        codex_sessions30d: 2,
+      },
+      remembered: 0,
+    });
+
+    const result = await (
+      await fetch(`${target.url}/api/scan`)
+    ).json();
+    assert.equal(result.stale, true);
+    assert.deepEqual(result.usage, {
+      claude_sessions30d: 4,
+      codex_sessions30d: 2,
+    });
+  },
+);
+
+test(
+  "concurrent scan requests share one in-flight usage scan",
+  async (t) => {
+    let scanCalls = 0;
+    let releaseScan;
+    let markStarted;
+    const started = new Promise((resolve) => {
+      markStarted = resolve;
+    });
+    const blocked = new Promise((resolve) => {
+      releaseScan = resolve;
+    });
+    const target = await dashboard(t, {
+      detectAgents: async () => [],
+      scanUsage: async () => {
+        scanCalls += 1;
+        markStarted();
+        await blocked;
+        return {
+          claude_sessions30d: 6,
+          codex_sessions30d: 3,
+          capped: false,
+          partial: false,
+        };
+      },
+    });
+    const request = () => fetch(`${target.url}/api/scan`, {
+      method: "POST",
+      headers: {
+        origin: target.origin,
+        "content-type": "application/json",
+      },
+      body: "{}",
+    }).then((response) => response.json());
+
+    const first = request();
+    const second = request();
+    await started;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    releaseScan();
+    const [firstResult, secondResult] = await Promise.all([
+      first,
+      second,
+    ]);
+
+    assert.equal(scanCalls, 1);
+    assert.deepEqual(secondResult, firstResult);
+    assert.equal((await request()).ok, true);
+    assert.equal(scanCalls, 2);
   },
 );
 

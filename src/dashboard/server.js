@@ -47,6 +47,8 @@ import { HTML } from "./public.js";
 
 const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
 const BODY_LIMIT = 64 * 1024;
+const SCAN_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
+const scanFlights = new Map();
 
 const HUMAN_ERRORS = Object.freeze({
   [ERR.E_INVALID_INPUT]: "입력 내용을 확인해 주세요.",
@@ -483,18 +485,72 @@ function scanFailure(error) {
 function scanGetResult(home, agents) {
   const config = readConfig(home);
   const cache = readScanCache(home);
+  const optedIn = Boolean(config.usage_scan_opted_in_at);
+  const scannedAt = Date.parse(cache?.scanned_at);
   return {
     ok: true,
     version: SCAN_VERSION,
     scanned_at: cache?.scanned_at ?? null,
+    stale: optedIn
+      && Number.isFinite(scannedAt)
+      && Date.now() - scannedAt > SCAN_CACHE_TTL_MS,
     partial: cache?.partial === true,
     capped: cache?.capped === true,
     agents,
-    usage: config.usage_scan_opted_in_at
+    usage: optedIn
       ? cache?.usage ?? null
       : null,
     remembered: rememberedCount(home),
   };
+}
+
+function scanOnce(home, {
+  detectAgentsFor,
+  runner,
+  scanUsageFor,
+  userHome,
+}) {
+  const existing = scanFlights.get(home);
+  if (existing) return existing;
+
+  const flight = (async () => {
+    const config = readConfig(home);
+    const optedInAt = config.usage_scan_opted_in_at
+      ?? new Date().toISOString();
+    writeConfig(home, {
+      usage_scan_opted_in_at: optedInAt,
+    });
+
+    const [agents, usageResult] = await Promise.all([
+      detectAgentsFor({ runner }),
+      scanUsageFor({ userHome }),
+    ]);
+    const cache = writeScanCache(home, {
+      scanned_at: new Date().toISOString(),
+      partial: usageResult.partial === true,
+      capped: usageResult.capped === true,
+      agents,
+      usage: {
+        claude_sessions30d:
+          usageResult.claude_sessions30d,
+        codex_sessions30d:
+          usageResult.codex_sessions30d,
+      },
+      remembered: rememberedCount(home),
+    });
+
+    return {
+      ok: true,
+      ...cache,
+    };
+  })();
+
+  scanFlights.set(home, flight);
+  const clear = () => {
+    if (scanFlights.get(home) === flight) scanFlights.delete(home);
+  };
+  flight.then(clear, clear);
+  return flight;
 }
 
 export function createDashboardServer(home, options = {}) {
@@ -659,35 +715,12 @@ export function createDashboardServer(home, options = {}) {
         && url.pathname === "/api/scan"
       ) {
         try {
-          const config = readConfig(home);
-          const optedInAt = config.usage_scan_opted_in_at
-            ?? new Date().toISOString();
-          writeConfig(home, {
-            usage_scan_opted_in_at: optedInAt,
-          });
-
-          const [agents, usageResult] = await Promise.all([
-            detectAgentsFor({ runner }),
-            scanUsageFor({ userHome }),
-          ]);
-          const cache = writeScanCache(home, {
-            scanned_at: new Date().toISOString(),
-            partial: usageResult.partial === true,
-            capped: usageResult.capped === true,
-            agents,
-            usage: {
-              claude_sessions30d:
-                usageResult.claude_sessions30d,
-              codex_sessions30d:
-                usageResult.codex_sessions30d,
-            },
-            remembered: rememberedCount(home),
-          });
-
-          json(response, 200, {
-            ok: true,
-            ...cache,
-          });
+          json(response, 200, await scanOnce(home, {
+            detectAgentsFor,
+            runner,
+            scanUsageFor,
+            userHome,
+          }));
         } catch (error) {
           json(response, 200, scanFailure(error));
         }

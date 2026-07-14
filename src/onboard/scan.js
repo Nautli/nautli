@@ -11,6 +11,7 @@ const COMMAND_TIMEOUT_MS = 2_000;
 const SCAN_BUDGET_MS = 5_000;
 const SESSION_FILE_CAP = 3_000;
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1_000;
+const FUTURE_MTIME_ALLOWANCE_MS = 5 * 60 * 1_000;
 
 function text(value) {
   return Buffer.isBuffer(value) ? value.toString("utf8") : String(value ?? "");
@@ -88,6 +89,7 @@ export async function detectAgents({ runner } = {}) {
 }
 
 async function scanRoot(root, state, key) {
+  // 네트워크 홈 등 블로킹 I/O에는 하드 타임아웃이 아님(v1 로컬 전용 한계).
   if (state.clock() - state.startedAt >= state.budgetMs) {
     state.partial = true;
     return;
@@ -145,7 +147,12 @@ async function scanRoot(root, state, key) {
       }
 
       state.filesSeen += 1;
-      if (metadata.mtimeMs >= state.recentSince) state[key] += 1;
+      if (
+        metadata.mtimeMs >= state.recentSince
+        && metadata.mtimeMs <= state.recentUntil
+      ) {
+        state[key] += 1;
+      }
     }
   }
 }
@@ -167,6 +174,7 @@ export async function scanUsage({
     maxFiles,
     partial: false,
     recentSince: startedAt - THIRTY_DAYS_MS,
+    recentUntil: startedAt + FUTURE_MTIME_ALLOWANCE_MS,
     startedAt,
   };
 

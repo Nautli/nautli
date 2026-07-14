@@ -34,6 +34,17 @@ function setupError(code, message, manualCommand, cause) {
   return error;
 }
 
+function manualCommand(command, args) {
+  return [command, ...args]
+    .map((token) => {
+      const value = String(token);
+      return /\s/u.test(value)
+        ? `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`
+        : value;
+    })
+    .join(" ");
+}
+
 function defaultRunner(command, args, options = {}) {
   if (!ALLOWED_COMMANDS.has(command)) {
     throw codedError(ERR.E_INVALID_INPUT, `Command not allowed: ${command}`);
@@ -363,7 +374,7 @@ export function registerMcp(home, runner = defaultRunner) {
     CLI_FILE,
     "mcp",
   ];
-  const manualCommand = ["claude", ...args].join(" ");
+  const fallbackCommand = manualCommand("claude", args);
 
   try {
     runnerText(
@@ -376,7 +387,7 @@ export function registerMcp(home, runner = defaultRunner) {
     throw setupError(
       ERR.E_CLAUDE_CLI_MISSING,
       "Claude CLI가 설치되어 있지 않아요. 설치한 뒤 수동 명령을 실행해 주세요.",
-      manualCommand,
+      fallbackCommand,
       cause,
     );
   }
@@ -392,7 +403,7 @@ export function registerMcp(home, runner = defaultRunner) {
     throw setupError(
       ERR.E_MCP_REGISTER_FAILED,
       "Claude MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요.",
-      manualCommand,
+      fallbackCommand,
       cause,
     );
   }
@@ -410,7 +421,7 @@ export function registerMcpCodex(home, runner = defaultRunner) {
     CLI_FILE,
     "mcp",
   ];
-  const manualCommand = ["codex", ...args].join(" ");
+  const fallbackCommand = manualCommand("codex", args);
 
   try {
     runnerText(
@@ -423,7 +434,7 @@ export function registerMcpCodex(home, runner = defaultRunner) {
     throw setupError(
       ERR.E_CODEX_CLI_MISSING,
       "Codex CLI가 설치되어 있지 않아요. 설치한 뒤 수동 명령을 실행해 주세요.",
-      manualCommand,
+      fallbackCommand,
       cause,
     );
   }
@@ -439,7 +450,7 @@ export function registerMcpCodex(home, runner = defaultRunner) {
     throw setupError(
       ERR.E_MCP_REGISTER_FAILED,
       "Codex MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요.",
-      manualCommand,
+      fallbackCommand,
       cause,
     );
   }
