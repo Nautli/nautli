@@ -5,6 +5,10 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
+import {
+  listOptedProjects,
+  setProjectOptIn,
+} from "./capture/consent.js";
 import { remember } from "./core/gate.js";
 import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
@@ -43,6 +47,8 @@ rebuild    기억 저장소 인덱스를 다시 만들어요.
 stats      기억 저장소 통계를 보여줘요.
 doctor     설치와 저장소 상태를 점검해요.
 review     검토가 필요한 카드를 처리해요.
+capture    프로젝트 자동 캡처 동의를 관리해요.
+purge      기억을 완전히 삭제해요.
 mcp        MCP 서버를 실행해요.
 
 처음이면: npx nautli dashboard`;
@@ -115,6 +121,24 @@ function doctorCommand(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 0);
   return doctor(home);
+}
+
+function captureCommand(home, args) {
+  const parsed = parseCommand(args);
+  const [action, ...projectPaths] = parsed.positionals;
+  if (action === "status") {
+    requirePositionals(projectPaths, 0);
+    return { projects: listOptedProjects(home) };
+  }
+  if (action !== "on" && action !== "off") {
+    throw codedError(ERR.E_INVALID_INPUT);
+  }
+  if (projectPaths.length > 1) throw codedError(ERR.E_INVALID_INPUT);
+  return setProjectOptIn(home, projectPaths[0] ?? process.cwd(), action === "on");
+}
+
+function claimPreview(claim) {
+  return [...claim].slice(0, 40).join("");
 }
 
 function dashboardPort(value) {
@@ -247,6 +271,12 @@ export async function main(argv = process.argv.slice(2)) {
       return;
     }
 
+    if (command === "capture") {
+      writeJson(captureCommand(home, args));
+      process.exitCode = 0;
+      return;
+    }
+
     if (command === "dashboard") {
       const parsed = parseCommand(args, {
         port: { type: "string" },
@@ -315,6 +345,31 @@ export async function main(argv = process.argv.slice(2)) {
         };
         if (budget !== undefined) options.budget_tokens = budget;
         writeJson(recall(store, parsed.positionals[0], options));
+        process.exitCode = 0;
+        return;
+      }
+
+      if (command === "purge") {
+        const parsed = parseCommand(args, {
+          yes: { type: "boolean", default: false },
+        });
+        if (parsed.positionals.length === 0) throw codedError(ERR.E_INVALID_INPUT);
+        const facts = parsed.positionals.map((id) => {
+          const fact = store.getFact(id);
+          if (!fact) throw codedError(ERR.E_NOT_FOUND);
+          return fact;
+        });
+        if (!parsed.values.yes) {
+          writeJson({
+            facts: facts.map((fact) => ({
+              id: fact.id,
+              claim: claimPreview(fact.claim),
+            })),
+          });
+          process.exitCode = 0;
+          return;
+        }
+        writeJson(store.purge(facts.map((fact) => fact.id), { source: "cli" }));
         process.exitCode = 0;
         return;
       }

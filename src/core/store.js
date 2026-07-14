@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { withReviewLock } from "./review-lock.js";
 import { ERR, STATUS, assertTransition, claimHash } from "./schema.js";
 
 const EVENT_STATUS = Object.freeze({
@@ -67,6 +68,123 @@ function completeFact(fact, at) {
     status: fact.status ?? STATUS.ACTIVE,
     claim_hash: fact.claim_hash ?? claimHash(fact.claim),
   };
+}
+
+function purgedFactIds(event) {
+  if (event?.ev !== "fact.purged" || !Array.isArray(event.fact_ids)) return [];
+  return event.fact_ids.filter((id) => typeof id === "string" && id.length > 0);
+}
+
+function sameIds(left, right) {
+  return left.length === right.length && left.every((id, index) => id === right[index]);
+}
+
+function hasPurgeTombstone(home, ids, at) {
+  const directory = path.join(home, "events");
+  for (const name of fs.readdirSync(directory)
+    .filter((file) => /^\d{4}-\d{2}\.jsonl$/u.test(file))
+    .sort()) {
+    for (const line of fs.readFileSync(path.join(directory, name), "utf8").split("\n")) {
+      if (line.trim() === "") continue;
+      try {
+        const event = JSON.parse(line);
+        if (event?.ev === "fact.purged"
+          && event.at === at
+          && sameIds(purgedFactIds(event), ids)) return true;
+      } catch {
+        // 손상된 기존 라인은 tombstone 일치 여부를 판정할 수 없으므로 무시한다.
+      }
+    }
+  }
+  return false;
+}
+
+function eventContainsPurgedContent(event, ids) {
+  if (event?.ev === "fact.added" && ids.has(event.fact?.id)) return true;
+  if (Object.hasOwn(EVENT_STATUS, event?.ev) && ids.has(event.id)) return true;
+  if (isRememberActivityEvent(event)
+    && ids.has(event.fact_id)
+    && typeof event.claim === "string") return true;
+  return isRecallEvent(event)
+    && Array.isArray(event.hits)
+    && event.hits.some((id) => ids.has(id))
+    && typeof event.query === "string"
+    && event.query.length > 0;
+}
+
+let atomicSequence = 0;
+
+function writeAtomic(file, data) {
+  atomicSequence += 1;
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}-${atomicSequence}`;
+  try {
+    fs.writeFileSync(tmp, data, "utf8");
+    fs.renameSync(tmp, file);
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+}
+
+function scrubEventFiles(home, ids) {
+  const directory = path.join(home, "events");
+  let removed = 0;
+  for (const name of fs.readdirSync(directory)
+    .filter((file) => /^\d{4}-\d{2}\.jsonl$/u.test(file))
+    .sort()) {
+    const file = path.join(directory, name);
+    const lines = fs.readFileSync(file, "utf8").split("\n");
+    const kept = [];
+    let changed = false;
+    for (const line of lines) {
+      if (line.trim() === "") continue;
+      let event;
+      try {
+        event = JSON.parse(line);
+      } catch {
+        kept.push(line);
+        continue;
+      }
+      if (eventContainsPurgedContent(event, ids)) {
+        changed = true;
+        removed += 1;
+      } else {
+        kept.push(line);
+      }
+    }
+    if (!changed) continue;
+    const data = kept.length === 0 ? "" : `${kept.join("\n")}\n`;
+    writeAtomic(`${file}.bak`, data);
+    writeAtomic(file, data);
+  }
+  return removed;
+}
+
+function removeReviewPairs(home, ids) {
+  const file = path.join(home, "review", "queue.jsonl");
+  if (!fs.existsSync(file)) return 0;
+  return withReviewLock(home, () => {
+    const lines = fs.readFileSync(file, "utf8").split("\n");
+    const kept = [];
+    let removed = 0;
+    for (const line of lines) {
+      if (line.trim() === "") continue;
+      try {
+        const pairIds = String(JSON.parse(line).pair_id ?? "").split(":");
+        if (pairIds.some((id) => ids.has(id))) {
+          removed += 1;
+          continue;
+        }
+      } catch {
+        // 손상된 기존 라인은 purge 대상 여부를 판정할 수 없으므로 보존한다.
+      }
+      kept.push(line);
+    }
+    if (removed > 0) {
+      writeAtomic(file, kept.length === 0 ? "" : `${kept.join("\n")}\n`);
+    }
+    return removed;
+  });
 }
 
 function isRecallEvent(event) {
@@ -154,6 +272,10 @@ export class Store {
       fs.mkdirSync(path.join(this.home, directory), { recursive: true });
     }
     this.open();
+    const purgeJournal = path.join(this.home, "purge-journal.json");
+    if (fs.existsSync(purgeJournal)) {
+      this.recoverPurgeJournal(purgeJournal);
+    }
     // 자가치유: 이전 세션에서 인덱스 반영이 실패한 흔적이 있으면 정본(events)에서 재구성
     const dirtyMarker = path.join(this.home, ".index-dirty");
     if (fs.existsSync(dirtyMarker)) {
@@ -196,13 +318,14 @@ export class Store {
     `);
   }
 
-  appendEvent(evt) {
+  appendEvent(evt, { apply = true } = {}) {
     const at = typeof evt?.at === "string" ? evt.at : new Date().toISOString();
     const event = { ...evt, at };
     const month = /^\d{4}-\d{2}/.exec(at)?.[0];
     if (!month) throw codedError(ERR.E_INVALID_INPUT);
     const file = path.join(this.home, "events", `${month}.jsonl`);
     fs.appendFileSync(file, `${JSON.stringify(event)}\n`, { encoding: "utf8", flag: "a" });
+    if (!apply) return event;
     try {
       this.applyEvent(event);
     } catch {
@@ -218,6 +341,15 @@ export class Store {
     if (isRecallEvent(evt) || isRememberActivityEvent(evt)) return;
     try {
       const apply = this.db.transaction(() => {
+        const tombstoneIds = purgedFactIds(evt);
+        if (tombstoneIds.length > 0) {
+          const placeholders = tombstoneIds.map(() => "?").join(", ");
+          this.db.prepare(`DELETE FROM facts_fts WHERE id IN (${placeholders})`).run(...tombstoneIds);
+          // invariant-allow: facts-delete — tombstone 집행(완전삭제의 rebuild 방어선, CAPTURE-SPEC §1.4)
+          this.db.prepare(`DELETE FROM facts WHERE id IN (${placeholders})`).run(...tombstoneIds);
+          return;
+        }
+
         if (evt?.ev === "fact.added") {
           const fact = completeFact(evt.fact, evt.at);
           const result = this.db.prepare(`
@@ -415,6 +547,77 @@ export class Store {
     }
   }
 
+  purge(ids, { source = "core" } = {}) {
+    if (!Array.isArray(ids)
+      || ids.some((id) => typeof id !== "string" || id.length === 0)
+      || typeof source !== "string"
+      || source.trim() === "") {
+      throw codedError(ERR.E_INVALID_INPUT);
+    }
+    const factIds = [...new Set(ids)];
+    if (factIds.length === 0) {
+      return { ok: true, purged: 0, fact_ids: [], scrubbed_events: 0, review_pairs_removed: 0 };
+    }
+    const journal = path.join(this.home, "purge-journal.json");
+    const at = new Date().toISOString();
+    writeAtomic(journal, `${JSON.stringify({ ids: factIds, at })}\n`);
+    try {
+      const result = this.runPurgeSteps(factIds, { at, source: source.trim() });
+      fs.rmSync(journal, { force: true });
+      return result;
+    } catch (error) {
+      if (isBusy(error)) throw codedError(ERR.E_STORE_BUSY, error);
+      throw error;
+    }
+  }
+
+  runPurgeSteps(factIds, { at, source }) {
+    if (!hasPurgeTombstone(this.home, factIds, at)) {
+      this.appendEvent({
+        ev: "fact.purged",
+        fact_ids: factIds,
+        source,
+        at,
+      }, { apply: false });
+    }
+    const idSet = new Set(factIds);
+    const scrubbedEvents = scrubEventFiles(this.home, idSet);
+    const removeRows = this.db.transaction(() => {
+      const placeholders = factIds.map(() => "?").join(", ");
+      this.db.prepare(`DELETE FROM facts_fts WHERE id IN (${placeholders})`).run(...factIds);
+      // invariant-allow: facts-delete — 유저 명시 purge(완전삭제, CAPTURE-SPEC §1.4)
+      return this.db.prepare(`DELETE FROM facts WHERE id IN (${placeholders})`).run(...factIds).changes;
+    });
+    const purged = removeRows();
+    const reviewPairsRemoved = removeReviewPairs(this.home, idSet);
+    return {
+      ok: true,
+      purged,
+      fact_ids: factIds,
+      scrubbed_events: scrubbedEvents,
+      review_pairs_removed: reviewPairsRemoved,
+    };
+  }
+
+  recoverPurgeJournal(journal) {
+    let entry;
+    try {
+      entry = JSON.parse(fs.readFileSync(journal, "utf8"));
+    } catch (error) {
+      throw codedError(ERR.E_INVALID_INPUT, error);
+    }
+    if (!Array.isArray(entry?.ids)
+      || entry.ids.some((id) => typeof id !== "string" || id.length === 0)
+      || typeof entry.at !== "string") {
+      throw codedError(ERR.E_INVALID_INPUT);
+    }
+    const factIds = [...new Set(entry.ids)];
+    if (factIds.length > 0) {
+      this.runPurgeSteps(factIds, { at: entry.at, source: "recovery" });
+    }
+    fs.rmSync(journal, { force: true });
+  }
+
   rebuild() {
     this.close();
     for (const suffix of ["", "-wal", "-shm"]) {
@@ -451,4 +654,14 @@ export class Store {
   close() {
     if (this.db?.open) this.db.close();
   }
+}
+
+export function purgeByProvenance(store, predicate) {
+  if (!(store instanceof Store) || typeof predicate !== "function") {
+    throw codedError(ERR.E_INVALID_INPUT);
+  }
+  const ids = store.query()
+    .filter((fact) => predicate(fact.provenance, fact))
+    .map((fact) => fact.id);
+  return store.purge(ids, { source: "provenance" });
 }
