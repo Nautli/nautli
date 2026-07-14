@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { drainOnce } from "../capture/drain.js";
+import { listOptedProjects } from "../capture/consent.js";
 import { findPairs } from "./pair.js";
 import { judgePairs } from "./judge.js";
 import { applyJudgments } from "./apply.js";
@@ -21,7 +23,23 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
   const pairs = findPairs(store);
   recordStage(home, "pair", { count: pairs.length });
 
-  if (dry) return { dry: true, pairs: pairs.length };
+  const capture = async () => {
+    if (!listOptedProjects(home).some((project) => project.enabled)) {
+      return { skipped: true, reason: "no_opted_projects" };
+    }
+    try {
+      return await drainOnce(home, config, { dry });
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  };
+
+  if (dry) {
+    return { dry: true, pairs: pairs.length, capture: await capture() };
+  }
 
   const judgeResult = await judgePairs(pairs, store, config, home);
   recordStage(home, "judge", {
@@ -38,7 +56,7 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
   const views = renderViews(store, home);
   recordStage(home, "render", { count: views.files.length });
 
-  return {
+  const result = {
     pairs: pairs.length,
     judgments: judgeResult.parsedCount,
     judge_errors: judgeResult.errors,
@@ -46,4 +64,7 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
     report,
     views,
   };
+  result.capture = await capture();
+  recordStage(home, "capture", result.capture);
+  return result;
 }

@@ -170,8 +170,9 @@ function removeReviewPairs(home, ids) {
     for (const line of lines) {
       if (line.trim() === "") continue;
       try {
-        const pairIds = String(JSON.parse(line).pair_id ?? "").split(":");
-        if (pairIds.some((id) => ids.has(id))) {
+        const entry = JSON.parse(line);
+        const pairIds = String(entry.pair_id ?? "").split(":");
+        if (ids.has(entry.fact_id) || pairIds.some((id) => ids.has(id))) {
           removed += 1;
           continue;
         }

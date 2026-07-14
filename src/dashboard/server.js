@@ -6,7 +6,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { recall } from "../core/recall.js";
 import { remember } from "../core/gate.js";
-import { applyCard, listCards } from "../core/review.js";
+import { applyCaptureCard, applyCard, listCards } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { doctor } from "../onboard/doctor.js";
@@ -62,6 +62,7 @@ const HUMAN_ERRORS = Object.freeze({
   [ERR.E_CODEX_CLI_MISSING]: "Codex CLI가 설치되어 있지 않아요.",
   [ERR.E_MCP_REGISTER_FAILED]: "Claude MCP 자동 등록에 실패했어요.",
   [ERR.E_LAUNCHCTL_FAILED]: "밤 소화 데몬 등록에 실패했어요.",
+  [ERR.E_EXTRACT_FAILED]: "대화에서 기억 후보를 뽑지 못했어요.",
   [ERR.W_DUPLICATE]: "이미 같은 기억이 저장되어 있어요.",
 });
 
@@ -143,6 +144,7 @@ function statsFor(home) {
 }
 
 function cardFacts(store, card) {
+  if (card.type === "capture") return { ...card, facts: null };
   const [aId, bId] = card.pair_id.split(":");
   return {
     ...card,
@@ -787,17 +789,11 @@ export function createDashboardServer(home, options = {}) {
         const input = await bodyJson(request);
         const store = new Store(home);
         try {
-          json(
-            response,
-            200,
-            applyCard(
-              store,
-              home,
-              pairId,
-              input.action,
-              input.extraText,
-            ),
-          );
+          const card = listCards(home).find((entry) => entry.pair_id === pairId);
+          const result = card?.type === "capture"
+            ? applyCaptureCard(store, home, pairId, input.action, readConfig(home))
+            : applyCard(store, home, pairId, input.action, input.extraText);
+          json(response, 200, result);
         } finally {
           store.close();
         }

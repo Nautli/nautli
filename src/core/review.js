@@ -13,6 +13,7 @@ const ACTIONS = new Set([
   "both_valid",
   "other",
 ]);
+const CAPTURE_ACTIONS = new Set(["remember", "dismissed", "deferred"]);
 
 function codedError(code, message = code, cause) {
   const error = new Error(message, cause ? { cause } : undefined);
@@ -177,6 +178,54 @@ export function applyCard(store, home, pairId, action, extraText) {
     };
     writeQueue(home, entries);
 
+    return { ok: true, status, action, remembered };
+  });
+}
+
+export function applyCaptureCard(store, home, pairId, action, config = {}) {
+  if (!CAPTURE_ACTIONS.has(action)) throw codedError(ERR.E_INVALID_INPUT);
+  return withReviewLock(home, () => {
+    const entries = readQueue(home);
+    const index = entries.findIndex((entry) => entry.pair_id === pairId);
+    if (index < 0 || entries[index].type !== "capture") {
+      throw codedError(ERR.E_NOT_FOUND);
+    }
+    const card = entries[index];
+    if (card.status !== "pending") return { ok: false, reason: "already_handled" };
+
+    let remembered;
+    let status = action;
+    let deferredUntil;
+    if (action === "remember") {
+      remembered = remember(store, {
+        claim: card.claim,
+        scope: card.scope,
+        confidence: card.confidence,
+        source: "capture",
+        provenance: {
+          session_id: card.session_id,
+          project: card.project,
+        },
+      }, config);
+      if (remembered.status !== "added" && remembered.status !== "duplicate") {
+        throw codedError(remembered.reason);
+      }
+      status = "answered";
+    } else if (action === "deferred") {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      deferredUntil = tomorrow.toLocaleDateString("sv-SE");
+    }
+
+    entries[index] = {
+      ...card,
+      status,
+      action,
+      handled_at: new Date().toISOString(),
+      ...(remembered?.id ? { fact_id: remembered.id } : {}),
+      ...(deferredUntil ? { deferred_until: deferredUntil } : {}),
+    };
+    writeQueue(home, entries);
     return { ok: true, status, action, remembered };
   });
 }

@@ -5,6 +5,7 @@ import { ERR } from "../core/schema.js";
 
 const ID_PATTERN = /^\d{13}-[0-9a-f]{16}$/u;
 const ENTRY_KEYS = new Set(["session_id", "transcript_path", "project", "at", "kind"]);
+const STORED_KEYS = new Set([...ENTRY_KEYS, "id", "retry_count", "dead"]);
 const MAX_FIELD_LENGTH = 4096;
 const MAX_ENTRY_BYTES = 16384;
 const MAX_SPOOL_ENTRIES = 1000;
@@ -93,7 +94,39 @@ export function listSpoolEntries(home) {
   return fs.readdirSync(directory)
     .filter((file) => ID_PATTERN.test(file.slice(0, -5)) && file.endsWith(".json"))
     .sort()
-    .map((file) => JSON.parse(fs.readFileSync(path.join(directory, file), "utf8")));
+    .map((file) => {
+      const entry = JSON.parse(fs.readFileSync(path.join(directory, file), "utf8"));
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)
+        || Object.keys(entry).some((key) => !STORED_KEYS.has(key))) {
+        throw codedError(ERR.E_INVALID_INPUT);
+      }
+      return entry;
+    });
+}
+
+export function markSpoolFailure(home, id) {
+  const directory = ensureSpoolDirectory(home);
+  const file = path.join(directory, `${validId(id)}.json`);
+  if (!fs.existsSync(file)) return null;
+  const entry = JSON.parse(fs.readFileSync(file, "utf8"));
+  const retryCount = Number.isSafeInteger(entry.retry_count) && entry.retry_count >= 0
+    ? entry.retry_count + 1
+    : 1;
+  const next = {
+    ...entry,
+    retry_count: retryCount,
+    ...(retryCount > 3 ? { dead: true } : {}),
+  };
+  const tmp = path.join(directory, `.${id}.tmp-${process.pid}-${Date.now()}`);
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify(next)}\n`, { encoding: "utf8", mode: 0o600 });
+    fs.chmodSync(tmp, 0o600);
+    fs.renameSync(tmp, file);
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+  return next;
 }
 
 export function removeSpoolEntry(home, id) {

@@ -6,9 +6,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import {
+  isProjectOptedIn,
   listOptedProjects,
   setProjectOptIn,
 } from "./capture/consent.js";
+import {
+  captureHookStatus,
+  installCaptureHook,
+  uninstallCaptureHook,
+} from "./capture/hooks.js";
+import { drainOnce } from "./capture/drain.js";
+import { writeSpoolEntry } from "./capture/spool.js";
 import { remember } from "./core/gate.js";
 import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
@@ -123,18 +131,98 @@ function doctorCommand(home, args) {
   return doctor(home);
 }
 
-function captureCommand(home, args) {
+function captureHooksCommand(args) {
   const parsed = parseCommand(args);
-  const [action, ...projectPaths] = parsed.positionals;
-  if (action === "status") {
+  requirePositionals(parsed.positionals, 1);
+  const [action] = parsed.positionals;
+  const options = { userHome: os.homedir() };
+
+  if (action === "install") return installCaptureHook(options);
+  if (action === "uninstall") return uninstallCaptureHook(options);
+  if (action === "status") return captureHookStatus(options);
+  throw codedError(ERR.E_INVALID_INPUT);
+}
+
+function commandArgv(value) {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)
+      && parsed.length > 0
+      && parsed.every((part) => typeof part === "string")) return parsed;
+  } catch {
+    // JSON 배열이 아니면 따옴표를 지원하는 단순 argv 문자열로 해석한다.
+  }
+  const argv = [];
+  const pattern = /"((?:\\.|[^"\\])*)"|'([^']*)'|([^\s]+)/gu;
+  for (const match of value.matchAll(pattern)) {
+    argv.push(match[1] === undefined
+      ? match[2] === undefined ? match[3] : match[2]
+      : match[1].replace(/\\([\\"])/gu, "$1"));
+  }
+  return argv.length > 0 ? argv : null;
+}
+
+async function captureDrainCommand(home, args) {
+  const parsed = parseCommand(args, {
+    dry: { type: "boolean", default: false },
+  });
+  requirePositionals(parsed.positionals, 0);
+
+  const config = readConfig(home);
+  const override = commandArgv(process.env.NAUTLI_EXTRACT_CMD);
+  if (override) config.judge_cmd = override;
+  return drainOnce(home, config, { dry: parsed.values.dry });
+}
+
+async function captureCommand(home, args) {
+  const [action, ...rest] = args;
+
+  if (action === "hooks") return captureHooksCommand(rest);
+  if (action === "drain") return captureDrainCommand(home, rest);
+
+  const parsed = parseCommand(args);
+  const [consentAction, ...projectPaths] = parsed.positionals;
+  if (consentAction === "status") {
     requirePositionals(projectPaths, 0);
     return { projects: listOptedProjects(home) };
   }
-  if (action !== "on" && action !== "off") {
+  if (consentAction !== "on" && consentAction !== "off") {
     throw codedError(ERR.E_INVALID_INPUT);
   }
   if (projectPaths.length > 1) throw codedError(ERR.E_INVALID_INPUT);
-  return setProjectOptIn(home, projectPaths[0] ?? process.cwd(), action === "on");
+  return setProjectOptIn(
+    home,
+    projectPaths[0] ?? process.cwd(),
+    consentAction === "on",
+  );
+}
+
+function captureHookCommand(home, args) {
+  const parsed = parseCommand(args);
+  requirePositionals(parsed.positionals, 0);
+
+  const input = fs.readFileSync(0, "utf8");
+  const payload = JSON.parse(input);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new TypeError("Invalid capture hook payload");
+  }
+
+  const { session_id: sessionId, transcript_path: transcriptPath, cwd } = payload;
+  if ([sessionId, transcriptPath, cwd]
+    .some((value) => typeof value !== "string" || value.length === 0)) {
+    throw new TypeError("Invalid capture hook payload");
+  }
+
+  if (!isProjectOptedIn(home, cwd)) return;
+
+  writeSpoolEntry(home, {
+    session_id: sessionId,
+    transcript_path: transcriptPath,
+    project: fs.realpathSync(path.resolve(cwd)),
+    at: new Date().toISOString(),
+    kind: "stop",
+  });
 }
 
 function claimPreview(claim) {
@@ -245,6 +333,18 @@ export async function main(argv = process.argv.slice(2)) {
       return;
     }
 
+    if (command === "capture-hook") {
+      try {
+        captureHookCommand(home, args);
+      } catch (error) {
+        process.stderr.write(
+          `capture-hook: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+      }
+      process.exitCode = 0;
+      return;
+    }
+
     if (command === "init") {
       writeJson(initialize(home, args));
       process.stderr.write("다음 단계: npx nautli dashboard (설정 화면이 열려요)\n");
@@ -272,7 +372,7 @@ export async function main(argv = process.argv.slice(2)) {
     }
 
     if (command === "capture") {
-      writeJson(captureCommand(home, args));
+      writeJson(await captureCommand(home, args));
       process.exitCode = 0;
       return;
     }
