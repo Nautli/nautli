@@ -61,7 +61,8 @@
 - 어떤 에러도 exit 0 (stderr에만) — 훅이 Claude 사용을 방해하면 안 된다. transcript 파일은 이 단계에서 열지 않는다.
 
 ### 2.3 checkpoint `~/.nautli/capture/checkpoints.json`
-- key = realpath(transcript_path). value = `{dev, ino, offset, tail_hash, updated_at}`.
+- key = realpath(transcript_path). value = `{dev, ino, offset, tail_hash, updated_at, project}`.
+- `project`는 성공 drain 시 저장 — 슬러그 역매핑(symlink 별칭 /var↔/private/var에 취약)에 재의존하지 않기 위한 권위값. 역매핑은 advisory: 실패 시 skip하지 않고 경고 로그만(opt-in·projects 루트 경계 검증은 별도 유지).
 - offset = **완결 newline까지의 byte** 오프셋. tail_hash = 마지막 완결 라인의 sha256 앞 16자.
 - 불일치 감지(파일 교체/truncate/로테이트): size < offset, dev/ino 변경, offset 직전 라인의 해시 ≠ tail_hash → offset 0부터 재파싱(후보 중복은 2.6 게이트가 거름).
 - 원자쓰기. 훅은 힌트, checkpoint가 진실원 — spool이 유실돼도 다음 drain이 checkpoint 이후 delta를 처리.

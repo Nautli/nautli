@@ -243,3 +243,18 @@ test("capture dry run does not call extractor or mutate queue", async (t) => {
   assert.equal(fs.existsSync(queueFile) ? fs.readFileSync(queueFile, "utf8") : null, before);
   assert.equal(fs.existsSync(path.join(item.home, "capture", "checkpoints.json")), false);
 });
+
+test("drain surfaces extractor truncation in its result", async (t) => {
+  const item = fixture(t, "nautli-capture-drain-truncated-");
+  assert.equal(runHook(item).status, 0);
+
+  const result = await drainOnce(item.home, { user_home: item.userHome }, {
+    extractor: async () => ({
+      candidates: [{ claim: "절단 보고 검증용 기억이다.", scope: "procedure", confidence: 0.8 }],
+      truncated: true,
+    }),
+  });
+
+  assert.equal(result.candidates, 1);
+  assert.equal(result.truncated, 1);
+});

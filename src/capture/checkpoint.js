@@ -142,6 +142,7 @@ export function advanceCheckpoint(
   transcriptPath,
   delta,
   at = new Date().toISOString(),
+  project = undefined,
 ) {
   if (!checkpoints || typeof checkpoints !== "object" || Array.isArray(checkpoints)) {
     throw new TypeError("checkpoints must be an object");
@@ -168,6 +169,8 @@ export function advanceCheckpoint(
     offset,
     tail_hash: offset === 0 ? null : tailHash,
     updated_at: at,
+    // project를 함께 저장한다 — 슬러그 역매핑(symlink 별칭에 취약)에 다시 의존하지 않기 위함.
+    ...(typeof project === "string" ? { project } : {}),
   };
   checkpoints[key] = checkpoint;
   return checkpoint;

@@ -109,7 +109,10 @@ export async function drainOnce(home, config = {}, {
   for (const [transcriptPath, checkpoint] of Object.entries(checkpoints)) {
     const key = path.resolve(transcriptPath);
     if (candidates.has(key)) continue;
-    const project = checkpointProject(userHome, transcriptPath, optedProjects);
+    // checkpoint에 저장된 project가 우선 — 슬러그 역매핑은 symlink 별칭(/var vs /private/var)에 취약하다.
+    const project = typeof checkpoint?.project === "string"
+      ? checkpoint.project
+      : checkpointProject(userHome, transcriptPath, optedProjects);
     if (!project) continue;
     try {
       const updatedAt = Date.parse(checkpoint?.updated_at ?? "");
@@ -125,6 +128,7 @@ export async function drainOnce(home, config = {}, {
     turns: 0,
     candidates: 0,
     skipped_duplicates: 0,
+    truncated: 0,
     malformed: 0,
     dead: spoolEntries.filter((entry) => entry.dead === true).length,
     redaction_findings: [],
@@ -144,8 +148,13 @@ export async function drainOnce(home, config = {}, {
           process.stderr.write(`capture drain: transcript outside Claude projects: ${transcriptPath}\n`);
           continue;
         }
+        // 슬러그 역매핑은 advisory다: Claude가 슬러그를 만든 cwd 문자열이 symlink 별칭
+        // (/var vs /private/var 등)일 수 있어 realpath 기반 기대값과 어긋날 수 있다.
+        // opt-in(139행)과 projects 루트 경계(143행)가 이미 검증됐으므로 라벨은 spool의 project를 쓴다.
         const expectedProject = checkpointProject(userHome, transcriptPath, optedProjects);
-        if (expectedProject !== fs.realpathSync(candidate.project)) {
+        if (expectedProject === null) {
+          process.stderr.write(`capture drain: project binding skipped (slug alias): ${transcriptPath}\n`);
+        } else if (expectedProject !== fs.realpathSync(candidate.project)) {
           process.stderr.write(`capture drain: transcript project mismatch: ${transcriptPath}\n`);
           continue;
         }
@@ -167,7 +176,9 @@ export async function drainOnce(home, config = {}, {
 
         let extracted = [];
         if (redacted.text.trim() !== "") {
-          extracted = extractedCandidates(await extractor(redacted.text, config));
+          const extraction = await extractor(redacted.text, config);
+          if (extraction?.truncated === true) result.truncated += 1;
+          extracted = extractedCandidates(extraction);
         }
 
         const activeHashes = new Set(
@@ -203,7 +214,7 @@ export async function drainOnce(home, config = {}, {
         result.candidates += added;
         result.skipped_duplicates += cards.length - added;
 
-        advanceCheckpoint(checkpoints, transcriptPath, delta);
+        advanceCheckpoint(checkpoints, transcriptPath, delta, undefined, fs.realpathSync(candidate.project));
         saveCheckpoints(home, checkpoints);
         for (const entry of candidate.spoolEntries) removeSpoolEntry(home, entry.id);
       } catch (error) {
