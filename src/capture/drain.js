@@ -83,155 +83,200 @@ function sessionIdFor(candidate, transcriptPath) {
   return sessionId ?? path.basename(transcriptPath, path.extname(transcriptPath));
 }
 
-export async function drainOnce(home, config = {}, {
-  dry = false,
-  extractor = extractCandidates,
-} = {}) {
-  const userHome = path.resolve(config.user_home ?? os.homedir());
-  const projectsRoot = path.join(userHome, ".claude", "projects");
-  const optedProjects = listOptedProjects(home).filter((project) => project.enabled);
-  const spoolEntries = listSpoolEntries(home);
-  const checkpoints = loadCheckpoints(home);
-  const candidates = new Map();
-
-  for (const entry of spoolEntries) {
-    if (entry.dead === true || typeof entry.transcript_path !== "string") continue;
-    const key = path.resolve(entry.transcript_path);
-    const current = candidates.get(key) ?? {
-      transcriptPath: entry.transcript_path,
-      project: entry.project,
-      spoolEntries: [],
-    };
-    current.spoolEntries.push(entry);
-    candidates.set(key, current);
-  }
-
-  for (const [transcriptPath, checkpoint] of Object.entries(checkpoints)) {
-    const key = path.resolve(transcriptPath);
-    if (candidates.has(key)) continue;
-    // checkpoint에 저장된 project가 우선 — 슬러그 역매핑은 symlink 별칭(/var vs /private/var)에 취약하다.
-    const project = typeof checkpoint?.project === "string"
-      ? checkpoint.project
-      : checkpointProject(userHome, transcriptPath, optedProjects);
-    if (!project) continue;
-    try {
-      const updatedAt = Date.parse(checkpoint?.updated_at ?? "");
-      if (Number.isFinite(updatedAt) && fs.statSync(transcriptPath).mtimeMs <= updatedAt) continue;
-      candidates.set(key, { transcriptPath, project, spoolEntries: [] });
-    } catch {
-      process.stderr.write(`capture drain: transcript unavailable: ${transcriptPath}\n`);
-    }
-  }
-
-  const result = {
+function emptyResult(extra = {}) {
+  return {
     sessions: 0,
     turns: 0,
     candidates: 0,
     skipped_duplicates: 0,
     truncated: 0,
     malformed: 0,
-    dead: spoolEntries.filter((entry) => entry.dead === true).length,
+    dead: 0,
     redaction_findings: [],
+    ...extra,
   };
-  const findingCounts = new Map();
-  const store = dry ? null : new Store(home);
+}
+
+function acquireDrainLock(home) {
+  const captureDirectory = path.join(path.resolve(home), "capture");
+  const lockFile = path.join(captureDirectory, "drain.lock");
+  fs.mkdirSync(captureDirectory, { recursive: true });
+
+  let descriptor;
+  try {
+    descriptor = fs.openSync(lockFile, "wx", 0o600);
+  } catch (error) {
+    if (error?.code === "EEXIST") return null;
+    throw error;
+  }
+
+  return () => {
+    try {
+      fs.closeSync(descriptor);
+    } finally {
+      fs.rmSync(lockFile, { force: true });
+    }
+  };
+}
+
+export async function drainOnce(home, config = {}, {
+  dry = false,
+  extractor = extractCandidates,
+} = {}) {
+  const releaseLock = acquireDrainLock(home);
+  if (releaseLock === null) return emptyResult({ already_running: true });
 
   try {
-    for (const candidate of candidates.values()) {
-      if (typeof candidate.project !== "string") continue;
+    const userHome = path.resolve(config.user_home ?? os.homedir());
+    const projectsRoot = path.join(userHome, ".claude", "projects");
+    const optedProjects = listOptedProjects(home).filter((project) => project.enabled);
+    const spoolEntries = listSpoolEntries(home);
+    const checkpoints = loadCheckpoints(home);
+    const candidates = new Map();
+
+    for (const entry of spoolEntries) {
+      if (entry.dead === true || typeof entry.transcript_path !== "string") continue;
+      const key = path.resolve(entry.transcript_path);
+      const current = candidates.get(key) ?? {
+        transcriptPath: entry.transcript_path,
+        project: entry.project,
+        spoolEntries: [],
+      };
+      current.spoolEntries.push(entry);
+      candidates.set(key, current);
+    }
+
+    for (const [transcriptPath, checkpoint] of Object.entries(checkpoints)) {
+      const key = path.resolve(transcriptPath);
+      if (candidates.has(key)) continue;
+      // checkpoint에 저장된 project가 우선 — 슬러그 역매핑은 symlink 별칭(/var vs /private/var)에 취약하다.
+      const project = typeof checkpoint?.project === "string"
+        ? checkpoint.project
+        : checkpointProject(userHome, transcriptPath, optedProjects);
+      if (!project) continue;
       try {
-        if (!isProjectOptedIn(home, candidate.project)) continue;
+        const stat = fs.statSync(transcriptPath);
+        const hasUnreadBytes = Number.isSafeInteger(checkpoint?.offset)
+          && checkpoint.offset >= 0
+          && stat.size > checkpoint.offset;
+        const updatedAt = Date.parse(checkpoint?.updated_at ?? "");
+        if (!hasUnreadBytes
+          && Number.isFinite(updatedAt)
+          && stat.mtimeMs <= updatedAt) continue;
+        candidates.set(key, { transcriptPath, project, spoolEntries: [] });
+      } catch {
+        process.stderr.write(`capture drain: transcript unavailable: ${transcriptPath}\n`);
+      }
+    }
 
-        const transcriptPath = fs.realpathSync(candidate.transcriptPath);
-        const realProjectsRoot = fs.realpathSync(projectsRoot);
-        if (!isInside(transcriptPath, realProjectsRoot)) {
-          process.stderr.write(`capture drain: transcript outside Claude projects: ${transcriptPath}\n`);
-          continue;
-        }
-        // 슬러그 역매핑은 advisory다: Claude가 슬러그를 만든 cwd 문자열이 symlink 별칭
-        // (/var vs /private/var 등)일 수 있어 realpath 기반 기대값과 어긋날 수 있다.
-        // opt-in(139행)과 projects 루트 경계(143행)가 이미 검증됐으므로 라벨은 spool의 project를 쓴다.
-        const expectedProject = checkpointProject(userHome, transcriptPath, optedProjects);
-        if (expectedProject === null) {
-          process.stderr.write(`capture drain: project binding skipped (slug alias): ${transcriptPath}\n`);
-        } else if (expectedProject !== fs.realpathSync(candidate.project)) {
-          process.stderr.write(`capture drain: transcript project mismatch: ${transcriptPath}\n`);
-          continue;
-        }
-        if (!await sizeStable(transcriptPath, { intervalMs: 500 })) {
-          process.stderr.write(`capture drain: transcript size is not stable: ${transcriptPath}\n`);
-          continue;
-        }
+    const result = emptyResult({
+      dead: spoolEntries.filter((entry) => entry.dead === true).length,
+    });
+    const findingCounts = new Map();
+    const store = dry ? null : new Store(home);
 
-        const checkpoint = checkpointFor(checkpoints, transcriptPath);
-        const delta = readDelta(transcriptPath, checkpoint.offset);
-        const turns = parseTurns(delta.lines);
-        const redacted = redactText(formatDelta(turns));
-        result.sessions += 1;
-        result.turns += turns.length;
-        result.malformed += delta.malformed;
-        aggregateFindings(findingCounts, redacted.findings);
-
-        if (dry) continue;
-
-        let extracted = [];
-        if (redacted.text.trim() !== "") {
-          const extraction = await extractor(redacted.text, config);
-          if (extraction?.truncated === true) result.truncated += 1;
-          extracted = extractedCandidates(extraction);
-        }
-
-        const activeHashes = new Set(
-          store.query({ status: "active" }).map((fact) => fact.claim_hash),
-        );
-        const pendingHashes = new Set(
+    try {
+      const activeHashes = dry
+        ? new Set()
+        : new Set(store.query({ status: "active" }).map((fact) => fact.claim_hash));
+      const pendingHashes = dry
+        ? new Set()
+        : new Set(
           listCards(home)
             .filter((card) => card.type === "capture")
             .map((card) => card.claim_hash ?? claimHash(card.claim)),
         );
-        const cards = [];
-        for (const item of extracted) {
-          const hash = claimHash(item.claim);
-          if (activeHashes.has(hash) || pendingHashes.has(hash)) {
-            result.skipped_duplicates += 1;
+
+      for (const candidate of candidates.values()) {
+        if (typeof candidate.project !== "string") continue;
+        try {
+          if (!isProjectOptedIn(home, candidate.project)) continue;
+
+          const transcriptPath = fs.realpathSync(candidate.transcriptPath);
+          const realProjectsRoot = fs.realpathSync(projectsRoot);
+          if (!isInside(transcriptPath, realProjectsRoot)) {
+            process.stderr.write(`capture drain: transcript outside Claude projects: ${transcriptPath}\n`);
             continue;
           }
-          pendingHashes.add(hash);
-          cards.push({
-            type: "capture",
-            pair_id: `cap:${hash}`,
-            claim: item.claim,
-            claim_hash: hash,
-            scope: item.scope,
-            confidence: item.confidence,
-            session_id: sessionIdFor(candidate, transcriptPath),
-            project: fs.realpathSync(candidate.project),
-            at: new Date().toISOString(),
-            status: "pending",
-          });
-        }
-        const added = appendCards(home, cards);
-        result.candidates += added;
-        result.skipped_duplicates += cards.length - added;
+          // 슬러그 역매핑은 advisory다: Claude가 슬러그를 만든 cwd 문자열이 symlink 별칭
+          // (/var vs /private/var 등)일 수 있어 realpath 기반 기대값과 어긋날 수 있다.
+          // opt-in과 projects 루트 경계가 이미 검증됐으므로 라벨은 spool의 project를 쓴다.
+          const expectedProject = checkpointProject(userHome, transcriptPath, optedProjects);
+          if (expectedProject === null) {
+            process.stderr.write(`capture drain: project binding skipped (slug alias): ${transcriptPath}\n`);
+          } else if (expectedProject !== fs.realpathSync(candidate.project)) {
+            process.stderr.write(`capture drain: transcript project mismatch: ${transcriptPath}\n`);
+            continue;
+          }
+          if (!await sizeStable(transcriptPath, { intervalMs: 500 })) {
+            process.stderr.write(`capture drain: transcript size is not stable: ${transcriptPath}\n`);
+            continue;
+          }
 
-        advanceCheckpoint(checkpoints, transcriptPath, delta, undefined, fs.realpathSync(candidate.project));
-        saveCheckpoints(home, checkpoints);
-        for (const entry of candidate.spoolEntries) removeSpoolEntry(home, entry.id);
-      } catch (error) {
-        process.stderr.write(
-          `capture drain: ${error instanceof Error ? error.message : String(error)}\n`,
-        );
-        for (const entry of candidate.spoolEntries) {
-          const marked = markSpoolFailure(home, entry.id);
-          if (marked?.dead === true && entry.dead !== true) result.dead += 1;
+          const checkpoint = checkpointFor(checkpoints, transcriptPath);
+          const delta = readDelta(transcriptPath, checkpoint.offset);
+          const turns = parseTurns(delta.lines);
+          const redacted = redactText(formatDelta(turns));
+          result.sessions += 1;
+          result.turns += turns.length;
+          result.malformed += delta.malformed;
+          aggregateFindings(findingCounts, redacted.findings);
+
+          if (dry) continue;
+
+          let extracted = [];
+          if (redacted.text.trim() !== "") {
+            const extraction = await extractor(redacted.text, config);
+            if (extraction?.truncated === true) result.truncated += 1;
+            extracted = extractedCandidates(extraction);
+          }
+
+          const cards = [];
+          for (const item of extracted) {
+            const hash = claimHash(item.claim);
+            if (activeHashes.has(hash) || pendingHashes.has(hash)) {
+              result.skipped_duplicates += 1;
+              continue;
+            }
+            pendingHashes.add(hash);
+            cards.push({
+              type: "capture",
+              pair_id: `cap:${hash}`,
+              claim: item.claim,
+              claim_hash: hash,
+              scope: item.scope,
+              confidence: item.confidence,
+              session_id: sessionIdFor(candidate, transcriptPath),
+              project: fs.realpathSync(candidate.project),
+              at: new Date().toISOString(),
+              status: "pending",
+            });
+          }
+          const added = appendCards(home, cards);
+          result.candidates += added;
+          result.skipped_duplicates += cards.length - added;
+
+          advanceCheckpoint(checkpoints, transcriptPath, delta, undefined, fs.realpathSync(candidate.project));
+          saveCheckpoints(home, checkpoints);
+          for (const entry of candidate.spoolEntries) removeSpoolEntry(home, entry.id);
+        } catch (error) {
+          process.stderr.write(
+            `capture drain: ${error instanceof Error ? error.message : String(error)}\n`,
+          );
+          for (const entry of candidate.spoolEntries) {
+            const marked = markSpoolFailure(home, entry.id);
+            if (marked?.dead === true && entry.dead !== true) result.dead += 1;
+          }
         }
       }
+    } finally {
+      store?.close();
     }
-  } finally {
-    store?.close();
-  }
 
-  result.redaction_findings = [...findingCounts]
-    .map(([kind, count]) => ({ kind, count }));
-  return result;
+    result.redaction_findings = [...findingCounts]
+      .map(([kind, count]) => ({ kind, count }));
+    return result;
+  } finally {
+    releaseLock();
+  }
 }

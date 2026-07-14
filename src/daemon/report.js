@@ -23,7 +23,7 @@ function oneLine(value) {
 
 export function writeReport(store, home, results) {
   void store;
-  const pending = pendingReviews(home);
+  const pending = pendingReviews(home).filter((review) => review.type !== "capture");
   const cards = pending.slice(0, 3);
   const deferred = Math.max(0, pending.length - cards.length);
   const lines = [

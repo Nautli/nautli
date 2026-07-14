@@ -24,10 +24,10 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
   recordStage(home, "pair", { count: pairs.length });
 
   const capture = async () => {
-    if (!listOptedProjects(home).some((project) => project.enabled)) {
-      return { skipped: true, reason: "no_opted_projects" };
-    }
     try {
+      if (!listOptedProjects(home).some((project) => project.enabled)) {
+        return { skipped: true, reason: "no_opted_projects" };
+      }
       return await drainOnce(home, config, { dry });
     } catch (error) {
       return {

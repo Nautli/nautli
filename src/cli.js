@@ -42,6 +42,7 @@ const DEFAULT_CONFIG = Object.freeze({
 });
 
 const ERROR_CODES = new Set(Object.values(ERR));
+const CAPTURE_HOOK_STDIN_LIMIT = 16 * 1024;
 
 const USAGE = `nautli - 모든 AI가 공유하는 하나의 뇌
 
@@ -198,11 +199,29 @@ async function captureCommand(home, args) {
   );
 }
 
-function captureHookCommand(home, args) {
+async function readCaptureHookInput() {
+  const chunks = [];
+  let length = 0;
+
+  for await (const chunk of process.stdin) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    length += buffer.length;
+    if (length > CAPTURE_HOOK_STDIN_LIMIT) {
+      process.stdin.destroy();
+      return null;
+    }
+    chunks.push(buffer);
+  }
+
+  return Buffer.concat(chunks, length).toString("utf8");
+}
+
+async function captureHookCommand(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 0);
 
-  const input = fs.readFileSync(0, "utf8");
+  const input = await readCaptureHookInput();
+  if (input === null) return;
   const payload = JSON.parse(input);
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
     throw new TypeError("Invalid capture hook payload");
@@ -335,7 +354,7 @@ export async function main(argv = process.argv.slice(2)) {
 
     if (command === "capture-hook") {
       try {
-        captureHookCommand(home, args);
+        await captureHookCommand(home, args);
       } catch (error) {
         process.stderr.write(
           `capture-hook: ${error instanceof Error ? error.message : String(error)}\n`,
