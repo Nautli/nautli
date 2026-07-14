@@ -15,13 +15,24 @@ import {
   initStore,
   installDaemon,
   installInstructions,
+  readConfig,
   registerMcp,
+  registerMcpCodex,
   removeInstructions,
   removeSampleFacts,
   seedSampleFacts,
   statusAll,
   uninstallDaemon,
+  writeConfig,
 } from "../onboard/setup.js";
+import {
+  SCAN_VERSION,
+  detectAgents,
+  readScanCache,
+  rememberedCount,
+  scanUsage,
+  writeScanCache,
+} from "../onboard/scan.js";
 import {
   checkupCandidates,
   checkupPreflight,
@@ -34,7 +45,6 @@ import {
 import { HTML } from "./public.js";
 
 const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
-const DEFAULT_CONFIG = Object.freeze({ default_scope: "person", judge_cmd: null });
 const BODY_LIMIT = 64 * 1024;
 
 const HUMAN_ERRORS = Object.freeze({
@@ -46,16 +56,11 @@ const HUMAN_ERRORS = Object.freeze({
   [ERR.E_STORE_BUSY]: "기억 저장소가 사용 중이에요. 잠시 후 다시 시도해 주세요.",
   [ERR.E_BUDGET_TOO_SMALL]: "검색 예산이 너무 작아요.",
   [ERR.E_CLAUDE_CLI_MISSING]: "Claude CLI가 설치되어 있지 않아요.",
+  [ERR.E_CODEX_CLI_MISSING]: "Codex CLI가 설치되어 있지 않아요.",
   [ERR.E_MCP_REGISTER_FAILED]: "Claude MCP 자동 등록에 실패했어요.",
   [ERR.E_LAUNCHCTL_FAILED]: "밤 소화 데몬 등록에 실패했어요.",
   [ERR.W_DUPLICATE]: "이미 같은 기억이 저장되어 있어요.",
 });
-
-function readConfig(home) {
-  const file = path.join(home, "config.json");
-  if (!fs.existsSync(file)) return { ...DEFAULT_CONFIG };
-  return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(file, "utf8")) };
-}
 
 function json(response, status, value) {
   const body = JSON.stringify(value);
@@ -73,9 +78,13 @@ function errorCode(error) {
 
 function fail(response, status, error) {
   const code = errorCode(error);
+  const manualMessage = typeof error?.manual_command === "string"
+    && error?.message && error.message !== code
+    ? error.message
+    : null;
   json(response, status, {
     error: code,
-    message: HUMAN_ERRORS[code]
+    message: manualMessage || HUMAN_ERRORS[code]
       || (error?.message && error.message !== code ? error.message : "요청을 처리하지 못했어요."),
     ...(typeof error?.manual_command === "string" ? { manual_command: error.manual_command } : {}),
   });
@@ -330,9 +339,31 @@ function openBrowser(url) {
   child.unref();
 }
 
+function scanFailure(error) {
+  void error;
+  return { ok: false, reason: "AI 사용량을 감지하지 못했어요. 다시 시도해 주세요." };
+}
+
+function scanGetResult(home, agents) {
+  const config = readConfig(home);
+  const cache = readScanCache(home);
+  return {
+    ok: true,
+    version: SCAN_VERSION,
+    scanned_at: cache?.scanned_at ?? null,
+    partial: cache?.partial === true,
+    capped: cache?.capped === true,
+    agents,
+    usage: config.usage_scan_opted_in_at ? cache?.usage ?? null : null,
+    remembered: rememberedCount(home),
+  };
+}
+
 export function createDashboardServer(home, options = {}) {
   const userHome = options.userHome ?? os.homedir();
   const runner = options.runner;
+  const detectAgentsFor = options.detectAgents ?? detectAgents;
+  const scanUsageFor = options.scanUsage ?? scanUsage;
   const claudeCacheTtl = 60 * 1000;
   let claudeCache = null;
   let claudeRefresh = null;
@@ -393,6 +424,56 @@ export function createDashboardServer(home, options = {}) {
         const pending = listCards(home).length;
         json(response, 200, { setup, doctor: diagnosis.result, stats, pending });
         if (!cachedClaude) refreshClaudeStatus();
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/scan") {
+        try {
+          const agents = await detectAgentsFor({ runner });
+          json(response, 200, scanGetResult(home, agents));
+        } catch (error) {
+          json(response, 200, scanFailure(error));
+        }
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/scan") {
+        try {
+          const config = readConfig(home);
+          const optedInAt = config.usage_scan_opted_in_at ?? new Date().toISOString();
+          writeConfig(home, { usage_scan_opted_in_at: optedInAt });
+          const [agents, usageResult] = await Promise.all([
+            detectAgentsFor({ runner }),
+            scanUsageFor({ userHome }),
+          ]);
+          const cache = writeScanCache(home, {
+            scanned_at: new Date().toISOString(),
+            partial: usageResult.partial === true,
+            capped: usageResult.capped === true,
+            agents,
+            usage: {
+              claude_sessions30d: usageResult.claude_sessions30d,
+              codex_sessions30d: usageResult.codex_sessions30d,
+            },
+            remembered: rememberedCount(home),
+          });
+          json(response, 200, { ok: true, ...cache });
+        } catch (error) {
+          json(response, 200, scanFailure(error));
+        }
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/star-nag-seen") {
+        const config = readConfig(home);
+        const existing = config.star_nag_shown_at;
+        if (existing) {
+          json(response, 200, { ok: true, recorded: false, star_nag_shown_at: existing });
+          return;
+        }
+        const shownAt = new Date().toISOString();
+        writeConfig(home, { star_nag_shown_at: shownAt });
+        json(response, 200, { ok: true, recorded: true, star_nag_shown_at: shownAt });
         return;
       }
 
@@ -540,8 +621,13 @@ export function createDashboardServer(home, options = {}) {
         let result;
         if (step === "init") result = initStore(home);
         else if (step === "mcp") {
+          if (!fs.existsSync(path.join(home, "index.sqlite"))) initStore(home);
           result = registerMcp(home, runner);
           claudeCache = null;
+        }
+        else if (step === "codex") {
+          if (!fs.existsSync(path.join(home, "index.sqlite"))) initStore(home);
+          result = registerMcpCodex(home, runner);
         }
         else if (step === "instructions") result = installInstructions(home, { userHome });
         else if (step === "instructions-remove") result = removeInstructions(home, { userHome });

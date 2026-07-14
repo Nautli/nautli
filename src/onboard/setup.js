@@ -17,7 +17,7 @@ import {
 export const DAEMON_LABEL = "com.nautli.daemon";
 const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
 const DEFAULT_CONFIG = Object.freeze({ default_scope: "person", judge_cmd: null });
-const ALLOWED_COMMANDS = new Set(["claude", "launchctl"]);
+const ALLOWED_COMMANDS = new Set(["claude", "codex", "launchctl"]);
 
 function codedError(code, message = code, cause) {
   const error = new Error(message, cause ? { cause } : undefined);
@@ -48,10 +48,25 @@ function userPaths(userHome) {
   };
 }
 
-function readConfig(home) {
+export function readConfig(home) {
   const file = path.join(home, "config.json");
   if (!fs.existsSync(file)) return { ...DEFAULT_CONFIG };
   return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(file, "utf8")) };
+}
+
+export function writeConfig(home, updates = {}) {
+  fs.mkdirSync(home, { recursive: true });
+  const file = path.join(home, "config.json");
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+  const config = { ...readConfig(home), ...updates };
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify(config)}\n`, "utf8");
+    fs.renameSync(tmp, file);
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+  return config;
 }
 
 function readHealth(home) {
@@ -92,7 +107,7 @@ function instructionInstalled(file) {
 
 function claudeStatus(runner) {
   try {
-    runnerText(runner, "claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"] });
+    runnerText(runner, "claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 });
   } catch {
     return { cli_exists: false, registered: false };
   }
@@ -104,9 +119,23 @@ function claudeStatus(runner) {
   }
 }
 
+function codexStatus(runner) {
+  try {
+    runnerText(runner, "codex", ["--version"], { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 });
+  } catch {
+    return { cli_exists: false, registered: false };
+  }
+  try {
+    const list = runnerText(runner, "codex", ["mcp", "list"], { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 });
+    return { cli_exists: true, registered: /(^|\s)nautli(?:\s|:|$)/m.test(list) };
+  } catch {
+    return { cli_exists: true, registered: false };
+  }
+}
+
 function execFileText(command, args) {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { encoding: "utf8" }, (error, stdout) => {
+    execFile(command, args, { encoding: "utf8", timeout: 2_000 }, (error, stdout) => {
       if (error) reject(error);
       else resolve(String(stdout ?? ""));
     });
@@ -150,17 +179,29 @@ export function statusAll(home, {
   userHome = os.homedir(),
   now = new Date(),
   checkClaude = true,
+  checkCodex = checkClaude,
   claude: suppliedClaude,
+  codex: suppliedCodex,
 } = {}) {
   const { instructions, plist } = userPaths(userHome);
   const claude = suppliedClaude ?? (checkClaude
     ? claudeStatus(runner)
     : { cli_exists: null, registered: null, status: "checking" });
+  const codex = suppliedCodex ?? (checkCodex
+    ? codexStatus(runner)
+    : { cli_exists: null, registered: null, status: "checking" });
   const health = readHealth(home);
   const nextRun = new Date(nextDigestAt(now));
   const required = {
     store: { complete: fs.existsSync(path.join(home, "index.sqlite")) },
-    mcp: { complete: Boolean(claude.cli_exists && claude.registered), ...claude },
+    mcp: {
+      complete: claude.registered === true || codex.registered === true,
+      cli_exists: claude.cli_exists,
+      registered: claude.registered,
+      ...(claude.status ? { status: claude.status } : {}),
+      claude,
+      codex,
+    },
     instructions: { complete: instructionInstalled(instructions), file: instructions },
     daemon: {
       complete: fs.existsSync(plist) && health.healthy,
@@ -215,6 +256,32 @@ export function registerMcp(home, runner = defaultRunner) {
     );
   }
   return { ok: true, command: ["claude", ...args] };
+}
+
+export function registerMcpCodex(home, runner = defaultRunner) {
+  const args = ["mcp", "add", "nautli", "--", process.execPath, CLI_FILE, "mcp"];
+  const manualCommand = ["codex", ...args].join(" ");
+  try {
+    runnerText(runner, "codex", ["--version"], { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 });
+  } catch (cause) {
+    throw setupError(
+      ERR.E_CODEX_CLI_MISSING,
+      "Codex CLI가 설치되어 있지 않아요. 설치한 뒤 수동 명령을 실행해 주세요.",
+      manualCommand,
+      cause,
+    );
+  }
+  try {
+    runnerText(runner, "codex", args, { env: { ...process.env, NAUTLI_HOME: home } });
+  } catch (cause) {
+    throw setupError(
+      ERR.E_MCP_REGISTER_FAILED,
+      "Codex MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요.",
+      manualCommand,
+      cause,
+    );
+  }
+  return { ok: true, command: ["codex", ...args] };
 }
 
 export function installInstructions(home, { userHome = os.homedir(), previewOnly = false } = {}) {
