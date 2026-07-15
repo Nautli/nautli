@@ -136,12 +136,18 @@ def is_excluded(rel, patterns):
 
 
 class Ctx:
-    def __init__(self, vault, work, max_files, excludes=(), sample_seed=None):
-        self.vault = vault
+    def __init__(self, vaults, work, max_files, excludes=(), sample_seed=None):
+        self.vaults = list(vaults)
+        self.sources = [
+            {"source_id": hashlib.sha1(root.encode()).hexdigest()[:8],
+             "source_label": os.path.basename(root), "root": root}
+            for root in self.vaults
+        ]
+        self.vault = self.vaults[0]  # 단일 볼트 호출과 기존 표시 코드 하위호환
         self.work = work
         self.max_files = max_files
         self.excludes = list(excludes)
-        self.sample_seed = sample_seed or hashlib.sha256(vault.encode()).hexdigest()
+        self.sample_seed = sample_seed
         self.cwd_empty = os.path.join(work, "cwd_empty")  # CLI 격리용 빈 폴더
         os.makedirs(self.cwd_empty, exist_ok=True)
         # 격리 폴더는 항상 비어 있어야 함 (CLAUDE.md 등 유입 방지)
@@ -166,46 +172,70 @@ def stage_scan(ctx):
     if os.path.exists(out):
         scan = json.load(open(out, encoding="utf-8"))
         scan.setdefault("sampled", False)
+        scan.setdefault("source_notes", {})
         return scan
-    files, basenames = [], set()
     scan_cap = max(200, ctx.max_files * 5) if ctx.max_files else 0
+    fm = links = dead = total_bytes = 0
+    total_notes = 0
     sampled = False
-    for dirpath, dirnames, filenames in os.walk(ctx.vault):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        for fn in sorted(filenames):
-            if fn.endswith(".md"):
+    source_notes = collections.Counter()
+    source_stats = {}
+    for source in ctx.sources:
+        root = source["root"]
+        files, basenames = [], set()
+        source_sampled = False
+        for dirpath, dirnames, filenames in os.walk(root):
+            # root 자체가 dot 디렉토리여도 허용하고, 그 아래 dot 폴더만 제외한다.
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            for fn in sorted(filenames):
+                if not fn.endswith(".md"):
+                    continue
                 p = os.path.join(dirpath, fn)
-                if is_excluded(os.path.relpath(p, ctx.vault), ctx.excludes):
+                if is_excluded(os.path.relpath(p, root), ctx.excludes):
                     continue
                 if scan_cap and len(files) >= scan_cap:
-                    sampled = True
+                    source_sampled = True
                     break
                 files.append(p)
                 basenames.add(fn[:-3].strip().lower())
-        if sampled:
-            break
-    fm = links = dead = total_bytes = 0
-    for p in files:
-        try:
-            txt = open(p, encoding="utf-8", errors="replace").read()
-        except OSError:
-            continue
-        total_bytes += len(txt.encode("utf-8", "replace"))
-        if txt.startswith("---\n") or txt.startswith("---\r"):
-            fm += 1
-        for m in WIKILINK.finditer(txt):
-            target = m.group(1).strip().lower()
-            if not target:
+            if source_sampled:
+                break
+        source_fm = source_links = source_dead = source_bytes = 0
+        for p in files:
+            try:
+                txt = open(p, encoding="utf-8", errors="replace").read()
+            except OSError:
                 continue
-            links += 1
-            name = target.split("/")[-1]
-            if name not in basenames and name.removesuffix(".md") not in basenames:
-                dead += 1
-    scan = {"notes": len(files), "bytes": total_bytes, "frontmatter": fm,
-            "frontmatter_rate": round(fm / len(files), 3) if files else 0,
+            source_bytes += len(txt.encode("utf-8", "replace"))
+            if txt.startswith("---\n") or txt.startswith("---\r"):
+                source_fm += 1
+            for m in WIKILINK.finditer(txt):
+                target = m.group(1).strip().lower()
+                if not target:
+                    continue
+                source_links += 1
+                name = target.split("/")[-1]
+                if name not in basenames and name.removesuffix(".md") not in basenames:
+                    source_dead += 1
+        notes = len(files)
+        total_notes += notes
+        fm += source_fm
+        links += source_links
+        dead += source_dead
+        total_bytes += source_bytes
+        sampled = sampled or source_sampled
+        source_notes[source["source_label"]] += notes
+        source_stats[source["source_id"]] = {
+            "label": source["source_label"], "notes": notes, "bytes": source_bytes,
+            "frontmatter": source_fm, "wikilinks": source_links,
+            "dead_links": source_dead, "sampled": source_sampled,
+        }
+    scan = {"notes": total_notes, "bytes": total_bytes, "frontmatter": fm,
+            "frontmatter_rate": round(fm / total_notes, 3) if total_notes else 0,
             "wikilinks": links, "dead_links": dead,
             "dead_link_rate": round(dead / links, 3) if links else 0,
-            "sampled": sampled}
+            "sampled": sampled, "source_notes": dict(source_notes),
+            "sources": source_stats}
     json.dump(scan, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     ctx.log(f"scan notes={scan['notes']} dead_links={dead}/{links}")
     return scan
@@ -222,33 +252,53 @@ def stage_manifest(ctx):
     if os.path.exists(out):
         return json.load(open(out, encoding="utf-8"))
     files = []
-    for dirpath, dirnames, filenames in os.walk(ctx.vault):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        for fn in sorted(filenames):
-            if not fn.endswith(".md"):
-                continue
-            p = os.path.join(dirpath, fn)
-            rel = os.path.relpath(p, ctx.vault)
-            if is_excluded(rel, ctx.excludes):
-                continue
-            st = os.stat(p)
-            files.append({"rel": rel, "size": min(st.st_size, MAX_FILE_BYTES),
-                          "date": datetime.date.fromtimestamp(st.st_mtime).isoformat(),
-                          "scope": scope_of(rel)})
-    files.sort(key=lambda f: f["rel"])
-    random.Random(ctx.sample_seed).shuffle(files)
-    if ctx.max_files:
-        files = files[:ctx.max_files]
+    source_samples = collections.Counter()
+    for source in ctx.sources:
+        root_files = []
+        root = source["root"]
+        for dirpath, dirnames, filenames in os.walk(root):
+            # os.walk는 root 자체를 이미 방문하므로 dot root는 허용된다.
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            for fn in sorted(filenames):
+                if not fn.endswith(".md"):
+                    continue
+                p = os.path.join(dirpath, fn)
+                rel = os.path.relpath(p, root)
+                if is_excluded(rel, ctx.excludes):
+                    continue
+                st = os.stat(p)
+                root_files.append({
+                    "source_id": source["source_id"],
+                    "source_label": source["source_label"],
+                    "root": root,
+                    "rel": rel,
+                    "abs": os.path.abspath(p),
+                    "size": min(st.st_size, MAX_FILE_BYTES),
+                    "date": datetime.date.fromtimestamp(st.st_mtime).isoformat(),
+                    "scope": scope_of(rel),
+                })
+        root_files.sort(key=lambda f: f["rel"])
+        seed = (ctx.sample_seed + "\x1f" + root if ctx.sample_seed
+                else hashlib.sha1(root.encode()).hexdigest())
+        random.Random(seed).shuffle(root_files)
+        if ctx.max_files:
+            root_files = root_files[:ctx.max_files]
+        files.extend(root_files)
+        source_samples[source["source_label"]] += len(root_files)
     batches, cur, cur_sz = [], [], 0
     for f in files:
-        if cur and cur_sz + f["size"] > BATCH_BYTES:
+        # 모델 출력의 source는 rel뿐이다. 같은 rel이 한 배치에 두 번 들어가면
+        # source_id를 역매핑할 수 없으므로 별도 배치로 나눈다.
+        duplicate_rel = any(prev["rel"] == f["rel"] for prev in cur)
+        if cur and (cur_sz + f["size"] > BATCH_BYTES or duplicate_rel):
             batches.append(cur)
             cur, cur_sz = [], 0
         cur.append(f)
         cur_sz += f["size"]
     if cur:
         batches.append(cur)
-    man = {"vault": ctx.vault, "files": len(files), "batches": batches}
+    man = {"vault": ctx.vault, "vaults": ctx.vaults, "files": len(files),
+           "source_samples": dict(source_samples), "batches": batches}
     json.dump(man, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     ctx.log(f"manifest files={len(files)} batches={len(batches)}")
     return man
@@ -269,12 +319,12 @@ def stage_extract(ctx, man, model):
         parts = []
         for f in batch:
             try:
-                txt = open(os.path.join(ctx.vault, f["rel"]), encoding="utf-8",
-                           errors="replace").read()[:MAX_FILE_BYTES]
+                txt = open(f["abs"], encoding="utf-8", errors="replace").read()[:MAX_FILE_BYTES]
             except OSError as e:
-                ctx.log(f"READFAIL {f['rel']} {e}")
+                ctx.log(f"READFAIL {f['source_label']}:{f['rel']} {e}")
                 continue
-            parts.append(f'<DOC file="{f["rel"]}" date="{f["date"]}" scope="{f["scope"]}">\n{txt}\n</DOC>')
+            parts.append(f'<DOC file="{f["rel"]}" date="{f["date"]}" scope="{f["scope"]}" '
+                         f'source="{f["source_label"]}">\n{txt}\n</DOC>')
         inp = "\n\n".join(parts)
         if not inp.strip():
             open(mark, "w").close()
@@ -282,13 +332,18 @@ def stage_extract(ctx, man, model):
         stdout = call_llm(ctx, model, prompt, inp, f"extract b{i}")
         if stdout is None:
             return (i, "err", 0)
-        scope_by_file = {f["rel"]: f["scope"] for f in batch}
+        meta_by_file = {f["rel"]: f for f in batch}
         atoms = []
         for a in parse_jsonl_stdout(stdout, ("claim", "source")):
             if a.get("type") not in ("semantic", "procedural", "episodic"):
                 a["type"] = "semantic"
-            a["scope"] = scope_by_file.get(a["source"], "unknown")
-            a["id"] = "fa_" + hashlib.sha1((a["claim"] + a["source"]).encode()).hexdigest()[:12]
+            meta = meta_by_file.get(a["source"])
+            a["scope"] = meta["scope"] if meta else "unknown"
+            a["source_id"] = meta["source_id"] if meta else "unknown"
+            a["source_label"] = meta["source_label"] if meta else "unknown"
+            f_rel = meta["rel"] if meta else a["source"]
+            identity = a["source_id"] + "\x1f" + f_rel + "\x1f" + a["claim"]
+            a["id"] = "fa_" + hashlib.sha1(identity.encode()).hexdigest()[:12]
             atoms.append(a)
         with open(mark, "w", encoding="utf-8") as f:
             for a in atoms:
@@ -328,14 +383,20 @@ def cosine(a, b):
     return num / (da * db) if da and db else 0.0
 
 
-def atoms_fingerprint(atoms):
-    return hashlib.sha1("\n".join(sorted(a["id"] for a in atoms)).encode()).hexdigest()
+def atoms_fingerprint(atoms, max_judge_pairs):
+    payload = "pair-v2\n" + str(max_judge_pairs) + "\n" + "\n".join(sorted(a["id"] for a in atoms))
+    return hashlib.sha1(payload.encode()).hexdigest()
+
+
+def normalized_claim_hash(claim):
+    normalized = re.sub(r"\s+", " ", str(claim).lower()).strip()
+    return hashlib.sha1(normalized.encode()).hexdigest()
 
 
 def stage_pair(ctx, atoms, max_judge_pairs):
     out = ctx.path("pairs.jsonl")
     fp_path = ctx.path("pairs.fp")
-    fp = atoms_fingerprint(atoms)
+    fp = atoms_fingerprint(atoms, max_judge_pairs)
     if os.path.exists(out) and os.path.exists(fp_path) and open(fp_path).read() == fp:
         return [json.loads(l) for l in open(out, encoding="utf-8")]
     # atoms가 달라졌다(재개로 추출이 늘었거나 새 볼트 상태) — 부분 atoms로 만든 하류 캐시는 stale이므로 전부 무효화
@@ -348,27 +409,63 @@ def stage_pair(ctx, atoms, max_judge_pairs):
     for a in atoms:
         a["subject"] = str(a.get("subject", "")).lower().strip()
         a["_ng"] = ngrams(a["claim"])
+        a["_claim_hash"] = normalized_claim_hash(a["claim"])
     by_scope = collections.defaultdict(list)
     for a in atoms:
-        by_scope[a["scope"]].append(a)
-    pairs = {}
+        normalized_scope = re.sub(r"\s+", " ", str(a.get("scope", "unknown")).lower()).strip()
+        by_scope[normalized_scope].append(a)
+    layer1 = {}
     for scope, group in by_scope.items():
         for a in group:
             sims = []
             for b in group:
                 if b["id"] <= a["id"]:
                     continue
+                cross_source = a.get("source_id") != b.get("source_id")
+                if cross_source and a["_claim_hash"] == b["_claim_hash"]:
+                    continue
                 s = cosine(a["_ng"], b["_ng"])
                 if a["subject"] and a["subject"] == b["subject"]:
                     s += 0.08
-                if a.get("source") == b.get("source"):
+                if (a.get("source_id"), a.get("source")) == (b.get("source_id"), b.get("source")):
                     s *= SELF_FILE_PENALTY
                 if s >= SIM_FLOOR:
                     sims.append((s, b))
             sims.sort(key=lambda x: -x[0])
             for s, b in sims[:TOP_K]:
                 key = (a["id"], b["id"])
-                pairs[key] = max(pairs.get(key, 0), s)
+                layer1[key] = max(layer1.get(key, 0), s)
+
+    # Layer 2: scope와 무관하게 서로 다른 소스의 같은 subject/고유사도 후보를 추가한다.
+    cross_candidates = {}
+    for i, a in enumerate(atoms):
+        for b in atoms[i + 1:]:
+            if a.get("source_id") == b.get("source_id"):
+                continue
+            if a["_claim_hash"] == b["_claim_hash"]:
+                continue
+            raw_sim = cosine(a["_ng"], b["_ng"])
+            same_subject = bool(a["subject"] and a["subject"] == b["subject"])
+            if not same_subject and raw_sim < SIM_FLOOR:
+                continue
+            s = raw_sim + (0.08 if same_subject else 0)
+            key = tuple(sorted((a["id"], b["id"])))
+            cross_candidates[key] = max(cross_candidates.get(key, 0), s)
+
+    # Layer 1에서 우연히 생성된 교차쌍도 같은 quota를 적용한다.
+    same_source_pairs = {}
+    atom_by_id = {a["id"]: a for a in atoms}
+    for key, s in layer1.items():
+        ia, ib = key
+        if atom_by_id[ia].get("source_id") != atom_by_id[ib].get("source_id"):
+            cross_candidates[key] = max(cross_candidates.get(key, 0), s)
+        else:
+            same_source_pairs[key] = s
+    cross_quota = max(10, int(max_judge_pairs * 0.4))
+    selected_cross = dict(sorted(cross_candidates.items(), key=lambda kv: -kv[1])[:cross_quota])
+    pairs = dict(same_source_pairs)
+    for key, s in selected_cross.items():
+        pairs[key] = max(pairs.get(key, 0), s)
     rows = sorted(pairs.items(), key=lambda kv: -kv[1])
     dropped = max(0, len(rows) - max_judge_pairs)
     rows = rows[:max_judge_pairs]
@@ -376,15 +473,22 @@ def stage_pair(ctx, atoms, max_judge_pairs):
     result = []
     with open(out, "w", encoding="utf-8") as f:
         for (ia, ib), s in rows:
+            cross_source = idx[ia].get("source_id") != idx[ib].get("source_id")
             row = {"a": ia, "b": ib, "sim": round(s, 3),
                    "claim_a": idx[ia]["claim"], "claim_b": idx[ib]["claim"],
                    "scope": idx[ia]["scope"], "src_a": idx[ia].get("source"),
                    "src_b": idx[ib].get("source"),
-                   "t_a": idx[ia].get("t_valid"), "t_b": idx[ib].get("t_valid")}
+                   "t_a": idx[ia].get("t_valid"), "t_b": idx[ib].get("t_valid"),
+                   "cross_source": cross_source,
+                   "src_label_a": idx[ia].get("source_label"),
+                   "src_label_b": idx[ib].get("source_label"),
+                   "type_a": idx[ia].get("type"), "type_b": idx[ib].get("type")}
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
             result.append(row)
     open(fp_path, "w").write(fp)
-    ctx.log(f"pair pairs={len(result)} dropped_by_cap={dropped}")
+    dropped_cross = max(0, len(cross_candidates) - len(selected_cross))
+    ctx.log(f"pair pairs={len(result)} cross={sum(p['cross_source'] for p in result)} "
+            f"dropped_cross_quota={dropped_cross} dropped_by_cap={dropped}")
     if dropped:
         print(f"  ⚠️ 후보쌍 {dropped}건은 판정 상한({max_judge_pairs})에 걸려 이번 판정에서 제외됨 "
               f"(--max-judge-pairs로 조정 가능)", flush=True)
@@ -404,10 +508,15 @@ def stage_judge(ctx, pairs, model):
             return (i, "skip")
         lines = []
         for p in batches[i]:
-            lines.append(json.dumps({"pair_id": f'{p["a"]}|{p["b"]}',
-                                     "claim_a": f'{p["claim_a"]} (기록시점 {p.get("t_a")})',
-                                     "claim_b": f'{p["claim_b"]} (기록시점 {p.get("t_b")})'},
-                                    ensure_ascii=False))
+            item = {"pair_id": f'{p["a"]}|{p["b"]}',
+                    "claim_a": f'{p["claim_a"]} (기록시점 {p.get("t_a")})',
+                    "claim_b": f'{p["claim_b"]} (기록시점 {p.get("t_b")})',
+                    "source_a": p.get("src_label_a"), "source_b": p.get("src_label_b")}
+            if p.get("type_a"):
+                item["type_a"] = p["type_a"]
+            if p.get("type_b"):
+                item["type_b"] = p["type_b"]
+            lines.append(json.dumps(item, ensure_ascii=False))
         stdout = call_llm(ctx, model, prompt, "\n".join(lines), f"judge j{i}")
         if stdout is None:
             return (i, "err")
@@ -491,6 +600,11 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     dups = [j for j in js if j["verdict"] == "duplicate"]
     dups_hi = [j for j in dups if (j.get("confidence") or 0) >= 0.9]
     contras = [j for j in js if j["verdict"] == "contradiction" and (j.get("confidence") or 0) >= 0.6]
+    pair_by_id = {f'{p["a"]}|{p["b"]}': p for p in pairs}
+    cross_source_contradictions = sum(
+        1 for j in contras if pair_by_id.get(j.get("pair_id"), {}).get("cross_source")
+    )
+    source_samples = man.get("source_samples", {})
     junk_rate = None
     junk_types = {}
     if junk_judgments:
@@ -502,8 +616,10 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
 
     today = datetime.date.today().isoformat()
     L = []
-    L.append(f"# {BRAND} 리포트 — {os.path.basename(ctx.vault.rstrip('/'))}")
-    L.append(f"\n생성일 {today} · 볼트 `{ctx.vault}` · 제3자 서버 0 · LLM 판정은 본인 Claude 구독 경유 · 리포트는 로컬 파일\n")
+    report_name = os.path.basename(ctx.vault.rstrip("/")) if len(ctx.vaults) == 1 else f"멀티소스 {len(ctx.vaults)}개"
+    vault_display = ctx.vault if len(ctx.vaults) == 1 else ", ".join(ctx.vaults)
+    L.append(f"# {BRAND} 리포트 — {report_name}")
+    L.append(f"\n생성일 {today} · 볼트 `{vault_display}` · 제3자 서버 0 · LLM 판정은 본인 Claude 구독 경유 · 리포트는 로컬 파일\n")
     L.append(f"## 헬스 점수: **{score}/100**\n")
     L.append("산정: junk율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(frontmatter·죽은링크) 10점 — 공식은 README.\n")
     L.append("| 축 | 점수 | 만점 |")
@@ -516,12 +632,15 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     L.append(f"- 위키링크 {scan['wikilinks']}개 중 **죽은 링크 {scan['dead_links']}개** "
              f"({round(scan['dead_link_rate'] * 100)}%) — 대상 노트가 없는 `[[링크]]`")
     L.append(f"- 노트에서 추출한 기억 조각(fact) **{len(atoms):,}건**, 서로 비슷한 후보쌍 {len(pairs):,}건 판정")
+    samples_str = ", ".join(f"{label} **{count}개**" for label, count in sorted(source_samples.items())) or "없음"
+    L.append(f"- 소스별 표본 파일: {samples_str}")
     L.append("\n## 발견 사항\n")
     L.append(f"- **중복 {len(dups)}쌍** — 같은 얘기가 두 곳 이상에 적혀 있음. "
              f"그중 {len(dups_hi)}쌍은 확실한 중복(자동 병합 가능 수준), "
              f"{n_dup_cards}쌍은 사람 확인 필요")
     L.append(f"- **모순 {len(contras)}쌍** — 서로 부딪히는 기록(한쪽이 낡았을 가능성). "
              f"전부 아래 리뷰 카드 대상")
+    L.append(f"- **교차소스 모순 {cross_source_contradictions}쌍** — 서로 다른 AI 기억 소스 사이에서 발견")
     if junk_rate is not None:
         types_str = ", ".join(f"{k} {v}" for k, v in sorted(junk_types.items(), key=lambda x: -x[1])) or "없음"
         L.append(f"- **junk 추정율 ~{round(junk_rate * 100)}%** (표본 {len(junk_judgments)}건 LLM 감사) — "
@@ -570,6 +689,8 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
 
     summary = {"score": score, "notes": scan["notes"], "atoms": len(atoms),
                "duplicates": len(dups), "contradictions": len(contras),
+               "source_samples": source_samples,
+               "cross_source_contradictions": cross_source_contradictions,
                "junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
                "review_cards": n_contra_cards + n_dup_cards,
                "failed_extract_batches": failed_batches, "report": report_path}
@@ -581,11 +702,11 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
 # ── main ────────────────────────────────────────────────────────────────────
 def main():
     ap = argparse.ArgumentParser(prog=BRAND, description=f"{BRAND} — 마크다운 볼트 헬스체크 (전 과정 로컬)")
-    ap.add_argument("vault", help="옵시디언/마크다운 볼트 경로")
+    ap.add_argument("vault", nargs="+", help="옵시디언/마크다운 볼트 경로 (복수 가능)")
     ap.add_argument("--work-home", default=os.path.expanduser(f"~/.{BRAND}"),
                     help=f"작업/리포트 저장 위치 (기본 ~/.{BRAND})")
     ap.add_argument("--max-files", type=int, default=0, help="스모크 테스트용: 앞에서 N개 파일만")
-    ap.add_argument("--sample-seed", help="표본 셔플 시드 (기본: 볼트 경로 sha256)")
+    ap.add_argument("--sample-seed", help="표본 셔플 시드 (기본: 소스별 canonical 경로 sha1)")
     ap.add_argument("--exclude", action="append", default=[],
                     help="제외할 폴더/글롭 (반복 가능, 예: --exclude 일기 --exclude '*.excalidraw.md') — 제외분은 LLM에 안 감")
     ap.add_argument("--max-judge-pairs", type=int, default=1500, help="LLM 판정 쌍 상한 (비용 캡)")
@@ -597,22 +718,35 @@ def main():
     ap.add_argument("--fresh", action="store_true", help="이전 중간 산출물 버리고 처음부터")
     args = ap.parse_args()
 
-    vault = os.path.abspath(os.path.expanduser(args.vault))
-    if not os.path.isdir(vault):
-        print(f"볼트 경로가 없다: {vault}", file=sys.stderr)
-        sys.exit(1)
-    slug = os.path.basename(vault.rstrip("/")) + "-" + hashlib.sha1(vault.encode()).hexdigest()[:6]
-    if args.max_files:
-        slug += f"-s{args.max_files}"
-    if args.exclude:  # 제외 조합이 다르면 별도 런 폴더 (캐시된 manifest가 제외를 무시하는 것 방지)
-        slug += "-x" + hashlib.sha1(",".join(sorted(args.exclude)).encode()).hexdigest()[:6]
+    canonical = [os.path.realpath(os.path.abspath(os.path.expanduser(v))) for v in args.vault]
+    for vault in canonical:
+        if not os.path.isdir(vault):
+            print(f"볼트 경로가 없다: {vault}", file=sys.stderr)
+            sys.exit(1)
+    unique = list(dict.fromkeys(canonical))
+    vaults = []
+    for candidate in sorted(unique, key=lambda p: (len(p.split(os.path.sep)), p)):
+        if any(os.path.commonpath((parent, candidate)) == parent for parent in vaults):
+            continue
+        vaults.append(candidate)
+    vaults.sort()
+
+    slug_config = [
+        {"root": root, "exclude": sorted(args.exclude), "max_files": args.max_files,
+         "sample_seed": args.sample_seed}
+        for root in vaults
+    ]
+    slug_hash = hashlib.sha1(json.dumps(slug_config, ensure_ascii=False, sort_keys=True,
+                                       separators=(",", ":")).encode()).hexdigest()[:10]
+    slug_name = os.path.basename(vaults[0].rstrip("/")) if len(vaults) == 1 else f"multisource-{len(vaults)}"
+    slug = f"{slug_name}-{slug_hash}"
     work = os.path.join(os.path.expanduser(args.work_home), "runs", slug)
     if args.fresh and os.path.isdir(work):
         shutil.rmtree(work)
     os.makedirs(work, exist_ok=True)
-    ctx = Ctx(vault, work, args.max_files, excludes=args.exclude, sample_seed=args.sample_seed)
+    ctx = Ctx(vaults, work, args.max_files, excludes=args.exclude, sample_seed=args.sample_seed)
 
-    print(f"{BRAND} — {vault}")
+    print(f"{BRAND} — {', '.join(vaults)}")
     print(f"작업 폴더: {work} (중단해도 재실행하면 이어서 돈다)\n")
     print("[1/6] 정적 스캔...")
     scan = stage_scan(ctx)
@@ -626,7 +760,8 @@ def main():
         with open(listing, "w", encoding="utf-8") as f:
             for b in man["batches"]:
                 for fi in b:
-                    f.write(fi["rel"] + "\n")
+                    prefix = f'[{fi["source_label"]}] ' if len(vaults) > 1 else ""
+                    f.write(prefix + fi["rel"] + "\n")
         total_kb = sum(fi["size"] for b in man["batches"] for fi in b) // 1024
         n_b = len(man["batches"])
         est_extract = max(1, round(n_b * 0.15))          # 배치당 ~45초, 병렬 5 실측 근사
@@ -656,6 +791,7 @@ def main():
     print(f"\n✅ 완료 — 헬스 점수 {summary['score']}/100")
     junk_str = f"~{round(summary['junk_rate'] * 100)}%" if summary["junk_rate"] is not None else "측정실패"
     print(f"   중복 {summary['duplicates']}쌍 · 모순 {summary['contradictions']}쌍 · "
+          f"교차소스 모순 {summary['cross_source_contradictions']}쌍 · "
           f"junk {junk_str} · 리뷰 카드 {summary['review_cards']}건")
     print(f"   리포트: {summary['report']}")
 
