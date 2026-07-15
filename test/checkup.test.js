@@ -58,6 +58,18 @@ test("checkupCandidates finds cross-AI harness homes", (t) => {
   assert.deepEqual(kinds, ["codex-harness", "shared-memory"]);
 });
 
+test("checkupCandidates requires harness markers", (t) => {
+  const userHome = tempHome(t, "nautli-marker-cand-");
+  fs.mkdirSync(path.join(userHome, ".codex", "vendor"), { recursive: true });
+  fs.writeFileSync(path.join(userHome, ".codex", "vendor", "SKILL.md"), "# bundled skill");
+  fs.mkdirSync(path.join(userHome, ".gemini"), { recursive: true });
+  fs.writeFileSync(path.join(userHome, ".gemini", "GEMINI.md"), "# rules");
+
+  const kinds = checkupCandidates({ userHome }).map((candidate) => candidate.kind);
+  assert.ok(!kinds.includes("codex-harness"));
+  assert.ok(kinds.includes("gemini-harness"));
+});
+
 test("checkup CLI status reports none for a fresh home", (t) => {
   const home = tempHome(t, "nautli-checkup-cli-");
   const result = spawnSync(process.execPath, [cli, "checkup", "--status"], {
@@ -67,6 +79,32 @@ test("checkup CLI status reports none for a fresh home", (t) => {
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(JSON.parse(result.stdout).state, "none");
+});
+
+test("checkup CLI refuses to attach to a different vault", (t) => {
+  const userHome = tempHome(t, "nautli-checkup-cli-vault-");
+  const vaultA = path.join(userHome, "vault-a");
+  const vaultB = path.join(userHome, "vault-b");
+  const nhome = path.join(userHome, "nhome");
+  fs.mkdirSync(vaultA, { recursive: true });
+  fs.mkdirSync(vaultB, { recursive: true });
+  fs.mkdirSync(path.join(nhome, "checkup"), { recursive: true });
+  fs.writeFileSync(path.join(vaultA, "a.md"), "# a");
+  fs.writeFileSync(path.join(vaultB, "b.md"), "# b");
+  fs.writeFileSync(path.join(nhome, "checkup", "current.json"), JSON.stringify({
+    state: "running",
+    vault: vaultA,
+    pid: process.pid,
+    started_at: new Date().toISOString(),
+  }));
+
+  const result = spawnSync(process.execPath, [cli, "checkup", vaultB], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, NAUTLI_HOME: nhome, HOME: userHome },
+  });
+  assert.equal(result.status, 1, result.stderr || result.stdout);
+  assert.match(result.stderr, /다른 폴더/);
 });
 
 test("validateVaultPath rejects outside-home and nautli-home targets", (t) => {

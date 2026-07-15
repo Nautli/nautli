@@ -16,11 +16,11 @@ export const TASTE = Object.freeze({ maxFiles: 40, junkSample: 12, maxJudgePairs
 const IMPORT_CAP = 800;
 // 크로스AI 하네스 홈 — 숨김폴더라 walk가 못 찾으니 특례
 const HARNESS_HOMES = [
-  { dir: ".claude", kind: "claude-harness", label: "Claude 하네스 (~/.claude)" },
-  { dir: ".codex", kind: "codex-harness", label: "Codex 하네스 (~/.codex)" },
-  { dir: ".gemini", kind: "gemini-harness", label: "Gemini 하네스 (~/.gemini)" },
-  { dir: ".cursor", kind: "cursor-harness", label: "Cursor 하네스 (~/.cursor)" },
-  { dir: ".shared-memory", kind: "shared-memory", label: "공유 메모리 (~/.shared-memory)" },
+  { dir: ".claude", kind: "claude-harness", label: "Claude 하네스 (~/.claude)", marker: "CLAUDE.md" },
+  { dir: ".codex", kind: "codex-harness", label: "Codex 하네스 (~/.codex)", marker: "AGENTS.md" },
+  { dir: ".gemini", kind: "gemini-harness", label: "Gemini 하네스 (~/.gemini)", marker: "GEMINI.md" },
+  { dir: ".cursor", kind: "cursor-harness", label: "Cursor 하네스 (~/.cursor)", marker: null },
+  { dir: ".shared-memory", kind: "shared-memory", label: "공유 메모리 (~/.shared-memory)", marker: null },
 ];
 
 function codedError(code, message) {
@@ -110,9 +110,11 @@ export function checkupCandidates({ userHome = os.homedir(), roots, maxDepth = 3
     }
   };
   for (const root of searchRoots) walk(root, 1);
-  for (const { dir, kind, label } of HARNESS_HOMES) {
+  // 마커 없는 하네스는 번들 문서(README/SKILL.md)가 노트로 오인되는 노이즈를 만든다.
+  for (const { dir, kind, label, marker } of HARNESS_HOMES) {
     const harnessHome = path.join(userHome, dir);
-    if (fs.existsSync(harnessHome) && fs.statSync(harnessHome).isDirectory()) {
+    if (fs.existsSync(harnessHome) && fs.statSync(harnessHome).isDirectory()
+      && (!marker || fs.existsSync(path.join(harnessHome, marker)))) {
       found.set(harnessHome, { path: harnessHome, kind, label });
     }
   }

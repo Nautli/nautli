@@ -27,7 +27,12 @@ import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
 import { Store } from "./core/store.js";
-import { checkupStatus, startCheckup, TASTE } from "./onboard/checkup.js";
+import {
+  checkupStatus,
+  startCheckup,
+  TASTE,
+  validateVaultPath,
+} from "./onboard/checkup.js";
 import { checkClaudeLogin, doctor } from "./onboard/doctor.js";
 import {
   initStore,
@@ -152,23 +157,35 @@ async function checkupCommand(home, args) {
 
   requirePositionals(parsed.positionals, 1);
   const [vaultPath] = parsed.positionals;
-  const claude = checkClaudeLogin();
-  if (!claude.cli_exists) {
-    throw codedError(ERR.E_INVALID_INPUT, "claude CLI가 필요해요. npm install -g @anthropic-ai/claude-code 후 다시 실행해 주세요.");
-  }
-  if (!claude.logged_in) {
-    throw codedError(ERR.E_INVALID_INPUT, "claude CLI 로그인이 필요해요. claude /login 후 다시 실행해 주세요.");
+  const resolved = validateVaultPath(vaultPath, { home });
+  const current = checkupStatus(home);
+
+  if (current.state === "running") {
+    if (current.vault !== resolved) {
+      const error = codedError(ERR.E_STORE_BUSY, `다른 폴더 진단이 돌고 있어요: ${current.vault}. 끝난 뒤 다시 시도해 주세요.`);
+      process.stderr.write(`${error.message}\n`);
+      throw error;
+    }
+    process.stderr.write("이미 이 폴더 진단이 돌고 있어요. 이어서 지켜볼게요.\n");
+  } else {
+    const claude = checkClaudeLogin();
+    if (!claude.cli_exists) {
+      throw codedError(ERR.E_INVALID_INPUT, "claude CLI가 필요해요. npm install -g @anthropic-ai/claude-code 후 다시 실행해 주세요.");
+    }
+    if (!claude.logged_in) {
+      throw codedError(ERR.E_INVALID_INPUT, "claude CLI 로그인이 필요해요. claude /login 후 다시 실행해 주세요.");
+    }
+
+    try {
+      const started = startCheckup(home, resolved);
+      process.stderr.write(`진단 시작: ${started.vault} (표본 최대 ${TASTE.maxFiles}개)\n`);
+    } catch (error) {
+      if (error?.code !== ERR.E_STORE_BUSY) throw error;
+      process.stderr.write("이미 이 폴더 진단이 돌고 있어요. 이어서 지켜볼게요.\n");
+    }
   }
 
   const deadline = Date.now() + 90 * 60 * 1000;
-  try {
-    const started = startCheckup(home, vaultPath);
-    process.stderr.write(`진단 시작: ${started.vault} (표본 최대 ${TASTE.maxFiles}개)\n`);
-  } catch (error) {
-    if (error?.code !== ERR.E_STORE_BUSY) throw error;
-    process.stderr.write("이미 진단이 돌고 있어요. 이어서 지켜볼게요.\n");
-  }
-
   let previousProgress = null;
   while (Date.now() < deadline) {
     const status = checkupStatus(home);
@@ -202,7 +219,10 @@ async function checkupCommand(home, args) {
     await new Promise((resolve) => setTimeout(resolve, 5000));
   }
 
-  writeJson({ state: "timeout" });
+  writeJson({
+    state: "timeout",
+    hint: "진단 프로세스가 아직 돌고 있을 수 있어요. nautli checkup --status 로 확인해 주세요.",
+  });
   return 1;
 }
 

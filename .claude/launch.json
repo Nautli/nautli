@@ -1,0 +1,34 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dashboard-qa",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NAUTLI_HOME=/private/tmp/claude-501/-Users-bugbookee-Desktop/e7ddc07d-3400-4cc0-ae54-f3dc343e1235/scratchpad/qa/nhome",
+        "node",
+        "src/cli.js",
+        "dashboard",
+        "--port",
+        "4646",
+        "--no-open"
+      ],
+      "port": 4646
+    },
+    {
+      "name": "dashboard-qa-wall",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NAUTLI_HOME=/private/tmp/claude-501/-Users-bugbookee-Desktop/e7ddc07d-3400-4cc0-ae54-f3dc343e1235/scratchpad/qa/nhome-wall",
+        "PATH=/private/tmp/claude-501/-Users-bugbookee-Desktop/e7ddc07d-3400-4cc0-ae54-f3dc343e1235/scratchpad/e2e/stubbin:/usr/bin:/bin:/usr/sbin:/sbin",
+        "/Users/bugbookee/.nvm/versions/node/v22.22.1/bin/node",
+        "src/cli.js",
+        "dashboard",
+        "--port",
+        "4647",
+        "--no-open"
+      ],
+      "port": 4647
+    }
+  ]
+}
