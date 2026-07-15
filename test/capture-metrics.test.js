@@ -211,6 +211,26 @@ test("capture metrics CLI prints the human table and the report JSON", (t) => {
   assert.equal(report.verdict, "PASS");
 });
 
+test("capture metrics CLI renders the insufficient-sample path honestly", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-metrics-empty-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const run = (args) => spawnSync(process.execPath, [cli, "capture", "metrics", ...args], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, NAUTLI_HOME: home },
+  });
+  const human = run([]);
+  assert.equal(human.status, 0, human.stderr || human.stdout);
+  assert.match(human.stdout, /\[표본 부족\]/u);
+  assert.match(human.stdout, /승인율\s+측정 전/u);
+  assert.match(human.stdout, /카드 결정 \d+건·회상 \d+건을 더 채우면 판정/u);
+
+  const report = JSON.parse(run(["--json"]).stdout);
+  assert.equal(report.verdict, "INSUFFICIENT_SAMPLE");
+  assert.equal(report.metrics.auto.approval_rate, null);
+  assert.equal(report.metrics.auto.recall_refs_per_fact, null);
+});
+
 test("capture decisions are logged once per action and rebuild never treats them as facts", (t) => {
   const home = isolatedHome(t, "nautli-capture-decided-");
   const store = new Store(home);

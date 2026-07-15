@@ -192,6 +192,10 @@ function formatLatency(value) {
   return `${(value / 1000).toFixed(1)}초`;
 }
 
+function formatRefs(value) {
+  return value === null || value === undefined ? "측정 전" : value.toFixed(2);
+}
+
 function renderCaptureMetrics(report) {
   const badge = report.verdict === "PASS"
     ? "[통과]"
@@ -205,17 +209,18 @@ function renderCaptureMetrics(report) {
     `오탐률                ${formatRate(auto.false_positive_rate)}`,
     `검토시간 중앙값       ${formatLatency(auto.median_review_latency_ms)}`,
     `유용 회상률           ${formatRate(auto.useful_recall_rate).padEnd(17)}${formatRate(explicit.useful_recall_rate)}`,
-    `fact당 회상 참조      ${auto.recall_refs_per_fact ?? "측정 전"}`.padEnd(39)
-      + `${explicit.recall_refs_per_fact ?? "측정 전"}`,
+    `fact당 회상 참조      ${formatRefs(auto.recall_refs_per_fact).padEnd(17)}${formatRefs(explicit.recall_refs_per_fact)}`,
     "",
     `표본                  후보 ${auto.candidates} · 결정 ${report.sample.decided_cards}/${MIN_DECIDED} · 회상 ${report.sample.recall_events}/${MIN_RECALL}`,
     `fact                  자동 ${report.sample.auto_facts} · 직접 ${report.sample.explicit_facts} · 세션 ${report.sample.capture_sessions}`,
   ];
   if (report.verdict === "INSUFFICIENT_SAMPLE") {
-    const moreDays = Math.max(0, 14 - report.sample.window_days);
+    // 판정 게이트는 날짜가 아니라 결정·회상 카운트다. 남은 건 '며칠'이 아니라 '몇 건'.
+    const needDecided = Math.max(0, MIN_DECIDED - report.sample.decided_cards);
+    const needRecall = Math.max(0, MIN_RECALL - report.sample.recall_events);
     lines.push(
       "",
-      `실사용 ${moreDays}일 더 필요해요. 현재 결정 ${report.sample.decided_cards}/${MIN_DECIDED}·회상 ${report.sample.recall_events}/${MIN_RECALL}.`,
+      `아직 판정할 수 없어요. 카드 결정 ${needDecided}건·회상 ${needRecall}건을 더 채우면 판정합니다.`,
     );
   } else {
     lines.push("", report.verdict_reason);
