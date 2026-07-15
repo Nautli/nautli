@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import vm from "node:vm";
 import { remember } from "../src/core/gate.js";
 import { STATUS } from "../src/core/schema.js";
 import { Store } from "../src/core/store.js";
@@ -374,7 +375,7 @@ test("dashboard checklist is derived from existing feature states", async (t) =>
   assert.match(page, /checkup\.state===\"done\"/);
   assert.match(page, /claude\.connected&&codex\.connected/);
   assert.match(page, /state\.status\.setup\.optional\.cursor/);
-  assert.match(page, /title:\"공유 카드 만들기\"/);
+  assert.match(page, /title:T\("공유 카드 만들기"\)/);
   assert.match(page, /다음 할 일/);
   assert.match(page, /다 됐어요\. 이제 nautli는 알아서 굴러가요/);
   assert.doesNotMatch(page, /title:\"GitHub/);
@@ -417,4 +418,16 @@ test("dashboard onboarding copy keeps the inline hero and privacy contract", asy
   assert.match(page, /agent\.name===\"codex\"/);
   assert.match(page, /data-scan-usage/);
   assert.doesNotMatch(page, /[—–]/u);
+});
+
+test("dashboard served script parses after template-literal unescaping (i18n regression gate)", async () => {
+  const { HTML } = await import("../src/dashboard/public.js");
+  const parts = HTML.split("<script>");
+  assert.ok(parts.length >= 2, "expected inline scripts");
+  for (let i = 1; i < parts.length; i += 1) {
+    const script = parts[i].split("</script>")[0];
+    new vm.Script(script); // throws on served-level SyntaxError
+  }
+  const dict = HTML.match(/var DASH_EN=\{/);
+  assert.ok(dict, "DASH_EN dictionary embedded");
 });
