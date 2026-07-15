@@ -207,6 +207,20 @@ function codexStatus(runner) {
   }
 }
 
+function daemonRegistered(runner, uid) {
+  try {
+    runnerText(
+      runner,
+      "launchctl",
+      ["print", `gui/${uid}/${DAEMON_LABEL}`],
+      { stdio: ["ignore", "pipe", "ignore"], timeout: 2_000 },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function execFileText(command, args) {
   return new Promise((resolve, reject) => {
     execFile(
@@ -287,6 +301,7 @@ function localDateTime(value) {
 export function statusAll(home, {
   runner = defaultRunner,
   userHome = os.homedir(),
+  uid = process.getuid?.() ?? 0,
   now = new Date(),
   checkClaude = true,
   checkCodex = checkClaude,
@@ -305,6 +320,8 @@ export function statusAll(home, {
       : { cli_exists: null, registered: null, status: "checking" }
   );
   const health = readHealth(home);
+  const plistExists = fs.existsSync(plist);
+  const registered = plistExists && daemonRegistered(runner, uid);
   const nextRun = new Date(nextDigestAt(now));
 
   const required = {
@@ -324,8 +341,9 @@ export function statusAll(home, {
       file: instructions,
     },
     daemon: {
-      complete: fs.existsSync(plist) && health.healthy,
-      plist_exists: fs.existsSync(plist),
+      complete: registered,
+      plist_exists: plistExists,
+      registered,
       plist,
       health,
       next_run: localDateTime(nextRun),

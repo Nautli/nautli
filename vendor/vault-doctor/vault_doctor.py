@@ -562,7 +562,7 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
                  "위 카드들을 지금 정리하거나, 주기적으로 이 진단을 다시 돌려라.")
         # TODO(브랜드 확정: Nightmerge — 전환 브릿지 문단 추가 가능): 소화 데몬 제품으로의 전환 브릿지 문단 추가 (차용검토 v2 롤플레이 §)
     L.append("---\n### 방법론·한계")
-    L.append(f"- 추출·판정은 로컬 claude CLI(구독) 경유, 판정 프롬프트는 Nightmerge(구 onebrain) PoC 검증본(모순 오탐 반례 3종 포함).")
+    L.append(f"- 추출·판정은 로컬 claude CLI(구독) 경유, 판정 프롬프트는 nautli PoC 검증본(모순 오탐 반례 3종 포함).")
     L.append(f"- junk율은 표본 추정치(고정 시드) — 표본이 작으면 구간이 넓다.")
     L.append(f"- 중간 산출물·로그: `{ctx.work}`")
     report_path = ctx.path("report.md")

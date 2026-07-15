@@ -24,7 +24,7 @@ async function dashboard(t, options = {}) {
     open: false,
     userHome,
     runner,
-    runDigest: () => ({ ok: true, started: true }),
+    runDigest: options.runDigest ?? (() => ({ ok: true, started: true })),
   });
   t.after(async () => {
     await new Promise((resolve) => started.server.close(resolve));
@@ -131,6 +131,33 @@ test("dashboard rejects state changes from a non-allowlisted Origin", async (t) 
   assert.equal(response.status, 403);
   assert.equal((await response.json()).error, "E_ORIGIN_FORBIDDEN");
   assert.equal(fs.existsSync(path.join(target.home, "index.sqlite")), false);
+});
+
+test("digest preflight returns E_CLAUDE_LOGIN without starting daemon-run", async (t) => {
+  let digestRuns = 0;
+  const target = await dashboard(t, {
+    runner: (command, args) => ({
+      status: command === "claude" && args[0] === "auth" ? 1 : 0,
+      stdout: "",
+      stderr: "",
+    }),
+    runDigest: () => {
+      digestRuns += 1;
+      return { ok: true, started: true };
+    },
+  });
+
+  const response = await fetch(`${target.url}/api/setup/digest`, {
+    method: "POST",
+    headers: { origin: target.origin, "content-type": "application/json" },
+    body: "{}",
+  });
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), {
+    error: "E_CLAUDE_LOGIN",
+    message: "Claude CLI 로그인이 필요해요.",
+  });
+  assert.equal(digestRuns, 0);
 });
 
 test("dashboard translates remember gate rejection into human-readable 400 JSON", async (t) => {

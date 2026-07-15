@@ -76,6 +76,27 @@ test("onboarding steps are isolated and shell commands use the injected runner",
   assert.ok(calls.some((call) => call[0] === "launchctl" && call[1] === "bootout"));
 });
 
+test("daemon completion is independent from digestion health", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  const runner = () => "ok\n";
+
+  installDaemon(home, runner, { userHome, uid: 501 });
+  const daemonDir = path.join(home, "daemon");
+  fs.mkdirSync(daemonDir, { recursive: true });
+  fs.writeFileSync(path.join(daemonDir, "health.log"), `${JSON.stringify({
+    at: new Date().toISOString(),
+    exit: 1,
+    result: { ok: false, reason: "판정 실패" },
+  })}\n`, "utf8");
+
+  const daemon = statusAll(home, { runner, userHome, uid: 501 })
+    .required.daemon;
+  assert.equal(daemon.plist_exists, true);
+  assert.equal(daemon.registered, true);
+  assert.equal(daemon.health.healthy, false);
+  assert.equal(daemon.complete, true);
+});
+
 test("sample facts create one duplicate and one contradiction review card", async (t) => {
   const { home } = isolatedHome(t);
   initStore(home);

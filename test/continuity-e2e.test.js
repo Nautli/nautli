@@ -5,9 +5,22 @@ import os from "node:os";
 import path from "node:path";
 import { remember } from "../src/core/gate.js";
 import { Store } from "../src/core/store.js";
+import { HTML } from "../src/dashboard/public.js";
 import { startDashboard } from "../src/dashboard/server.js";
 
 const config = { default_scope: "person" };
+
+test("continuity claim matching normalizes exact, contained, and unrelated text", () => {
+  const functionLine = (name) => HTML.split("\n")
+    .find((line) => line.includes(`function ${name}(`));
+  const matches = Function(
+    `${functionLine("normalizeContinuityClaim")}\n${functionLine("continuityClaimsMatch")}\nreturn continuityClaimsMatch;`,
+  )();
+
+  assert.equal(matches("  커밋   메시지는 한국어다. ", "커밋 메시지는 한국어다"), true);
+  assert.equal(matches("나는 커밋 메시지를 한국어로 쓴다", "커밋 메시지를 한국어로 쓴다."), true);
+  assert.equal(matches("내 기본 브랜치는 main이다", "배포 전에는 테스트한다"), false);
+});
 
 test("isolated continuity flow detects MCP remember, dashboard recall, and duplicate remember", async (t) => {
   const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-continuity-e2e-"));

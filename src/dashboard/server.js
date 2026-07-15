@@ -9,7 +9,7 @@ import { remember } from "../core/gate.js";
 import { applyCaptureCard, applyCard, listCards } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
-import { doctor } from "../onboard/doctor.js";
+import { checkClaudeLogin, doctor } from "../onboard/doctor.js";
 import {
   checkClaudeStatus,
   checkCodexStatus,
@@ -675,6 +675,7 @@ export function createDashboardServer(home, options = {}) {
           : null;
         const setupOptions = {
           userHome,
+          runner,
           checkClaude: false,
           checkCodex: false,
         };
@@ -1045,16 +1046,23 @@ export function createDashboardServer(home, options = {}) {
         } else if (step === "daemon-remove") {
           result = uninstallDaemon(home, runner, { userHome });
         } else if (step === "digest") {
-          const claude = claudeCache?.value
-            ?? await checkClaudeStatus(runner).catch(() => null);
+          const claude = checkClaudeLogin(runner);
 
-          if (claude && claude.cli_exists === false) {
+          if (!claude.cli_exists) {
             json(response, 400, {
               error: ERR.E_CLAUDE_CLI_MISSING,
               message:
                 "소화에는 Claude CLI가 필요해요. 먼저 'Claude Code 연결' 단계를 완료해 주세요.",
               manual_command:
                 "npm install -g @anthropic-ai/claude-code && claude",
+            });
+            return;
+          }
+
+          if (!claude.logged_in) {
+            json(response, 400, {
+              error: "E_CLAUDE_LOGIN",
+              message: "Claude CLI 로그인이 필요해요.",
             });
             return;
           }
