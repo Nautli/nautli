@@ -196,6 +196,10 @@ function isRememberActivityEvent(event) {
   return event?.type === "remember" && event.ev === undefined;
 }
 
+function isCaptureDecidedEvent(event) {
+  return event?.ev === "capture.decided";
+}
+
 function activityEvent(event) {
   if (isRecallEvent(event)) {
     return {
@@ -339,7 +343,7 @@ export class Store {
 
   applyEvent(evt) {
     // 활동 로그는 fact 이벤트와 같은 append-only 정본에 공존하지만 파생 인덱스 대상은 아니다.
-    if (isRecallEvent(evt) || isRememberActivityEvent(evt)) return;
+    if (isRecallEvent(evt) || isRememberActivityEvent(evt) || isCaptureDecidedEvent(evt)) return;
     try {
       const apply = this.db.transaction(() => {
         const tombstoneIds = purgedFactIds(evt);

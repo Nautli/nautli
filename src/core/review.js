@@ -217,15 +217,32 @@ export function applyCaptureCard(store, home, pairId, action, config = {}) {
       deferredUntil = tomorrow.toLocaleDateString("sv-SE");
     }
 
+    const handledAt = new Date().toISOString();
+    const createdTime = Date.parse(card.at);
+    const handledTime = Date.parse(handledAt);
+    const latency = Number.isFinite(createdTime)
+      && Number.isFinite(handledTime)
+      && handledTime >= createdTime
+      ? handledTime - createdTime
+      : null;
+
     entries[index] = {
       ...card,
       status,
       action,
-      handled_at: new Date().toISOString(),
+      handled_at: handledAt,
       ...(remembered?.id ? { fact_id: remembered.id } : {}),
       ...(deferredUntil ? { deferred_until: deferredUntil } : {}),
     };
     writeQueue(home, entries);
+    store.appendEvent({
+      ev: "capture.decided",
+      pair_id: pairId,
+      action,
+      confidence: card.confidence ?? null,
+      latency_ms: latency,
+      at: handledAt,
+    });
     return { ok: true, status, action, remembered };
   });
 }
