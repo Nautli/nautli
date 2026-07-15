@@ -70,6 +70,7 @@ mcp        MCP 서버를 실행해요.
   "cli.capture.invalid_payload": { en: "Invalid capture hook payload", ko: "자동 캡처 훅 입력이 올바르지 않아요." },
   "cli.dashboard.invalid_port": { en: "Invalid dashboard port", ko: "대시보드 포트를 확인해 주세요." },
   "cli.daemon.not_built": { en: "daemon not built", ko: "데몬이 빌드되지 않았어요." },
+  "cli.daemon.skipped_fresh": { en: "Last digestion succeeded within 24 hours ({last}); skipping this run", ko: "최근 24시간 안에 소화가 성공해서({last}) 이번 실행은 건너뛰어요." },
   "cli.setup.unknown_step": { en: "Unknown setup step: {name}", ko: "알 수 없는 설치 단계: {name}" },
   "cli.review.empty": { en: "No cards to review. The next digestion runs at 3:30 AM", ko: "검토할 카드가 없어요. 다음 소화는 오늘 새벽 3:30." },
   "cli.review.duplicate": { en: "Duplicate", ko: "중복 정리" },
@@ -86,8 +87,10 @@ mcp        MCP 서버를 실행해요.
   "setup.codex_mcp_failed": { en: "Could not register the Codex MCP automatically. Run the command below in your terminal", ko: "Codex MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요." },
   "setup.instructions_preview": { en: "Location: {file}\n\nBlock to add:\n{block}", ko: "추가될 위치: {file}\n\n추가될 블록:\n{block}" },
   "setup.daemon_failed": { en: "Could not register the nightly digestion daemon. Run the command below in your terminal", ko: "밤 소화 데몬 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요." },
+  "setup.daemon_failed_conflict": { en: "If launchctl printed error 5 (Input/output error), the label com.nautli.daemon may already be loaded from another plist path. Run `launchctl bootout gui/{uid}/com.nautli.daemon` and retry", ko: "launchctl이 error 5(Input/output error)를 냈다면 com.nautli.daemon 라벨이 이미 다른 plist 경로로 로드돼 있을 수 있어요. `launchctl bootout gui/{uid}/com.nautli.daemon` 실행 후 다시 시도해 주세요." },
   "setup.digest_judge_failed": { en: "Sample digestion failed: {reason}", ko: "체험 소화 판정에 실패했어요: {reason}" },
   "setup.digest_no_result": { en: "Found memories to digest but received no judgment. Check the Claude CLI connection", ko: "체험 소화할 기억은 찾았지만 판정 결과를 받지 못했어요. Claude CLI 연결을 확인해 주세요." },
+  "setup.digest_already_running": { en: "Another digestion is already running; skipping this run", ko: "다른 소화가 이미 실행 중이라 이번 실행은 건너뛰어요." },
 
   "checkup.harness_claude": { en: "Claude harness (~/.claude)", ko: "Claude 하네스 (~/.claude)" },
   "checkup.harness_codex": { en: "Codex harness (~/.codex)", ko: "Codex 하네스 (~/.codex)" },

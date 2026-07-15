@@ -147,6 +147,34 @@ function readHealth(home) {
   };
 }
 
+export const DIGEST_FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+// anacron식 catch-up 게이트 — RunAtLoad(부팅/로그인)와 3:30 정기 실행이 공유한다.
+// 마지막 '성공' 소화(appendHealth의 exit 0 기록)가 24시간 이내면 이번 실행을 건너뛴다.
+export function digestFreshness(home, { windowMs = DIGEST_FRESH_WINDOW_MS } = {}) {
+  const file = path.join(home, "daemon", "health.log");
+  if (!fs.existsSync(file)) return { fresh: false, last_success_at: null, age_ms: null };
+
+  const lines = fs.readFileSync(file, "utf8")
+    .split("\n")
+    .filter((line) => line.trim() !== "");
+
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    try {
+      const value = JSON.parse(lines[index]);
+      if (value.exit !== 0) continue;
+      const timestamp = Date.parse(value.at);
+      if (!Number.isFinite(timestamp)) continue;
+      const age = Math.max(0, Date.now() - timestamp);
+      return { fresh: age < windowMs, last_success_at: value.at, age_ms: age };
+    } catch {
+      // launchd가 남긴 비-JSON 출력은 건너뛴다.
+    }
+  }
+
+  return { fresh: false, last_success_at: null, age_ms: null };
+}
+
 function nextDigestAt(now = new Date()) {
   const next = new Date(now);
   next.setHours(3, 30, 0, 0);
@@ -581,6 +609,7 @@ function daemonPlist(home) {
   <key>ProgramArguments</key><array><string>${xml(process.execPath)}</string><string>${xml(CLI_FILE)}</string><string>daemon-run</string></array>
   <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string></dict>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>30</integer></dict>
+  <key>RunAtLoad</key><true/>
   <key>StandardOutPath</key><string>${xml(health)}</string>
   <key>StandardErrorPath</key><string>${xml(path.join(home, "daemon", "error.log"))}</string>
 </dict></plist>
@@ -602,13 +631,21 @@ export function installDaemon(
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, daemonPlist(home), "utf8");
 
+  // 같은 라벨이 다른 plist 경로로 이미 로드돼 있으면 bootstrap이 error 5로 실패한다.
+  // 선제 bootout으로 잔재를 걷어낸다(로드된 적 없으면 실패하는 게 정상 — 무시).
+  try {
+    runnerText(runner, "launchctl", ["bootout", `gui/${uid}/${DAEMON_LABEL}`]);
+  } catch {
+    // 미로드 상태의 bootout 실패는 무시한다.
+  }
+
   const args = ["bootstrap", `gui/${uid}`, file];
   try {
     runnerText(runner, "launchctl", args);
   } catch (cause) {
     throw setupError(
       ERR.E_LAUNCHCTL_FAILED,
-      t("setup.daemon_failed"),
+      `${t("setup.daemon_failed")} ${t("setup.daemon_failed_conflict", { uid })}`,
       ["launchctl", ...args].join(" "),
       cause,
     );
@@ -654,9 +691,38 @@ function appendHealth(home, value) {
   fs.appendFileSync(file, `${JSON.stringify(value)}\n`, "utf8");
 }
 
+const DIGEST_LOCK_STALE_MS = 3 * 60 * 60 * 1000;
+
+// 동시 소화 방지 락 — setup --yes의 digest 스텝과 RunAtLoad 트리거가 겹칠 수 있다.
+function acquireDigestLock(file) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      fs.writeFileSync(file, `${process.pid}\n`, { flag: "wx" });
+      return true;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      let age = 0;
+      try {
+        age = Date.now() - fs.statSync(file).mtimeMs;
+      } catch {
+        continue;
+      }
+      if (age < DIGEST_LOCK_STALE_MS) return false;
+      fs.rmSync(file, { force: true });
+    }
+  }
+  return false;
+}
+
 export async function runDigestOnce(home, { dry = false, locale } = {}) {
   const t = translator(locale);
   initStore(home);
+  const lockFile = path.join(home, "daemon", "run.lock");
+  if (!acquireDigestLock(lockFile)) {
+    return { ok: true, skipped_run: true, reason: t("setup.digest_already_running") };
+  }
+
   const store = new Store(home);
 
   try {
@@ -700,6 +766,7 @@ export async function runDigestOnce(home, { dry = false, locale } = {}) {
     throw error;
   } finally {
     store.close();
+    fs.rmSync(lockFile, { force: true });
   }
 }
 

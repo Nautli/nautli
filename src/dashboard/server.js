@@ -462,7 +462,8 @@ function graphFor(home, t) {
 }
 
 function runDigestInChild(home) {
-  const child = spawn(process.execPath, [CLI_FILE, "daemon-run"], {
+  // 대시보드의 '지금 소화'는 수동 실행이므로 catch-up 게이트를 우회한다.
+  const child = spawn(process.execPath, [CLI_FILE, "daemon-run", "--force"], {
     detached: true,
     stdio: "ignore",
     env: { ...process.env, NAUTLI_HOME: home },

@@ -36,6 +36,7 @@ import {
 } from "./onboard/checkup.js";
 import { checkClaudeLogin, doctor } from "./onboard/doctor.js";
 import {
+  digestFreshness,
   initStore,
   installDaemon,
   installInstructions,
@@ -436,12 +437,29 @@ function dashboardPort(value) {
 async function runDaemon(home, args) {
   const parsed = parseCommand(args, {
     dry: { type: "boolean", default: false },
+    force: { type: "boolean", default: false },
   });
   requirePositionals(parsed.positionals, 0);
 
   const moduleUrl = new URL("./daemon/pipeline.js", import.meta.url);
   if (!fs.existsSync(fileURLToPath(moduleUrl))) {
     return { missing: true, result: { error: t("cli.daemon.not_built") } };
+  }
+
+  // catch-up 게이트: 3:30 정기 실행과 RunAtLoad(부팅/로그인) 실행이 공유한다.
+  if (!parsed.values.dry && !parsed.values.force) {
+    const freshness = digestFreshness(home);
+    if (freshness.fresh) {
+      return {
+        missing: false,
+        result: {
+          ok: true,
+          skipped_run: true,
+          reason: t("cli.daemon.skipped_fresh", { last: freshness.last_success_at }),
+          last_success_at: freshness.last_success_at,
+        },
+      };
+    }
   }
 
   const result = await runDigestOnce(home, { dry: parsed.values.dry, locale });

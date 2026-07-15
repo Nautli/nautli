@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { listCards } from "../src/core/review.js";
 import {
   DAEMON_LABEL,
+  digestFreshness,
   initStore,
   installDaemon,
   installInstructions,
@@ -118,4 +119,82 @@ test("sample facts create one duplicate and one contradiction review card", asyn
   assert.deepEqual(new Set(cards.map((card) => card.verdict)), new Set(["duplicate", "contradiction"]));
   assert.equal(removeSampleFacts(home).removed, 4);
   assert.equal(listCards(home).length, 0);
+});
+
+test("daemon plist enables catch-up and stale labels are booted out first", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  const calls = [];
+  const runner = (command, args) => {
+    calls.push([command, ...args]);
+    // 미로드 상태에서 선제 bootout은 실패한다 — installDaemon은 이를 무시해야 한다.
+    if (command === "launchctl" && args[0] === "bootout") throw new Error("Boot-out failed: 5: Input/output error");
+    return "ok\n";
+  };
+
+  const result = installDaemon(home, runner, { userHome, uid: 501 });
+  assert.equal(result.ok, true);
+  const plist = fs.readFileSync(result.plist, "utf8");
+  assert.match(plist, /RunAtLoad/);
+  assert.match(plist, /StartCalendarInterval/);
+  const launchctl = calls.filter((call) => call[0] === "launchctl");
+  assert.deepEqual(launchctl[0].slice(1), ["bootout", "gui/501/com.nautli.daemon"]);
+  assert.equal(launchctl[1][1], "bootstrap");
+});
+
+test("bootstrap failure surfaces the stale-label guidance", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  const runner = (command, args) => {
+    if (command === "launchctl" && args[0] === "bootstrap") throw new Error("Bootstrap failed: 5: Input/output error");
+    return "ok\n";
+  };
+
+  assert.throws(
+    () => installDaemon(home, runner, { userHome, uid: 501 }),
+    (error) => error.code === "E_LAUNCHCTL_FAILED"
+      && /bootout gui\/501\/com\.nautli\.daemon/.test(error.message),
+  );
+});
+
+test("digestFreshness keys on the last successful digestion", (t) => {
+  const { home } = isolatedHome(t);
+  const file = path.join(home, "daemon", "health.log");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const hoursAgo = (n) => new Date(Date.now() - n * 60 * 60 * 1000).toISOString();
+
+  assert.equal(digestFreshness(home).fresh, false);
+
+  fs.writeFileSync(file, `${JSON.stringify({ at: hoursAgo(25), exit: 0 })}\n`, "utf8");
+  assert.equal(digestFreshness(home).fresh, false);
+
+  fs.appendFileSync(file, `${JSON.stringify({ at: hoursAgo(2), exit: 0 })}\n`, "utf8");
+  assert.equal(digestFreshness(home).fresh, true);
+
+  // 성공 이후의 실패 기록은 catch-up 판단을 뒤집지 않는다.
+  fs.appendFileSync(file, `${JSON.stringify({ at: hoursAgo(1), exit: 1 })}\n`, "utf8");
+  assert.equal(digestFreshness(home).fresh, true);
+
+  fs.writeFileSync(file, `${JSON.stringify({ at: hoursAgo(1), exit: 1 })}\n`, "utf8");
+  assert.equal(digestFreshness(home).fresh, false);
+});
+
+test("runDigestOnce skips when another digestion holds the lock", async (t) => {
+  const { home } = isolatedHome(t);
+  initStore(home);
+  fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
+    default_scope: "person",
+    judge_cmd: [process.execPath, mockJudge],
+  })}\n`, "utf8");
+  const lock = path.join(home, "daemon", "run.lock");
+  fs.mkdirSync(path.dirname(lock), { recursive: true });
+  fs.writeFileSync(lock, "12345\n", "utf8");
+
+  const blocked = await runDigestOnce(home);
+  assert.equal(blocked.skipped_run, true);
+
+  const stale = new Date(Date.now() - 4 * 60 * 60 * 1000);
+  fs.utimesSync(lock, stale, stale);
+  const ran = await runDigestOnce(home);
+  assert.equal(ran.ok, true);
+  assert.equal(ran.skipped_run, undefined);
+  assert.equal(fs.existsSync(lock), false);
 });

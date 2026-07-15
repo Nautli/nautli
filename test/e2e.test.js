@@ -87,3 +87,30 @@ test("daemon-run exits one when judging fails", (t) => {
   assert.equal(result.status, 1, result.stderr || result.stdout);
   assert.equal(JSON.parse(result.stdout).ok, false);
 });
+
+test("daemon-run gates catch-up on the last successful digestion", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-e2e-catchup-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  runCli(home, ["init"]);
+  fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
+    default_scope: "person",
+    judge_cmd: [process.execPath, mockJudge],
+  })}\n`, "utf8");
+
+  const first = runCli(home, ["daemon-run"], "2025-03-01T03:30:00.000Z");
+  assert.equal(first.ok, true);
+  assert.equal(first.skipped_run, undefined);
+
+  // 로그인/부팅(RunAtLoad) 시점 — 오늘 새벽에 이미 성공했으면 건너뛴다.
+  const sameDay = runCli(home, ["daemon-run"], "2025-03-01T09:00:00.000Z");
+  assert.equal(sameDay.skipped_run, true);
+
+  const forced = runCli(home, ["daemon-run", "--force"], "2025-03-01T09:10:00.000Z");
+  assert.equal(forced.ok, true);
+  assert.equal(forced.skipped_run, undefined);
+
+  // 맥이 꺼져 3:30 회차를 놓친 다음 날 — catch-up이 실행된다.
+  const nextBoot = runCli(home, ["daemon-run"], "2025-03-02T10:00:00.000Z");
+  assert.equal(nextBoot.ok, true);
+  assert.equal(nextBoot.skipped_run, undefined);
+});
