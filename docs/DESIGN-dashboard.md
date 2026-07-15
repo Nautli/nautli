@@ -4,13 +4,44 @@
 
 ## 원칙
 
-- 라이트 모드가 기본이며 `prefers-color-scheme`에 따라 다크 모드를 자동 적용한다.
+- 다크 모드가 기본이며 `<html data-theme="dark|light">`로 실제 적용 테마를 명시한다.
 - 배경·카드·사이드바는 무채색 면과 1px 경계로 구분한다. 그림자는 꼭 필요한 오버레이 외에는 사용하지 않는다.
 - primary는 브랜드 컬러가 아니라 잉크색 채움이다. 라이트에서는 거의 검정, 다크에서는 밝은 회색을 쓴다.
-- violet은 AI가 수행한 일의 진행 상태, 활성 탭 인디케이터, 그래프의 대체 관계에만 쓴다.
+- violet은 AI가 수행한 일의 진행 상태와 그래프의 대체 관계에만 쓴다.
 - 성공·위험·중복 상태 외에는 채도 높은 색을 쓰지 않는다.
 
-## 라이트 토큰 (`:root`)
+## 테마: 다크 기본 + `data-theme` 토글
+
+- 저장값이 없거나 유효하지 않으면 다크를 적용한다.
+- 사이드바 하단의 단일 quiet 버튼은 `다크 → 라이트 → 시스템` 순서로 순환하며, 선택 모드를 `localStorage`의 `nautli-theme` 키에 `dark|light|system`으로 저장한다.
+- `dark`와 `light`는 그대로 `data-theme`에 적용한다. `system`은 `matchMedia("(prefers-color-scheme: dark)")` 결과를 계산해 실제 `data-theme`에는 `dark` 또는 `light`를 기록하고, 시스템 설정 변경도 계속 구독한다.
+- 테마 적용 시 `nautli-theme-change` 이벤트를 발생시킨다. 그래프 캔버스는 이 이벤트에서 CSS 색을 다시 읽고 즉시 다시 그린다.
+- 720px 이하에서는 같은 토글을 헤더 우측에 고정해 탭 가로 스크롤과 무관하게 접근할 수 있게 한다.
+
+## 다크 토큰 (`:root`, 기본)
+
+| 토큰 | 값 | 용도 |
+|---|---|---|
+| `--background` | `#0a0a0a` | 앱 기본 배경, 그래프 무대 |
+| `--foreground` | `#fafafa` | 기본 텍스트 |
+| `--card` | `#171717` | 카드와 모달 |
+| `--sidebar` | `#171717` | 사이드바 |
+| `--sidebar-border` | `rgb(255 255 255 / 0.07)` | Orca 시그니처 7% 헤어라인 |
+| `--primary` | `#e5e5e5` | primary 버튼 채움 |
+| `--primary-foreground` | `#171717` | primary 버튼 텍스트 |
+| `--secondary` | `#262626` | 활성 내비게이션, 보조 면 |
+| `--muted` | `#262626` | 비활성 면, 진행바 트랙 |
+| `--accent` | `#404040` | hover 믹스의 기준 면 |
+| `--muted-foreground` | `#a1a1a1` | 설명, 메타데이터, 비활성 텍스트 |
+| `--border` | `rgb(255 255 255 / 0.07)` | 일반 구획의 7% 헤어라인 |
+| `--input` | `rgb(255 255 255 / 0.15)` | 입력 필드 경계 |
+| `--ring` | `#737373` | Orca 다크 키보드 포커스 링 |
+| `--destructive` | `#ff6568` | 실패, 모순, 위험 액션 |
+| `--status-success` | `#86efac` | 완료와 연결 성공 |
+| `--status-warning` | `#fbbf24` | 중복, 확인 필요 |
+| `--ai-action-accent` | `#a78bfa` | AI 진행과 대체 엣지 |
+
+## 라이트 토큰 (`:root[data-theme="light"]`)
 
 | 토큰 | 값 | 용도 |
 |---|---|---|
@@ -31,30 +62,7 @@
 | `--destructive` | `#e40014` | 실패, 모순, 위험 액션 |
 | `--status-success` | `#15803d` | 완료와 연결 성공 |
 | `--status-warning` | `#f59e0b` | 중복, 확인 필요 |
-| `--ai-action-accent` | `#8b5cf6` | AI 진행, 활성 탭 인디케이터, 대체 엣지 |
-
-## 다크 토큰 (`@media (prefers-color-scheme: dark)`)
-
-| 토큰 | 값 | 용도 |
-|---|---|---|
-| `--background` | `#0a0a0a` | 앱 기본 배경, 그래프 무대 |
-| `--foreground` | `#fafafa` | 기본 텍스트 |
-| `--card` | `#171717` | 카드와 모달 |
-| `--sidebar` | `#171717` | 사이드바 |
-| `--sidebar-border` | `rgb(255 255 255 / 0.07)` | Orca 시그니처 7% 헤어라인 |
-| `--primary` | `#e5e5e5` | primary 버튼 채움 |
-| `--primary-foreground` | `#171717` | primary 버튼 텍스트 |
-| `--secondary` | `#262626` | 활성 내비게이션, 보조 면 |
-| `--muted` | `#262626` | 비활성 면, 진행바 트랙 |
-| `--accent` | `#404040` | hover 면 |
-| `--muted-foreground` | `#a1a1a1` | 설명, 메타데이터, 비활성 텍스트 |
-| `--border` | `rgb(255 255 255 / 0.07)` | 카드와 구획의 7% 헤어라인 |
-| `--input` | `rgb(255 255 255 / 0.15)` | 입력 필드 경계 |
-| `--ring` | `#a1a1a1` | 키보드 포커스 링 |
-| `--destructive` | `#ff6568` | 실패, 모순, 위험 액션 |
-| `--status-success` | `#86efac` | 완료와 연결 성공 |
-| `--status-warning` | `#fbbf24` | 중복, 확인 필요 |
-| `--ai-action-accent` | `#a78bfa` | AI 진행, 활성 탭 인디케이터, 대체 엣지 |
+| `--ai-action-accent` | `#8b5cf6` | AI 진행과 대체 엣지 |
 
 성공 상태의 배경은 `--status-success` 10% 믹스, 경계는 25% 믹스를 사용한다. 그 외 파생색은 만들지 않는다.
 
@@ -71,9 +79,10 @@
 
 - 데스크톱은 200px 사이드바와 최대 860px 본문을 사용한다. 본문 패딩은 32px이다.
 - 사이드바는 `--sidebar` 면과 `--sidebar-border` 1px 경계로 본문과 나눈다.
-- 내비게이션 기본 상태는 `--muted-foreground`, hover는 `--accent` 면과 `--foreground` 텍스트다.
-- 활성 항목은 `--secondary` 면과 `--foreground` 텍스트를 쓰고, 왼쪽 2px `--ai-action-accent` 인디케이터만 violet으로 표시한다. 글로우는 금지한다.
-- 720px 이하에서는 기존 동작대로 사이드바를 상단 가로 바로 바꾸고 활성 인디케이터를 아래쪽으로 이동한다. 기능과 탭 순서는 바꾸지 않는다.
+- 내비게이션 기본 상태는 `--muted-foreground` 텍스트다.
+- 내비게이션 hover는 `--accent` 25%를 투명 면에 섞은 은은한 리프트와 `--foreground` 텍스트를 쓴다.
+- 활성 항목은 radius 6px의 `--secondary` 면과 `--foreground` 텍스트만 쓴다. violet 텍스트·액센트 바·글로우는 쓰지 않는다.
+- 720px 이하에서는 기존 동작대로 사이드바를 상단 가로 바로 바꾼다. 기능과 탭 순서는 바꾸지 않는다.
 
 ## 컴포넌트
 
@@ -87,7 +96,7 @@
 
 ### 카드와 패널
 
-- 카드·모달은 `--card`, 1px `--border`, `0.625rem` radius를 사용한다.
+- 카드·모달은 `--card`, 1px `--border`, `0.625rem` radius를 사용한다. 다크에서 내부 프리플라이트와 공유 캔버스처럼 경계가 묻히는 패널은 12% 흰색 경계로 한 단계 올린다.
 - 카드 안의 fact, 폴더 목록, 프리플라이트, 그래프 무대는 `--secondary` 또는 `--background`로 한 단계만 구분한다.
 - 다음 행동 카드의 강조는 violet 채움이 아니라 `--ring` 경계로 처리한다.
 - 성공 배너만 success 10% 배경과 25% 경계를 허용한다.
@@ -115,8 +124,8 @@
 - canvas 기반 force-directed 구조, 줌·팬·hover·클릭·약 3초 감쇠 동작은 유지한다.
 - 스코프 허브는 `--primary`, fact 노드는 `--muted-foreground`, 라벨은 `--foreground`를 쓴다. 스코프별 임의 팔레트는 사용하지 않는다.
 - 일반 스코프 엣지는 `--border` 헤어라인이다. 다크에서는 정확히 7% 흰색이다.
-- `superseded_by` 엣지와 hover 표시는 `--ai-action-accent`, 모순 엣지는 `--destructive`, 중복 엣지는 `--status-warning`이다.
-- 캔버스는 하드코딩 색을 갖지 않는다. 렌더링 시 `getComputedStyle(document.documentElement)`로 그래프 CSS 변수를 읽고 시스템 테마 변경 시 다시 그린다.
+- `superseded_by` 엣지만 `--ai-action-accent`를 쓴다. 노드 hover 글로우와 외곽선은 낮은 alpha의 `--foreground` 기반이며, 모순 엣지는 `--destructive`, 중복 엣지는 `--status-warning`이다.
+- 캔버스는 하드코딩 색을 갖지 않는다. 렌더링 시 `getComputedStyle(document.documentElement)`로 그래프 CSS 변수를 읽고 `nautli-theme-change` 시 다시 그린다. 시스템 모드에서는 `matchMedia` 변경도 같은 이벤트로 연결한다.
 - 범례 순서는 허브=프로젝트 · 보라=대체 · 빨강=모순 · 노랑=중복 확인 필요를 유지한다.
 - 빈 상태 카피와 설정 이동 액션은 기존 그대로 유지한다.
 
