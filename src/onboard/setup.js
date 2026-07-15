@@ -8,10 +8,11 @@ import { withReviewLock } from "../core/review-lock.js";
 import { ERR, STATUS } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { runOnce } from "../daemon/pipeline.js";
+import { makeT, resolveLocale } from "../i18n/strings.js";
 import {
-  AI_INSTRUCTIONS,
   INSTRUCTIONS_START,
   INSTRUCTIONS_END,
+  instructionsFor,
 } from "./instructions.js";
 
 export const DAEMON_LABEL = "com.nautli.daemon";
@@ -21,6 +22,10 @@ const DEFAULT_CONFIG = Object.freeze({
   judge_cmd: null,
 });
 const ALLOWED_COMMANDS = new Set(["claude", "codex", "launchctl"]);
+
+function translator(locale) {
+  return makeT(locale ?? resolveLocale());
+}
 
 function codedError(code, message = code, cause) {
   const error = new Error(message, cause ? { cause } : undefined);
@@ -47,7 +52,10 @@ function manualCommand(command, args) {
 
 function defaultRunner(command, args, options = {}) {
   if (!ALLOWED_COMMANDS.has(command)) {
-    throw codedError(ERR.E_INVALID_INPUT, `Command not allowed: ${command}`);
+    throw codedError(
+      ERR.E_INVALID_INPUT,
+      translator()("setup.command_not_allowed", { command }),
+    );
   }
   return execFileSync(command, args, { encoding: "utf8", ...options });
 }
@@ -378,7 +386,8 @@ export function initStore(home) {
   };
 }
 
-export function registerMcp(home, runner = defaultRunner) {
+export function registerMcp(home, runner = defaultRunner, { locale } = {}) {
+  const t = translator(locale);
   // -s user: 기본(local)이면 설치 폴더 밖 프로젝트에서 nautli MCP가 안 보인다
   // (NA-021 — "모든 프로젝트 공유" 약속의 핵심)
   const args = [
@@ -404,7 +413,7 @@ export function registerMcp(home, runner = defaultRunner) {
   } catch (cause) {
     throw setupError(
       ERR.E_CLAUDE_CLI_MISSING,
-      "Claude CLI가 설치되어 있지 않아요. 설치한 뒤 수동 명령을 실행해 주세요.",
+      t("setup.claude_missing"),
       fallbackCommand,
       cause,
     );
@@ -420,7 +429,7 @@ export function registerMcp(home, runner = defaultRunner) {
   } catch (cause) {
     throw setupError(
       ERR.E_MCP_REGISTER_FAILED,
-      "Claude MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요.",
+      t("setup.claude_mcp_failed"),
       fallbackCommand,
       cause,
     );
@@ -429,7 +438,8 @@ export function registerMcp(home, runner = defaultRunner) {
   return { ok: true, command: ["claude", ...args] };
 }
 
-export function registerMcpCodex(home, runner = defaultRunner) {
+export function registerMcpCodex(home, runner = defaultRunner, { locale } = {}) {
+  const t = translator(locale);
   const args = [
     "mcp",
     "add",
@@ -451,7 +461,7 @@ export function registerMcpCodex(home, runner = defaultRunner) {
   } catch (cause) {
     throw setupError(
       ERR.E_CODEX_CLI_MISSING,
-      "Codex CLI가 설치되어 있지 않아요. 설치한 뒤 수동 명령을 실행해 주세요.",
+      t("setup.codex_missing"),
       fallbackCommand,
       cause,
     );
@@ -467,7 +477,7 @@ export function registerMcpCodex(home, runner = defaultRunner) {
   } catch (cause) {
     throw setupError(
       ERR.E_MCP_REGISTER_FAILED,
-      "Codex MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요.",
+      t("setup.codex_mcp_failed"),
       fallbackCommand,
       cause,
     );
@@ -478,18 +488,23 @@ export function registerMcpCodex(home, runner = defaultRunner) {
 
 export function installInstructions(
   home,
-  { userHome = os.homedir(), previewOnly = false } = {},
+  { userHome = os.homedir(), previewOnly = false, locale } = {},
 ) {
   void home;
+  const t = translator(locale);
+  const instructions = instructionsFor(locale ?? resolveLocale());
   const file = userPaths(userHome).instructions;
-  const preview = `추가될 위치: ${file}\n\n추가될 블록:\n${AI_INSTRUCTIONS}`;
+  const preview = t("setup.instructions_preview", {
+    file,
+    block: instructions,
+  });
 
   if (previewOnly) {
     return {
       ok: true,
       installed: false,
       preview,
-      block: AI_INSTRUCTIONS,
+      block: instructions,
       file,
     };
   }
@@ -503,7 +518,7 @@ export function installInstructions(
       : `${current}\n`;
     fs.writeFileSync(
       file,
-      `${prefix}${prefix === "" ? "" : "\n"}${AI_INSTRUCTIONS}\n`,
+      `${prefix}${prefix === "" ? "" : "\n"}${instructions}\n`,
       "utf8",
     );
   }
@@ -513,7 +528,7 @@ export function installInstructions(
     installed: true,
     changed: !current.includes(INSTRUCTIONS_START),
     preview,
-    block: AI_INSTRUCTIONS,
+    block: instructions,
     file,
   };
 }
@@ -578,8 +593,10 @@ export function installDaemon(
   {
     userHome = os.homedir(),
     uid = process.getuid?.() ?? 0,
+    locale,
   } = {},
 ) {
+  const t = translator(locale);
   initStore(home);
   const file = userPaths(userHome).plist;
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -591,7 +608,7 @@ export function installDaemon(
   } catch (cause) {
     throw setupError(
       ERR.E_LAUNCHCTL_FAILED,
-      "밤 소화 데몬 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요.",
+      t("setup.daemon_failed"),
       ["launchctl", ...args].join(" "),
       cause,
     );
@@ -637,7 +654,8 @@ function appendHealth(home, value) {
   fs.appendFileSync(file, `${JSON.stringify(value)}\n`, "utf8");
 }
 
-export async function runDigestOnce(home, { dry = false } = {}) {
+export async function runDigestOnce(home, { dry = false, locale } = {}) {
+  const t = translator(locale);
   initStore(home);
   const store = new Store(home);
 
@@ -654,8 +672,8 @@ export async function runDigestOnce(home, { dry = false } = {}) {
     if (failed) {
       const batchReason = result.judge_errors?.[0]?.reason;
       const reason = batchReason
-        ? `체험 소화 판정에 실패했어요: ${batchReason}`
-        : "체험 소화할 기억은 찾았지만 판정 결과를 받지 못했어요. Claude CLI 연결을 확인해 주세요.";
+        ? t("setup.digest_judge_failed", { reason: batchReason })
+        : t("setup.digest_no_result");
       const failure = { ok: false, reason, ...result };
 
       appendHealth(home, {

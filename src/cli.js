@@ -27,6 +27,7 @@ import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
 import { Store } from "./core/store.js";
+import { makeT, resolveLocale } from "./i18n/strings.js";
 import {
   checkupStatus,
   startCheckup,
@@ -54,26 +55,8 @@ const DEFAULT_CONFIG = Object.freeze({
 
 const ERROR_CODES = new Set(Object.values(ERR));
 const CAPTURE_HOOK_STDIN_LIMIT = 16 * 1024;
-
-const USAGE = `nautli - 모든 AI가 공유하는 하나의 뇌
-
-dashboard  설정과 기억을 관리하는 대시보드를 열어요.
-init       기억 저장소를 초기화해요.
-setup      AI 연결과 밤 소화를 설정해요.
-remember   새 기억을 저장해요.
-recall     저장된 기억을 검색해요.
-checkup    노트 폴더를 진단해요(중복·모순 리포트). 예: nautli checkup ~/Documents/vault
-daemon-run 밤 소화를 한 번 실행해요.
-rebuild    기억 저장소 인덱스를 다시 만들어요.
-stats      기억 저장소 통계를 보여줘요.
-doctor     설치와 저장소 상태를 점검해요.
-review     검토가 필요한 카드를 처리해요.
-capture    프로젝트 자동 캡처 동의와 계측을 관리해요.
-           지표 보기: nautli capture metrics [--json]
-purge      기억을 완전히 삭제해요.
-mcp        MCP 서버를 실행해요.
-
-처음이면: npx nautli dashboard`;
+const locale = resolveLocale();
+const t = makeT(locale);
 
 function homePath() {
   return path.resolve(process.env.NAUTLI_HOME ?? path.join(os.homedir(), ".nautli"));
@@ -84,7 +67,7 @@ function writeJson(value) {
 }
 
 function writeUsage() {
-  process.stdout.write(`${USAGE}\n`);
+  process.stdout.write(`${t("cli.usage")}\n`);
 }
 
 function codedError(code, message = code) {
@@ -95,9 +78,10 @@ function codedError(code, message = code) {
 
 function errorPayload(error) {
   const code = ERROR_CODES.has(error?.code) ? error.code : ERR.E_INVALID_INPUT;
+  const rawMessage = error instanceof Error ? error.message : String(error);
   return {
     error: code,
-    message: error instanceof Error ? error.message : String(error),
+    message: rawMessage === code ? t("cli.error.invalid_input") : rawMessage,
   };
 }
 
@@ -157,31 +141,37 @@ async function checkupCommand(home, args) {
 
   requirePositionals(parsed.positionals, 1);
   const [vaultPath] = parsed.positionals;
-  const resolved = validateVaultPath(vaultPath, { home });
+  const resolved = validateVaultPath(vaultPath, { home, locale });
   const current = checkupStatus(home);
 
   if (current.state === "running") {
     if (current.vault !== resolved) {
-      const error = codedError(ERR.E_STORE_BUSY, `다른 폴더 진단이 돌고 있어요: ${current.vault}. 끝난 뒤 다시 시도해 주세요.`);
+      const error = codedError(
+        ERR.E_STORE_BUSY,
+        t("cli.checkup.other_running", { vault: current.vault }),
+      );
       process.stderr.write(`${error.message}\n`);
       throw error;
     }
-    process.stderr.write("이미 이 폴더 진단이 돌고 있어요. 이어서 지켜볼게요.\n");
+    process.stderr.write(`${t("cli.checkup.already_running")}\n`);
   } else {
     const claude = checkClaudeLogin();
     if (!claude.cli_exists) {
-      throw codedError(ERR.E_INVALID_INPUT, "claude CLI가 필요해요. npm install -g @anthropic-ai/claude-code 후 다시 실행해 주세요.");
+      throw codedError(ERR.E_INVALID_INPUT, t("cli.checkup.claude_missing"));
     }
     if (!claude.logged_in) {
-      throw codedError(ERR.E_INVALID_INPUT, "claude CLI 로그인이 필요해요. claude /login 후 다시 실행해 주세요.");
+      throw codedError(ERR.E_INVALID_INPUT, t("cli.checkup.claude_login"));
     }
 
     try {
-      const started = startCheckup(home, resolved);
-      process.stderr.write(`진단 시작: ${started.vault} (표본 최대 ${TASTE.maxFiles}개)\n`);
+      const started = startCheckup(home, resolved, { locale });
+      process.stderr.write(`${t("cli.checkup.started", {
+        vault: started.vault,
+        maxFiles: TASTE.maxFiles,
+      })}\n`);
     } catch (error) {
       if (error?.code !== ERR.E_STORE_BUSY) throw error;
-      process.stderr.write("이미 이 폴더 진단이 돌고 있어요. 이어서 지켜볼게요.\n");
+      process.stderr.write(`${t("cli.checkup.already_running")}\n`);
     }
   }
 
@@ -196,7 +186,7 @@ async function checkupCommand(home, args) {
         summary: status.summary,
         report_file: status.report_file,
       });
-      process.stderr.write("완료. nautli dashboard 설정 탭이나 report_file에서 결과를 볼 수 있어요.\n");
+      process.stderr.write(`${t("cli.checkup.complete")}\n`);
       return 0;
     }
     if (status.state === "failed") {
@@ -210,8 +200,14 @@ async function checkupCommand(home, args) {
 
     const progress = status.progress ?? {};
     const progressLine = progress.phase === "judge"
-      ? `중복·모순 판정 ${progress.judge_done ?? 0}/${progress.judge_total ?? "?"} 배치`
-      : `추출 ${progress.batches_done ?? 0}/${progress.batches_total ?? "?"} 배치`;
+      ? t("cli.checkup.judge_progress", {
+        done: progress.judge_done ?? 0,
+        total: progress.judge_total ?? "?",
+      })
+      : t("cli.checkup.extract_progress", {
+        done: progress.batches_done ?? 0,
+        total: progress.batches_total ?? "?",
+      });
     if (progressLine !== previousProgress) {
       process.stderr.write(`${progressLine}\n`);
       previousProgress = progressLine;
@@ -221,7 +217,7 @@ async function checkupCommand(home, args) {
 
   writeJson({
     state: "timeout",
-    hint: "진단 프로세스가 아직 돌고 있을 수 있어요. nautli checkup --status 로 확인해 주세요.",
+    hint: t("cli.checkup.timeout"),
   });
   return 1;
 }
@@ -271,36 +267,56 @@ async function captureDrainCommand(home, args) {
 }
 
 function formatRate(value) {
-  return value === null ? "측정 전" : `${(value * 100).toFixed(1)}%`;
+  return value === null ? t("cli.metrics.not_measured") : `${(value * 100).toFixed(1)}%`;
 }
 
 function formatLatency(value) {
-  if (value === null) return "측정 전";
+  if (value === null) return t("cli.metrics.not_measured");
   if (value < 1000) return `${value.toFixed(0)}ms`;
-  return `${(value / 1000).toFixed(1)}초`;
+  return t("cli.metrics.seconds", { value: (value / 1000).toFixed(1) });
 }
 
 function formatRefs(value) {
-  return value === null || value === undefined ? "측정 전" : value.toFixed(2);
+  return value === null || value === undefined
+    ? t("cli.metrics.not_measured")
+    : value.toFixed(2);
 }
 
 function renderCaptureMetrics(report) {
   const badge = report.verdict === "PASS"
-    ? "[통과]"
-    : report.verdict === "KILL" ? "[중단 권고]" : "[표본 부족]";
+    ? t("cli.metrics.badge_pass")
+    : report.verdict === "KILL"
+      ? t("cli.metrics.badge_kill")
+      : t("cli.metrics.badge_insufficient");
   const { auto, explicit } = report.metrics;
   const lines = [
-    `${badge} 자동 캡처 계측 · ${report.sample.window_days}일`,
+    t("cli.metrics.title", { badge, days: report.sample.window_days }),
     "",
-    "지표                  자동 캡처        직접 저장",
-    `승인율                ${formatRate(auto.approval_rate)}`,
-    `오탐률                ${formatRate(auto.false_positive_rate)}`,
-    `검토시간 중앙값       ${formatLatency(auto.median_review_latency_ms)}`,
-    `유용 회상률           ${formatRate(auto.useful_recall_rate).padEnd(17)}${formatRate(explicit.useful_recall_rate)}`,
-    `fact당 회상 참조      ${formatRefs(auto.recall_refs_per_fact).padEnd(17)}${formatRefs(explicit.recall_refs_per_fact)}`,
+    t("cli.metrics.header"),
+    t("cli.metrics.approval", { value: formatRate(auto.approval_rate) }),
+    t("cli.metrics.false_positive", { value: formatRate(auto.false_positive_rate) }),
+    t("cli.metrics.review_latency", { value: formatLatency(auto.median_review_latency_ms) }),
+    t("cli.metrics.useful_recall", {
+      auto: formatRate(auto.useful_recall_rate).padEnd(17),
+      explicit: formatRate(explicit.useful_recall_rate),
+    }),
+    t("cli.metrics.recall_refs", {
+      auto: formatRefs(auto.recall_refs_per_fact).padEnd(17),
+      explicit: formatRefs(explicit.recall_refs_per_fact),
+    }),
     "",
-    `표본                  후보 ${auto.candidates} · 결정 ${report.sample.decided_cards}/${MIN_DECIDED} · 회상 ${report.sample.recall_events}/${MIN_RECALL}`,
-    `fact                  자동 ${report.sample.auto_facts} · 직접 ${report.sample.explicit_facts} · 세션 ${report.sample.capture_sessions}`,
+    t("cli.metrics.sample", {
+      candidates: auto.candidates,
+      decided: report.sample.decided_cards,
+      minDecided: MIN_DECIDED,
+      recalls: report.sample.recall_events,
+      minRecall: MIN_RECALL,
+    }),
+    t("cli.metrics.facts", {
+      auto: report.sample.auto_facts,
+      explicit: report.sample.explicit_facts,
+      sessions: report.sample.capture_sessions,
+    }),
   ];
   if (report.verdict === "INSUFFICIENT_SAMPLE") {
     // 판정 게이트는 날짜가 아니라 결정·회상 카운트다. 남은 건 '며칠'이 아니라 '몇 건'.
@@ -308,10 +324,17 @@ function renderCaptureMetrics(report) {
     const needRecall = Math.max(0, MIN_RECALL - report.sample.recall_events);
     lines.push(
       "",
-      `아직 판정할 수 없어요. 카드 결정 ${needDecided}건·회상 ${needRecall}건을 더 채우면 판정합니다.`,
+      t("cli.metrics.need_more", { decided: needDecided, recalls: needRecall }),
     );
   } else {
-    lines.push("", report.verdict_reason);
+    lines.push(
+      "",
+      locale === "ko"
+        ? t("cli.metrics.raw_reason", { reason: report.verdict_reason })
+        : t(report.verdict === "PASS"
+          ? "cli.metrics.pass_reason"
+          : "cli.metrics.kill_reason"),
+    );
   }
   process.stdout.write(`${lines.join("\n")}\n`);
 }
@@ -376,13 +399,13 @@ async function captureHookCommand(home, args) {
   if (input === null) return;
   const payload = JSON.parse(input);
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    throw new TypeError("Invalid capture hook payload");
+    throw new TypeError(t("cli.capture.invalid_payload"));
   }
 
   const { session_id: sessionId, transcript_path: transcriptPath, cwd } = payload;
   if ([sessionId, transcriptPath, cwd]
     .some((value) => typeof value !== "string" || value.length === 0)) {
-    throw new TypeError("Invalid capture hook payload");
+    throw new TypeError(t("cli.capture.invalid_payload"));
   }
 
   if (!isProjectOptedIn(home, cwd)) return;
@@ -402,10 +425,10 @@ function claimPreview(claim) {
 
 function dashboardPort(value) {
   if (value === undefined) return 4600;
-  if (!/^\d+$/u.test(value)) throw codedError(ERR.E_INVALID_INPUT, "Invalid dashboard port");
+  if (!/^\d+$/u.test(value)) throw codedError(ERR.E_INVALID_INPUT, t("cli.dashboard.invalid_port"));
   const port = Number(value);
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
-    throw codedError(ERR.E_INVALID_INPUT, "Invalid dashboard port");
+    throw codedError(ERR.E_INVALID_INPUT, t("cli.dashboard.invalid_port"));
   }
   return port;
 }
@@ -418,10 +441,10 @@ async function runDaemon(home, args) {
 
   const moduleUrl = new URL("./daemon/pipeline.js", import.meta.url);
   if (!fs.existsSync(fileURLToPath(moduleUrl))) {
-    return { missing: true, result: { error: "daemon not built" } };
+    return { missing: true, result: { error: t("cli.daemon.not_built") } };
   }
 
-  const result = await runDigestOnce(home, { dry: parsed.values.dry });
+  const result = await runDigestOnce(home, { dry: parsed.values.dry, locale });
   return { missing: false, result };
 }
 
@@ -435,16 +458,16 @@ async function setupCommand(home, args) {
   const runStep = async (name) => {
     if (name === "status") return statusAll(home);
     if (name === "init") return initStore(home);
-    if (name === "mcp" || name === "register-mcp") return registerMcp(home);
-    if (name === "instructions") return installInstructions(home);
-    if (name === "instructions-preview") return installInstructions(home, { previewOnly: true });
+    if (name === "mcp" || name === "register-mcp") return registerMcp(home, undefined, { locale });
+    if (name === "instructions") return installInstructions(home, { locale });
+    if (name === "instructions-preview") return installInstructions(home, { previewOnly: true, locale });
     if (name === "remove-instructions") return removeInstructions(home);
-    if (name === "daemon") return installDaemon(home);
+    if (name === "daemon") return installDaemon(home, undefined, { locale });
     if (name === "uninstall-daemon") return uninstallDaemon(home);
-    if (name === "digest") return runDigestOnce(home);
+    if (name === "digest") return runDigestOnce(home, { locale });
     if (name === "sample") return seedSampleFacts(home);
     if (name === "remove-sample") return removeSampleFacts(home);
-    throw codedError(ERR.E_INVALID_INPUT, `Unknown setup step: ${name}`);
+    throw codedError(ERR.E_INVALID_INPUT, t("cli.setup.unknown_step", { name }));
   };
 
   if (parsed.values.step !== undefined) return runStep(parsed.values.step);
@@ -463,22 +486,27 @@ async function reviewCommand(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 0);
   const cards = listCards(home);
-  if (cards.length === 0) return { ok: true, reviewed: 0, message: "검토할 카드가 없어요. 다음 소화는 오늘 새벽 3:30." };
+  if (cards.length === 0) {
+    return { ok: true, reviewed: 0, message: t("cli.review.empty") };
+  }
 
   const store = new Store(home);
   const input = createInterface({ input: process.stdin, output: process.stderr });
   let reviewed = 0;
   try {
     for (const card of cards) {
-      process.stderr.write(`\n[${card.verdict === "duplicate" ? "중복 정리" : "모순 발견"}] ${card.confidence ?? "?"}\n`);
+      const label = card.verdict === "duplicate"
+        ? t("cli.review.duplicate")
+        : t("cli.review.contradiction");
+      process.stderr.write(`\n[${label}] ${card.confidence ?? "?"}\n`);
       process.stderr.write(`A: ${card.claims?.a ?? ""}\nB: ${card.claims?.b ?? ""}\n`);
       let answer;
       if (card.verdict === "duplicate") {
-        answer = (await input.question("[O] 합치기 / [X] 따로 유지 / [L] 내일 다시 보기: ")).trim();
+        answer = (await input.question(t("cli.review.duplicate_prompt"))).trim();
         const action = /^o$/iu.test(answer) ? "merge" : /^x$/iu.test(answer) ? "keep_separate" : "defer";
         applyCard(store, home, card.pair_id, action);
       } else {
-        answer = (await input.question("[O] 새 기억 / [X] 옛 기억 / [B] 둘 다 / 기타 정정문: ")).trim();
+        answer = (await input.question(t("cli.review.contradiction_prompt"))).trim();
         if (/^o$/iu.test(answer)) applyCard(store, home, card.pair_id, "newer_wins");
         else if (/^x$/iu.test(answer)) applyCard(store, home, card.pair_id, "older_wins");
         else if (/^b$/iu.test(answer)) applyCard(store, home, card.pair_id, "both_valid");
@@ -518,7 +546,7 @@ export async function main(argv = process.argv.slice(2)) {
 
     if (command === "init") {
       writeJson(initialize(home, args));
-      process.stderr.write("다음 단계: npx nautli dashboard (설정 화면이 열려요)\n");
+      process.stderr.write(`${t("cli.init.next")}\n`);
       process.exitCode = 0;
       return;
     }
@@ -667,7 +695,10 @@ export async function main(argv = process.argv.slice(2)) {
         return;
       }
 
-      throw codedError(ERR.E_INVALID_INPUT, `Unknown command: ${command ?? ""}`);
+      throw codedError(
+        ERR.E_INVALID_INPUT,
+        t("cli.unknown_command", { command: command ?? "" }),
+      );
     } finally {
       store.close();
     }

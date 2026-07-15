@@ -101,7 +101,12 @@ test("checkup CLI refuses to attach to a different vault", (t) => {
   const result = spawnSync(process.execPath, [cli, "checkup", vaultB], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, NAUTLI_HOME: nhome, HOME: userHome },
+    env: {
+      ...process.env,
+      NAUTLI_HOME: nhome,
+      NAUTLI_LANG: "ko",
+      HOME: userHome,
+    },
   });
   assert.equal(result.status, 1, result.stderr || result.stdout);
   assert.match(result.stderr, /다른 폴더/);
@@ -111,16 +116,20 @@ test("validateVaultPath rejects outside-home and nautli-home targets", (t) => {
   const userHome = tempHome(t, "nautli-guard-");
   const home = path.join(userHome, ".nautli");
   fs.mkdirSync(home, { recursive: true });
-  assert.throws(() => validateVaultPath("/etc", { userHome, home }), /홈 폴더 안/);
-  assert.throws(() => validateVaultPath(home, { userHome, home }), /자신은 진단 대상이 아니/);
-  assert.throws(() => validateVaultPath(path.join(userHome, "없는폴더"), { userHome, home }), /찾을 수 없/);
+  assert.throws(() => validateVaultPath("/etc", { userHome, home, locale: "ko" }), /홈 폴더 안/);
+  assert.throws(() => validateVaultPath(home, { userHome, home, locale: "ko" }), /자신은 진단 대상이 아니/);
+  assert.throws(() => validateVaultPath(path.join(userHome, "없는폴더"), {
+    userHome,
+    home,
+    locale: "ko",
+  }), /찾을 수 없/);
   const vault = path.join(userHome, "vault");
   fs.mkdirSync(vault);
   // realpath 정규화(symlink 해소) 계약 — macOS tmp(/var→/private/var)에서도 canonical 경로를 돌려준다
   assert.equal(validateVaultPath(vault, { userHome, home }), fs.realpathSync(vault));
   const link = path.join(userHome, "vault-link");
   fs.symlinkSync(home, link);
-  assert.throws(() => validateVaultPath(link, { userHome, home }), /자신은 진단 대상이 아니/);
+  assert.throws(() => validateVaultPath(link, { userHome, home, locale: "ko" }), /자신은 진단 대상이 아니/);
 });
 
 test("startCheckup records a running state and refuses a second concurrent run", (t) => {
@@ -133,7 +142,10 @@ test("startCheckup records a running state and refuses a second concurrent run",
   const started = startCheckup(home, vault, { userHome, spawner });
   assert.equal(started.started, true);
   assert.equal(checkupStatus(home).state, "running");
-  assert.throws(() => startCheckup(home, vault, { userHome, spawner }), /이미 돌고/);
+  assert.throws(
+    () => startCheckup(home, vault, { userHome, spawner, locale: "ko" }),
+    /이미 돌고/,
+  );
 });
 
 test("checkup preflight checks python3 and Claude CLI login", (t) => {

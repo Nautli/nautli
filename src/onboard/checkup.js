@@ -8,6 +8,7 @@ import { ERR, validScope } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { remember } from "../core/gate.js";
 import { appendCards } from "../core/review.js";
+import { makeT, resolveLocale } from "../i18n/strings.js";
 import { checkClaudeLogin, checkCommand } from "./doctor.js";
 
 const DOCTOR_SCRIPT = fileURLToPath(new URL("../../vendor/vault-doctor/vault_doctor.py", import.meta.url));
@@ -16,12 +17,16 @@ export const TASTE = Object.freeze({ maxFiles: 40, junkSample: 12, maxJudgePairs
 const IMPORT_CAP = 800;
 // 크로스AI 하네스 홈 — 숨김폴더라 walk가 못 찾으니 특례
 const HARNESS_HOMES = [
-  { dir: ".claude", kind: "claude-harness", label: "Claude 하네스 (~/.claude)", marker: "CLAUDE.md" },
-  { dir: ".codex", kind: "codex-harness", label: "Codex 하네스 (~/.codex)", marker: "AGENTS.md" },
-  { dir: ".gemini", kind: "gemini-harness", label: "Gemini 하네스 (~/.gemini)", marker: "GEMINI.md" },
-  { dir: ".cursor", kind: "cursor-harness", label: "Cursor 하네스 (~/.cursor)", marker: null },
-  { dir: ".shared-memory", kind: "shared-memory", label: "공유 메모리 (~/.shared-memory)", marker: null },
+  { dir: ".claude", kind: "claude-harness", labelKey: "checkup.harness_claude", marker: "CLAUDE.md" },
+  { dir: ".codex", kind: "codex-harness", labelKey: "checkup.harness_codex", marker: "AGENTS.md" },
+  { dir: ".gemini", kind: "gemini-harness", labelKey: "checkup.harness_gemini", marker: "GEMINI.md" },
+  { dir: ".cursor", kind: "cursor-harness", labelKey: "checkup.harness_cursor", marker: null },
+  { dir: ".shared-memory", kind: "shared-memory", labelKey: "checkup.harness_shared", marker: null },
 ];
+
+function translator(locale) {
+  return makeT(locale ?? resolveLocale());
+}
 
 function codedError(code, message) {
   const error = new Error(message ?? code);
@@ -66,15 +71,16 @@ function topLevelDirs(dir) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function normalizeExcludedDirs(value, available) {
+function normalizeExcludedDirs(value, available, locale) {
+  const t = translator(locale);
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
-    throw codedError(ERR.E_INVALID_INPUT, "제외 폴더 목록을 확인해 주세요.");
+    throw codedError(ERR.E_INVALID_INPUT, t("checkup.invalid_excludes"));
   }
   const allowed = new Set(available.map((entry) => entry.name));
   const selected = [...new Set(value.map((entry) => entry.trim()).filter(Boolean))].sort();
   if (selected.some((entry) => !allowed.has(entry))) {
-    throw codedError(ERR.E_INVALID_INPUT, "최상위 폴더만 제외할 수 있어요.");
+    throw codedError(ERR.E_INVALID_INPUT, t("checkup.top_level_only"));
   }
   return selected;
 }
@@ -84,7 +90,13 @@ export function vaultSampleSeed(vaultPath) {
 }
 
 // 유저 홈에서 진단 후보를 찾는다: 옵시디언 볼트(.obsidian 폴더) + 크로스AI 하네스 홈
-export function checkupCandidates({ userHome = os.homedir(), roots, maxDepth = 3 } = {}) {
+export function checkupCandidates({
+  userHome = os.homedir(),
+  roots,
+  maxDepth = 3,
+  locale,
+} = {}) {
+  const t = translator(locale);
   const searchRoots = roots ?? [
     path.join(userHome, "Documents"),
     path.join(userHome, "Desktop"),
@@ -111,11 +123,11 @@ export function checkupCandidates({ userHome = os.homedir(), roots, maxDepth = 3
   };
   for (const root of searchRoots) walk(root, 1);
   // 마커 없는 하네스는 번들 문서(README/SKILL.md)가 노트로 오인되는 노이즈를 만든다.
-  for (const { dir, kind, label, marker } of HARNESS_HOMES) {
+  for (const { dir, kind, labelKey, marker } of HARNESS_HOMES) {
     const harnessHome = path.join(userHome, dir);
     if (fs.existsSync(harnessHome) && fs.statSync(harnessHome).isDirectory()
       && (!marker || fs.existsSync(path.join(harnessHome, marker)))) {
-      found.set(harnessHome, { path: harnessHome, kind, label });
+      found.set(harnessHome, { path: harnessHome, kind, label: t(labelKey) });
     }
   }
   return [...found.values()].map((candidate) => {
@@ -170,26 +182,31 @@ function pidAlive(pid) {
   }
 }
 
-export function validateVaultPath(vaultPath, { userHome = os.homedir(), home } = {}) {
-  if (typeof vaultPath !== "string" || vaultPath.trim() === "") throw codedError(ERR.E_INVALID_INPUT, "진단할 폴더 경로를 입력해 주세요.");
+export function validateVaultPath(vaultPath, {
+  userHome = os.homedir(),
+  home,
+  locale,
+} = {}) {
+  const t = translator(locale);
+  if (typeof vaultPath !== "string" || vaultPath.trim() === "") throw codedError(ERR.E_INVALID_INPUT, t("checkup.path_required"));
   let resolved;
   let resolvedUserHome;
   let resolvedHome;
   try {
     resolved = fs.realpathSync(path.resolve(vaultPath.replace(/^~(?=\/|$)/, userHome)));
   } catch {
-    throw codedError(ERR.E_NOT_FOUND, "폴더를 찾을 수 없어요. 경로를 확인해 주세요.");
+    throw codedError(ERR.E_NOT_FOUND, t("checkup.folder_not_found"));
   }
   // userHome/NAUTLI_HOME이 아직 없을 수 있다(생짜 신규 유저) — 경계 기준은 존재하면 canonical, 없으면 resolve로
   const canonical = (p) => { try { return fs.realpathSync(path.resolve(p)); } catch { return path.resolve(p); } };
   resolvedUserHome = canonical(userHome);
   resolvedHome = home ? canonical(home) : null;
-  if (!fs.statSync(resolved).isDirectory()) throw codedError(ERR.E_NOT_FOUND, "폴더를 찾을 수 없어요. 경로를 확인해 주세요.");
+  if (!fs.statSync(resolved).isDirectory()) throw codedError(ERR.E_NOT_FOUND, t("checkup.folder_not_found"));
   const userRelative = path.relative(resolvedUserHome, resolved);
-  if (userRelative.startsWith(`..${path.sep}`) || userRelative === ".." || path.isAbsolute(userRelative)) throw codedError(ERR.E_INVALID_INPUT, "내 홈 폴더 안의 경로만 진단할 수 있어요.");
+  if (userRelative.startsWith(`..${path.sep}`) || userRelative === ".." || path.isAbsolute(userRelative)) throw codedError(ERR.E_INVALID_INPUT, t("checkup.home_only"));
   if (resolvedHome) {
     const homeRelative = path.relative(resolvedHome, resolved);
-    if (homeRelative === "" || (!homeRelative.startsWith(`..${path.sep}`) && homeRelative !== ".." && !path.isAbsolute(homeRelative))) throw codedError(ERR.E_INVALID_INPUT, "nautli 저장소 자신은 진단 대상이 아니에요.");
+    if (homeRelative === "" || (!homeRelative.startsWith(`..${path.sep}`) && homeRelative !== ".." && !path.isAbsolute(homeRelative))) throw codedError(ERR.E_INVALID_INPUT, t("checkup.store_forbidden"));
   }
   return resolved;
 }
@@ -199,10 +216,11 @@ export function checkupPreflight(home, vaultPath, options = {}) {
     userHome = os.homedir(),
     runner = spawnSync,
     excludedDirs = options.excluded_dirs,
+    locale,
   } = options;
-  const resolved = validateVaultPath(vaultPath, { userHome, home });
+  const resolved = validateVaultPath(vaultPath, { userHome, home, locale });
   const topLevel = topLevelDirs(resolved);
-  const excluded = normalizeExcludedDirs(excludedDirs, topLevel);
+  const excluded = normalizeExcludedDirs(excludedDirs, topLevel, locale);
   const files = countNotes(resolved, 4000, excluded);
   const python = checkCommand("python3", ["--version"], runner);
   const claude = checkClaudeLogin(runner);
@@ -226,16 +244,18 @@ export function startCheckup(home, vaultPath, options = {}) {
     userHome = os.homedir(),
     spawner = spawn,
     excludedDirs = options.excluded_dirs,
+    locale,
   } = options;
-  const resolved = validateVaultPath(vaultPath, { userHome, home });
-  const excluded = normalizeExcludedDirs(excludedDirs, topLevelDirs(resolved));
-  if (countNotes(resolved, 1, excluded) === 0) throw codedError(ERR.E_INVALID_INPUT, "선택한 폴더에 진단할 마크다운 노트가 없어요.");
+  const t = translator(locale);
+  const resolved = validateVaultPath(vaultPath, { userHome, home, locale });
+  const excluded = normalizeExcludedDirs(excludedDirs, topLevelDirs(resolved), locale);
+  if (countNotes(resolved, 1, excluded) === 0) throw codedError(ERR.E_INVALID_INPUT, t("checkup.no_markdown"));
   const existing = readCurrent(home);
   if (existing && existing.state === "running" && pidAlive(existing.pid)) {
-    throw codedError(ERR.E_STORE_BUSY, "진단이 이미 돌고 있어요. 끝나면 결과가 여기 떠요.");
+    throw codedError(ERR.E_STORE_BUSY, t("checkup.already_running"));
   }
   const python = spawnSync("python3", ["--version"], { stdio: "ignore" });
-  if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, "python3가 필요해요. macOS는 xcode-select --install 로 설치할 수 있어요.");
+  if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, t("checkup.python_required"));
   const workHome = path.join(checkupHome(home), "doctor");
   fs.mkdirSync(workHome, { recursive: true });
   const excludeSuffix = excluded.length > 0
@@ -262,7 +282,13 @@ export function startCheckup(home, vaultPath, options = {}) {
     excluded_dirs: excluded, sample_seed: vaultSampleSeed(resolved),
   };
   child.on?.("error", (error) => {
-    writeCurrent(home, { ...started, state: "failed", error: `python3 진단을 시작하지 못했어요. ${error.message || "실행 상태를 확인해 주세요."}` });
+    writeCurrent(home, {
+      ...started,
+      state: "failed",
+      error: t("checkup.python_start_failed", {
+        reason: error.message || t("checkup.check_runtime"),
+      }),
+    });
   });
   child.unref?.();
   fs.closeSync(log);
@@ -413,9 +439,9 @@ export function checkupStatus(home) {
   };
 }
 
-export function readCheckupReport(home) {
+export function readCheckupReport(home, { locale } = {}) {
   const status = checkupStatus(home);
-  if (!status.report_file || !fs.existsSync(status.report_file)) throw codedError(ERR.E_NOT_FOUND, "아직 리포트가 없어요.");
+  if (!status.report_file || !fs.existsSync(status.report_file)) throw codedError(ERR.E_NOT_FOUND, translator(locale)("checkup.report_missing"));
   return { report: fs.readFileSync(status.report_file, "utf8") };
 }
 
@@ -426,13 +452,14 @@ export function dismissCheckup(home) {
 }
 
 // 처방 ①: 진단에서 뽑은 fact를 nautli 저장소로 가져온다 (쓰기 게이트 경유 = 중복은 게이트가 거른다)
-export function importCheckup(home, config) {
+export function importCheckup(home, config, { locale } = {}) {
+  const t = translator(locale);
   const current = readCurrent(home);
-  if (!current) throw codedError(ERR.E_NOT_FOUND, "가져올 진단 결과가 없어요.");
+  if (!current) throw codedError(ERR.E_NOT_FOUND, t("checkup.import_missing"));
   if (current.imported_at) return current.imported;
   const runDir = current.run_dir;
   const atoms = runDir ? readJsonl(path.join(runDir, "atoms.jsonl")) : [];
-  if (atoms.length === 0) throw codedError(ERR.E_NOT_FOUND, "진단에서 추출된 기억이 없어요.");
+  if (atoms.length === 0) throw codedError(ERR.E_NOT_FOUND, t("checkup.memories_missing"));
   const store = new Store(home);
   const atomFactIds = new Map();
   const atomsById = new Map(atoms.map((atom) => [atom.id, atom]));

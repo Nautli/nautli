@@ -195,7 +195,7 @@ test("capture metrics CLI prints the human table and the report JSON", (t) => {
   const run = (args) => spawnSync(process.execPath, [cli, "capture", "metrics", ...args], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, NAUTLI_HOME: home },
+    env: { ...process.env, NAUTLI_HOME: home, NAUTLI_LANG: "ko" },
   });
   const human = run([]);
   assert.equal(human.status, 0, human.stderr || human.stdout);
@@ -217,7 +217,7 @@ test("capture metrics CLI renders the insufficient-sample path honestly", (t) =>
   const run = (args) => spawnSync(process.execPath, [cli, "capture", "metrics", ...args], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, NAUTLI_HOME: home },
+    env: { ...process.env, NAUTLI_HOME: home, NAUTLI_LANG: "ko" },
   });
   const human = run([]);
   assert.equal(human.status, 0, human.stderr || human.stdout);

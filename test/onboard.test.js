@@ -50,11 +50,16 @@ test("onboarding steps are isolated and shell commands use the injected runner",
   assert.ok(fs.existsSync(path.join(home, "index.sqlite")));
   registerMcp(home, runner);
 
-  const preview = installInstructions(home, { userHome, previewOnly: true });
+  const preview = installInstructions(home, {
+    userHome,
+    previewOnly: true,
+    locale: "ko",
+  });
   assert.match(preview.preview, new RegExp(INSTRUCTIONS_START));
+  assert.match(preview.block, /nautli 기억 사용 규칙/u);
   assert.equal(fs.existsSync(preview.file), false);
-  installInstructions(home, { userHome });
-  installInstructions(home, { userHome });
+  installInstructions(home, { userHome, locale: "ko" });
+  installInstructions(home, { userHome, locale: "ko" });
   assert.equal((fs.readFileSync(preview.file, "utf8").match(/nautli:instructions/g) ?? []).length, 2);
 
   installDaemon(home, runner, { userHome, uid: 501 });

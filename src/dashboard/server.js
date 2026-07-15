@@ -9,6 +9,7 @@ import { remember } from "../core/gate.js";
 import { applyCaptureCard, applyCard, listCards } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
+import { makeT, resolveLocale } from "../i18n/strings.js";
 import { checkClaudeLogin, doctor } from "../onboard/doctor.js";
 import {
   checkClaudeStatus,
@@ -50,21 +51,33 @@ const BODY_LIMIT = 64 * 1024;
 const SCAN_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const scanFlights = new Map();
 
-const HUMAN_ERRORS = Object.freeze({
-  [ERR.E_INVALID_INPUT]: "입력 내용을 확인해 주세요.",
-  [ERR.E_MULTI_FACT]: "한 번에 한 가지 기억만 추가해 주세요.",
-  [ERR.E_CLAIM_TOO_LONG]: "기억은 280자 이내로 적어 주세요.",
-  [ERR.E_UNKNOWN_SCOPE]: "scope는 개인, 절차 또는 project:이름 형식이어야 해요.",
-  [ERR.E_NOT_FOUND]: "대상을 찾을 수 없어요. 상태를 새로고침해 주세요.",
-  [ERR.E_STORE_BUSY]: "기억 저장소가 사용 중이에요. 잠시 후 다시 시도해 주세요.",
-  [ERR.E_BUDGET_TOO_SMALL]: "검색 예산이 너무 작아요.",
-  [ERR.E_CLAUDE_CLI_MISSING]: "Claude CLI가 설치되어 있지 않아요.",
-  [ERR.E_CODEX_CLI_MISSING]: "Codex CLI가 설치되어 있지 않아요.",
-  [ERR.E_MCP_REGISTER_FAILED]: "Claude MCP 자동 등록에 실패했어요.",
-  [ERR.E_LAUNCHCTL_FAILED]: "밤 소화 데몬 등록에 실패했어요.",
-  [ERR.E_EXTRACT_FAILED]: "대화에서 기억 후보를 뽑지 못했어요.",
-  [ERR.W_DUPLICATE]: "이미 같은 기억이 저장되어 있어요.",
+const HUMAN_ERROR_KEYS = Object.freeze({
+  [ERR.E_INVALID_INPUT]: "dash.error.invalid_input",
+  [ERR.E_MULTI_FACT]: "dash.error.multi_fact",
+  [ERR.E_CLAIM_TOO_LONG]: "dash.error.claim_too_long",
+  [ERR.E_UNKNOWN_SCOPE]: "dash.error.unknown_scope",
+  [ERR.E_NOT_FOUND]: "dash.error.not_found",
+  [ERR.E_STORE_BUSY]: "dash.error.store_busy",
+  [ERR.E_BUDGET_TOO_SMALL]: "dash.error.budget_small",
+  [ERR.E_CLAUDE_CLI_MISSING]: "dash.error.claude_missing",
+  [ERR.E_CODEX_CLI_MISSING]: "dash.error.codex_missing",
+  [ERR.E_MCP_REGISTER_FAILED]: "dash.error.mcp_failed",
+  [ERR.E_LAUNCHCTL_FAILED]: "dash.error.daemon_failed",
+  [ERR.E_EXTRACT_FAILED]: "dash.error.extract_failed",
+  [ERR.W_DUPLICATE]: "dash.error.duplicate",
 });
+
+function requestLocale(request) {
+  const acceptLanguage = request.headers["accept-language"];
+  if (acceptLanguage) {
+    return resolveLocale({
+      LANG: Array.isArray(acceptLanguage)
+        ? acceptLanguage.join(",")
+        : acceptLanguage,
+    });
+  }
+  return resolveLocale();
+}
 
 function json(response, status, value) {
   const body = JSON.stringify(value);
@@ -82,7 +95,7 @@ function errorCode(error) {
     : ERR.E_INVALID_INPUT;
 }
 
-function fail(response, status, error) {
+function fail(response, status, error, t) {
   const code = errorCode(error);
   const manualMessage = typeof error?.manual_command === "string"
     && error?.message
@@ -93,11 +106,11 @@ function fail(response, status, error) {
   json(response, status, {
     error: code,
     message: manualMessage
-      || HUMAN_ERRORS[code]
+      || (HUMAN_ERROR_KEYS[code] ? t(HUMAN_ERROR_KEYS[code]) : null)
       || (
         error?.message && error.message !== code
           ? error.message
-          : "요청을 처리하지 못했어요."
+          : t("dash.error.generic")
       ),
     ...(typeof error?.manual_command === "string"
       ? { manual_command: error.manual_command }
@@ -361,13 +374,15 @@ function cursorStatus(userHome) {
   }
 }
 
-function graphScopeLabel(scope) {
-  if (scope === "person") return "개인";
-  if (scope === "procedure") return "절차";
-  return String(scope ?? "").replace(/^project:/u, "프로젝트 ");
+function graphScopeLabel(scope, t) {
+  if (scope === "person") return t("dash.scope.person");
+  if (scope === "procedure") return t("dash.scope.procedure");
+  return t("dash.scope.project", {
+    name: String(scope ?? "").replace(/^project:/u, ""),
+  });
 }
 
-function graphFor(home) {
+function graphFor(home, t) {
   if (!fs.existsSync(path.join(home, "index.sqlite"))) {
     return { nodes: [], links: [] };
   }
@@ -415,7 +430,7 @@ function graphFor(home) {
       ...scopes.map((scope) => ({
         id: `scope:${scope}`,
         kind: "scope",
-        label: graphScopeLabel(scope),
+        label: graphScopeLabel(scope, t),
         scope,
         status: "active",
       })),
@@ -476,11 +491,11 @@ function openBrowser(url) {
   child.unref();
 }
 
-function scanFailure(error) {
+function scanFailure(error, t) {
   void error;
   return {
     ok: false,
-    reason: "AI 사용량을 감지하지 못했어요. 다시 시도해 주세요.",
+    reason: t("dash.scan.failed"),
   };
 }
 
@@ -614,6 +629,8 @@ export function createDashboardServer(home, options = {}) {
   }
 
   const handler = async (request, response) => {
+    const locale = requestLocale(request);
+    const t = makeT(locale);
     const address = server.address();
     const port = typeof address === "object" && address
       ? address.port
@@ -634,7 +651,7 @@ export function createDashboardServer(home, options = {}) {
     if (!allowedHosts.has(request.headers.host)) {
       json(response, 403, {
         error: "E_HOST_FORBIDDEN",
-        message: "이 컴퓨터의 대시보드 요청만 처리할 수 있어요.",
+        message: t("dash.host_forbidden"),
       });
       return;
     }
@@ -645,7 +662,7 @@ export function createDashboardServer(home, options = {}) {
     ) {
       json(response, 403, {
         error: "E_ORIGIN_FORBIDDEN",
-        message: "이 대시보드에서 보낸 요청만 처리할 수 있어요.",
+        message: t("dash.origin_forbidden"),
       });
       return;
     }
@@ -708,7 +725,7 @@ export function createDashboardServer(home, options = {}) {
           const agents = await detectAgentsFor({ runner });
           json(response, 200, scanGetResult(home, agents));
         } catch (error) {
-          json(response, 200, scanFailure(error));
+          json(response, 200, scanFailure(error, t));
         }
         return;
       }
@@ -725,7 +742,7 @@ export function createDashboardServer(home, options = {}) {
             userHome,
           }));
         } catch (error) {
-          json(response, 200, scanFailure(error));
+          json(response, 200, scanFailure(error, t));
         }
         return;
       }
@@ -767,6 +784,7 @@ export function createDashboardServer(home, options = {}) {
           installInstructions(home, {
             userHome,
             previewOnly: true,
+            locale,
           }),
         );
         return;
@@ -834,7 +852,7 @@ export function createDashboardServer(home, options = {}) {
         request.method === "GET"
         && url.pathname === "/api/graph"
       ) {
-        json(response, 200, graphFor(home));
+        json(response, 200, graphFor(home, t));
         return;
       }
 
@@ -854,7 +872,7 @@ export function createDashboardServer(home, options = {}) {
           if (result.status !== "added") {
             const error = new Error(result.reason);
             error.code = result.reason;
-            fail(response, 400, error);
+            fail(response, 400, error, t);
           } else {
             json(response, 201, result);
           }
@@ -869,7 +887,7 @@ export function createDashboardServer(home, options = {}) {
         && url.pathname === "/api/checkup/candidates"
       ) {
         json(response, 200, {
-          candidates: checkupCandidates({ userHome }),
+          candidates: checkupCandidates({ userHome, locale }),
         });
         return;
       }
@@ -884,7 +902,7 @@ export function createDashboardServer(home, options = {}) {
           checkupPreflight(
             home,
             url.searchParams.get("path"),
-            { userHome, runner },
+            { userHome, runner, locale },
           ),
         );
         return;
@@ -902,6 +920,7 @@ export function createDashboardServer(home, options = {}) {
             userHome,
             runner,
             excludedDirs: input.excluded_dirs,
+            locale,
           }),
         );
         return;
@@ -919,7 +938,7 @@ export function createDashboardServer(home, options = {}) {
         request.method === "GET"
         && url.pathname === "/api/checkup/report"
       ) {
-        json(response, 200, readCheckupReport(home));
+        json(response, 200, readCheckupReport(home, { locale }));
         return;
       }
 
@@ -940,12 +959,13 @@ export function createDashboardServer(home, options = {}) {
           userHome,
           runner,
           excludedDirs: input.excluded_dirs,
+          locale,
         });
 
         if (!preflight.python3.available) {
           throw Object.assign(
             new Error(
-              "python3가 필요해요. macOS는 xcode-select --install 로 설치할 수 있어요.",
+              t("checkup.python_required"),
             ),
             { code: ERR.E_INVALID_INPUT },
           );
@@ -953,7 +973,7 @@ export function createDashboardServer(home, options = {}) {
 
         if (!preflight.claude.cli_exists) {
           throw Object.assign(
-            new Error("Claude CLI를 설치한 뒤 로그인해 주세요."),
+            new Error(t("dash.checkup.claude_install")),
             {
               code: ERR.E_CLAUDE_CLI_MISSING,
               manual_command:
@@ -965,7 +985,7 @@ export function createDashboardServer(home, options = {}) {
         if (!preflight.claude.logged_in) {
           throw Object.assign(
             new Error(
-              "Claude CLI 로그인이 필요해요. 터미널에서 claude를 실행해 로그인해 주세요.",
+              t("dash.checkup.claude_login"),
             ),
             {
               code: ERR.E_INVALID_INPUT,
@@ -977,7 +997,7 @@ export function createDashboardServer(home, options = {}) {
         if (preflight.files === 0) {
           throw Object.assign(
             new Error(
-              "선택한 폴더에 진단할 마크다운 노트가 없어요.",
+              t("checkup.no_markdown"),
             ),
             { code: ERR.E_INVALID_INPUT },
           );
@@ -992,6 +1012,7 @@ export function createDashboardServer(home, options = {}) {
             {
               userHome,
               excludedDirs: input.excluded_dirs,
+              locale,
             },
           ),
         );
@@ -1005,7 +1026,11 @@ export function createDashboardServer(home, options = {}) {
         if (!fs.existsSync(path.join(home, "index.sqlite"))) {
           initStore(home);
         }
-        json(response, 200, importCheckup(home, readConfig(home)));
+        json(
+          response,
+          200,
+          importCheckup(home, readConfig(home), { locale }),
+        );
         return;
       }
 
@@ -1029,20 +1054,20 @@ export function createDashboardServer(home, options = {}) {
           if (!fs.existsSync(path.join(home, "index.sqlite"))) {
             initStore(home);
           }
-          result = registerMcp(home, runner);
+          result = registerMcp(home, runner, { locale });
           claudeCache = null;
         } else if (step === "codex") {
           if (!fs.existsSync(path.join(home, "index.sqlite"))) {
             initStore(home);
           }
-          result = registerMcpCodex(home, runner);
+          result = registerMcpCodex(home, runner, { locale });
           codexCache = null;
         } else if (step === "instructions") {
-          result = installInstructions(home, { userHome });
+          result = installInstructions(home, { userHome, locale });
         } else if (step === "instructions-remove") {
           result = removeInstructions(home, { userHome });
         } else if (step === "daemon") {
-          result = installDaemon(home, runner, { userHome });
+          result = installDaemon(home, runner, { userHome, locale });
         } else if (step === "daemon-remove") {
           result = uninstallDaemon(home, runner, { userHome });
         } else if (step === "digest") {
@@ -1052,7 +1077,7 @@ export function createDashboardServer(home, options = {}) {
             json(response, 400, {
               error: ERR.E_CLAUDE_CLI_MISSING,
               message:
-                "소화에는 Claude CLI가 필요해요. 먼저 'Claude Code 연결' 단계를 완료해 주세요.",
+                t("dash.digest.claude_required"),
               manual_command:
                 "npm install -g @anthropic-ai/claude-code && claude",
             });
@@ -1062,7 +1087,7 @@ export function createDashboardServer(home, options = {}) {
           if (!claude.logged_in) {
             json(response, 400, {
               error: "E_CLAUDE_LOGIN",
-              message: "Claude CLI 로그인이 필요해요.",
+              message: t("dash.digest.claude_login"),
             });
             return;
           }
@@ -1077,7 +1102,7 @@ export function createDashboardServer(home, options = {}) {
         } else {
           json(response, 404, {
             error: ERR.E_NOT_FOUND,
-            message: "설치 단계를 찾을 수 없어요.",
+            message: t("dash.setup.not_found"),
           });
           return;
         }
@@ -1097,8 +1122,8 @@ export function createDashboardServer(home, options = {}) {
               ? ERR.E_NOT_FOUND
               : "E_METHOD_NOT_ALLOWED",
             message: supportedMethod
-              ? "API를 찾을 수 없어요."
-              : "허용되지 않은 요청 방식이에요.",
+              ? t("dash.api.not_found")
+              : t("dash.method_not_allowed"),
           },
         );
         return;
@@ -1106,7 +1131,7 @@ export function createDashboardServer(home, options = {}) {
 
       response.writeHead(404).end();
     } catch (error) {
-      fail(response, 400, error);
+      fail(response, 400, error, t);
     }
   };
 

@@ -149,7 +149,11 @@ test("digest preflight returns E_CLAUDE_LOGIN without starting daemon-run", asyn
 
   const response = await fetch(`${target.url}/api/setup/digest`, {
     method: "POST",
-    headers: { origin: target.origin, "content-type": "application/json" },
+    headers: {
+      origin: target.origin,
+      "content-type": "application/json",
+      "accept-language": "ko",
+    },
     body: "{}",
   });
   assert.equal(response.status, 400);
@@ -164,7 +168,11 @@ test("dashboard translates remember gate rejection into human-readable 400 JSON"
   const target = await dashboard(t);
   const response = await fetch(`${target.url}/api/memory`, {
     method: "POST",
-    headers: { origin: target.origin, "content-type": "application/json" },
+    headers: {
+      origin: target.origin,
+      "content-type": "application/json",
+      "accept-language": "ko",
+    },
     body: JSON.stringify({ claim: "첫째; 둘째; 셋째", scope: "person" }),
   });
   assert.equal(response.status, 400);
@@ -204,7 +212,11 @@ test("dashboard returns a human rejection and preserves an other card", async (t
   store.close();
   const response = await fetch(`${target.url}/api/cards/${encodeURIComponent(pairId)}`, {
     method: "POST",
-    headers: { origin: target.origin, "content-type": "application/json" },
+    headers: {
+      origin: target.origin,
+      "content-type": "application/json",
+      "accept-language": "ko",
+    },
     body: JSON.stringify({ action: "other", extraText: "기타 정정 중복 원문" }),
   });
   assert.equal(response.status, 400);
@@ -217,7 +229,9 @@ test("dashboard returns a human rejection and preserves an other card", async (t
 
 test("instructions preview separates location from the pure copy block and exposes fallback UX", async (t) => {
   const target = await dashboard(t);
-  const preview = await (await fetch(`${target.url}/api/instructions/preview`)).json();
+  const preview = await (await fetch(`${target.url}/api/instructions/preview`, {
+    headers: { "accept-language": "ko" },
+  })).json();
   assert.match(preview.preview, /추가될 위치:/);
   assert.match(preview.preview, /추가될 블록:/);
   assert.match(preview.block, /^<!-- nautli:instructions -->/);
