@@ -14,6 +14,14 @@ const DOCTOR_SCRIPT = fileURLToPath(new URL("../../vendor/vault-doctor/vault_doc
 // 맛보기 진단 기본 캡 — 온보딩은 "몇 분" 안에 끝나야 한다 (풀 진단은 CLI 몫)
 export const TASTE = Object.freeze({ maxFiles: 40, junkSample: 12, maxJudgePairs: 150 });
 const IMPORT_CAP = 800;
+// 크로스AI 하네스 홈 — 숨김폴더라 walk가 못 찾으니 특례
+const HARNESS_HOMES = [
+  { dir: ".claude", kind: "claude-harness", label: "Claude 하네스 (~/.claude)" },
+  { dir: ".codex", kind: "codex-harness", label: "Codex 하네스 (~/.codex)" },
+  { dir: ".gemini", kind: "gemini-harness", label: "Gemini 하네스 (~/.gemini)" },
+  { dir: ".cursor", kind: "cursor-harness", label: "Cursor 하네스 (~/.cursor)" },
+  { dir: ".shared-memory", kind: "shared-memory", label: "공유 메모리 (~/.shared-memory)" },
+];
 
 function codedError(code, message) {
   const error = new Error(message ?? code);
@@ -75,7 +83,7 @@ export function vaultSampleSeed(vaultPath) {
   return createHash("sha256").update(path.resolve(vaultPath)).digest("hex");
 }
 
-// 유저 홈에서 진단 후보를 찾는다: 옵시디언 볼트(.obsidian 폴더) + Claude 하네스(~/.claude)
+// 유저 홈에서 진단 후보를 찾는다: 옵시디언 볼트(.obsidian 폴더) + 크로스AI 하네스 홈
 export function checkupCandidates({ userHome = os.homedir(), roots, maxDepth = 3 } = {}) {
   const searchRoots = roots ?? [
     path.join(userHome, "Documents"),
@@ -102,9 +110,11 @@ export function checkupCandidates({ userHome = os.homedir(), roots, maxDepth = 3
     }
   };
   for (const root of searchRoots) walk(root, 1);
-  const claudeHome = path.join(userHome, ".claude");
-  if (fs.existsSync(path.join(claudeHome, "CLAUDE.md"))) {
-    found.set(claudeHome, { path: claudeHome, kind: "claude-harness", label: "Claude 하네스 (~/.claude)" });
+  for (const { dir, kind, label } of HARNESS_HOMES) {
+    const harnessHome = path.join(userHome, dir);
+    if (fs.existsSync(harnessHome) && fs.statSync(harnessHome).isDirectory()) {
+      found.set(harnessHome, { path: harnessHome, kind, label });
+    }
   }
   return [...found.values()].map((candidate) => {
     const notes = countNotes(candidate.path);

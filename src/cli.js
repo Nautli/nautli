@@ -27,7 +27,8 @@ import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
 import { Store } from "./core/store.js";
-import { doctor } from "./onboard/doctor.js";
+import { checkupStatus, startCheckup, TASTE } from "./onboard/checkup.js";
+import { checkClaudeLogin, doctor } from "./onboard/doctor.js";
 import {
   initStore,
   installDaemon,
@@ -56,6 +57,7 @@ init       기억 저장소를 초기화해요.
 setup      AI 연결과 밤 소화를 설정해요.
 remember   새 기억을 저장해요.
 recall     저장된 기억을 검색해요.
+checkup    노트 폴더를 진단해요(중복·모순 리포트). 예: nautli checkup ~/Documents/vault
 daemon-run 밤 소화를 한 번 실행해요.
 rebuild    기억 저장소 인덱스를 다시 만들어요.
 stats      기억 저장소 통계를 보여줘요.
@@ -136,6 +138,72 @@ function doctorCommand(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 0);
   return doctor(home);
+}
+
+async function checkupCommand(home, args) {
+  const parsed = parseCommand(args, {
+    status: { type: "boolean", default: false },
+  });
+  if (parsed.values.status) {
+    requirePositionals(parsed.positionals, 0);
+    writeJson(checkupStatus(home));
+    return 0;
+  }
+
+  requirePositionals(parsed.positionals, 1);
+  const [vaultPath] = parsed.positionals;
+  const claude = checkClaudeLogin();
+  if (!claude.cli_exists) {
+    throw codedError(ERR.E_INVALID_INPUT, "claude CLI가 필요해요. npm install -g @anthropic-ai/claude-code 후 다시 실행해 주세요.");
+  }
+  if (!claude.logged_in) {
+    throw codedError(ERR.E_INVALID_INPUT, "claude CLI 로그인이 필요해요. claude /login 후 다시 실행해 주세요.");
+  }
+
+  const deadline = Date.now() + 90 * 60 * 1000;
+  try {
+    const started = startCheckup(home, vaultPath);
+    process.stderr.write(`진단 시작: ${started.vault} (표본 최대 ${TASTE.maxFiles}개)\n`);
+  } catch (error) {
+    if (error?.code !== ERR.E_STORE_BUSY) throw error;
+    process.stderr.write("이미 진단이 돌고 있어요. 이어서 지켜볼게요.\n");
+  }
+
+  let previousProgress = null;
+  while (Date.now() < deadline) {
+    const status = checkupStatus(home);
+    if (status.state === "done" || status.state === "imported") {
+      writeJson({
+        state: status.state,
+        vault: status.vault,
+        summary: status.summary,
+        report_file: status.report_file,
+      });
+      process.stderr.write("완료. nautli dashboard 설정 탭이나 report_file에서 결과를 볼 수 있어요.\n");
+      return 0;
+    }
+    if (status.state === "failed") {
+      writeJson({ state: "failed", vault: status.vault, log_tail: status.log_tail });
+      return 1;
+    }
+    if (status.state === "none" || status.state === "dismissed") {
+      writeJson(status);
+      return 1;
+    }
+
+    const progress = status.progress ?? {};
+    const progressLine = progress.phase === "judge"
+      ? `중복·모순 판정 ${progress.judge_done ?? 0}/${progress.judge_total ?? "?"} 배치`
+      : `추출 ${progress.batches_done ?? 0}/${progress.batches_total ?? "?"} 배치`;
+    if (progressLine !== previousProgress) {
+      process.stderr.write(`${progressLine}\n`);
+      previousProgress = progressLine;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
+
+  writeJson({ state: "timeout" });
+  return 1;
 }
 
 function captureHooksCommand(args) {
@@ -490,6 +558,11 @@ export async function main(argv = process.argv.slice(2)) {
       const result = await runDaemon(home, args);
       writeJson(result.result);
       process.exitCode = result.missing || result.result?.ok === false ? 1 : 0;
+      return;
+    }
+
+    if (command === "checkup") {
+      process.exitCode = await checkupCommand(home, args);
       return;
     }
 

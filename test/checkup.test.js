@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { listCards } from "../src/core/review.js";
 import { Store } from "../src/core/store.js";
 import { initStore } from "../src/onboard/setup.js";
@@ -17,6 +19,9 @@ import {
   validateVaultPath,
   vaultSampleSeed,
 } from "../src/onboard/checkup.js";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const cli = path.join(root, "src", "cli.js");
 
 function tempHome(t, prefix) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -37,6 +42,31 @@ test("checkupCandidates finds an obsidian vault and the claude harness", (t) => 
   const obsidian = found.find((candidate) => candidate.kind === "obsidian");
   assert.equal(obsidian.path, vault);
   assert.equal(obsidian.notes, 1);
+});
+
+test("checkupCandidates finds cross-AI harness homes", (t) => {
+  const userHome = tempHome(t, "nautli-cross-ai-cand-");
+  fs.mkdirSync(path.join(userHome, ".codex"), { recursive: true });
+  fs.writeFileSync(path.join(userHome, ".codex", "AGENTS.md"), "# rules");
+  fs.mkdirSync(path.join(userHome, ".gemini"), { recursive: true });
+  fs.mkdirSync(path.join(userHome, ".shared-memory"), { recursive: true });
+  fs.writeFileSync(path.join(userHome, ".shared-memory", "notes.md"), "# shared");
+
+  const kinds = checkupCandidates({ userHome })
+    .map((candidate) => candidate.kind)
+    .sort();
+  assert.deepEqual(kinds, ["codex-harness", "shared-memory"]);
+});
+
+test("checkup CLI status reports none for a fresh home", (t) => {
+  const home = tempHome(t, "nautli-checkup-cli-");
+  const result = spawnSync(process.execPath, [cli, "checkup", "--status"], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, NAUTLI_HOME: home },
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(JSON.parse(result.stdout).state, "none");
 });
 
 test("validateVaultPath rejects outside-home and nautli-home targets", (t) => {
