@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "As you grow, your memory grows clearer.",
+    "h1": "95% fewer memory tokens. No more coin-flip answers.",
     "subline": "Private memory on your disk, shared across Claude, Codex, and Cursor, organized every night.",
     "commands": [
       "npm i -g nautli",
@@ -331,6 +331,10 @@
     "title": "Questions worth asking before install",
     "intro": "The short version: your store is local, judgments are explicit, and every integration can be removed.",
     "items": [
+      {
+        "question": "Where do the 95% and coin-flip numbers come from?",
+        "answer": "Measured on our founder's 606-note vault. Always-loaded instruction files cost about 22,000 tokens every session; a nautli recall averaged 570 tokens per question in our logs, so a typical session uses roughly 95% fewer memory tokens. The checkup found 49 pairs of notes that contradict each other; when both sides of a contradiction reach a model, the answer for that topic is effectively a coin flip. After you settle each review question, only the fact you chose is served. Your numbers will differ; run a checkup to see them."
+      },
       {
         "question": "What leaves my machine?",
         "answer": "Your notes do not go to nautli servers. Duplicate and contradiction judgment prompts are sent through your own Claude subscription to Anthropic. Optional collection is off by default."
