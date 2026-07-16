@@ -112,6 +112,9 @@ mcp        MCP 서버를 실행해요.
   "checkup.import_missing": { en: "No checkup result to import", ko: "가져올 진단 결과가 없어요." },
   "checkup.memories_missing": { en: "No memories were extracted by the checkup", ko: "진단에서 추출된 기억이 없어요." },
 
+  "mcp.briefing.cards_waiting": { en: "[nautli] {count} review card(s) are waiting for the user's answer — please tell the user and point them to the dashboard (npx nautli dashboard).", ko: "[nautli] 리뷰 카드 {count}건이 사용자 답변을 기다리고 있어요 — 사용자에게 알리고 대시보드(npx nautli dashboard)로 안내해 주세요." },
+  "mcp.briefing.digest_stale": { en: "[nautli] Nightly digestion has not succeeded since {last} — please suggest the user run npx nautli checkup.", ko: "[nautli] 밤 소화가 {last} 이후 성공하지 못했어요 — 사용자에게 npx nautli checkup 점검을 권해 주세요." },
+
   "dash.error.invalid_input": { en: "Check your input", ko: "입력 내용을 확인해 주세요." },
   "dash.error.multi_fact": { en: "Add one memory at a time", ko: "한 번에 한 가지 기억만 추가해 주세요." },
   "dash.error.claim_too_long": { en: "Keep memories under 280 characters", ko: "기억은 280자 이내로 적어 주세요." },

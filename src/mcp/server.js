@@ -8,8 +8,11 @@ import { z } from "zod";
 import { BRAND } from "../brand.js";
 import { remember } from "../core/gate.js";
 import { briefing as buildBriefing, recall } from "../core/recall.js";
+import { listCards } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
+import { makeT, resolveLocale } from "../i18n/strings.js";
+import { digestFreshness } from "../onboard/setup.js";
 
 const DEFAULT_CONFIG = Object.freeze({
   default_scope: "person",
@@ -17,6 +20,26 @@ const DEFAULT_CONFIG = Object.freeze({
 });
 
 const ERROR_CODES = new Set(Object.values(ERR));
+const DIGEST_STALE_MS = 48 * 60 * 60 * 1000;
+
+// 유일하게 보장되는 유저 접점(세션 시작 briefing)에 데몬 상태를 실어 나른다 —
+// 리뷰 카드·소화 상태가 대시보드를 열어야만 보이면 유저는 "못 받았다"고 느낀다.
+// 노이즈 방지: 행동이 필요한 상태(카드 대기, 소화 멈춤)만 싣는다.
+export function daemonStatusHeader(home, t) {
+  const lines = [];
+  let pending = 0;
+  try {
+    pending = listCards(home).length;
+  } catch {
+    // 리뷰 큐 파손이 briefing 자체를 막으면 안 된다.
+  }
+  if (pending > 0) lines.push(t("mcp.briefing.cards_waiting", { count: pending }));
+  const freshness = digestFreshness(home);
+  if (freshness.last_success_at && freshness.age_ms > DIGEST_STALE_MS) {
+    lines.push(t("mcp.briefing.digest_stale", { last: freshness.last_success_at }));
+  }
+  return { lines, pending, last_digest_at: freshness.last_success_at };
+}
 
 function resolveHome() {
   return path.resolve(process.env.NAUTLI_HOME ?? path.join(os.homedir(), ".nautli"));
@@ -81,7 +104,17 @@ export function createServer(store, config) {
       context: z.string().optional(),
       scope: z.string().optional(),
     },
-  }, safe(({ context, scope }) => buildBriefing(store, context, scope, { ...config, source: "mcp" })));
+  }, safe(({ context, scope }) => {
+    const result = buildBriefing(store, context, scope, { ...config, source: "mcp" });
+    const t = makeT(resolveLocale());
+    const status = daemonStatusHeader(store.home, t);
+    if (status.lines.length > 0) {
+      result.briefing = [status.lines.join("\n"), result.briefing].filter(Boolean).join("\n\n");
+    }
+    result.review_pending = status.pending;
+    if (status.last_digest_at) result.last_digest_at = status.last_digest_at;
+    return result;
+  }));
 
   return server;
 }
