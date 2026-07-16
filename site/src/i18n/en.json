@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "95% lighter memory. Answers that agree.",
+    "h1": "Use 95% fewer tokens. Explain it once.",
     "subline": "Private memory on your disk, shared across Claude, Codex, and Cursor, organized every night.",
     "commands": [
       "npm i -g nautli",

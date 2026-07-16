@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "95%軽くなった記憶。食い違わない答え。",
+    "h1": "トークンを95%削減。説明は一度だけ。",
     "subline": "ディスクに住むプライベートメモリ。Claude、Codex、Cursorが共有し、毎晩整理されます。",
     "commands": [
       "npm i -g nautli",

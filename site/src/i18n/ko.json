@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "95% 가벼운 기억, 딴소리 없는 대답.",
+    "h1": "토큰은 95% 아끼고, 설명은 한 번만.",
     "subline": "디스크에 사는 프라이빗 메모리. Claude, Codex, Cursor가 함께 읽고, 매일 밤 정리됩니다.",
     "commands": [
       "npm i -g nautli",
