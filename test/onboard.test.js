@@ -189,6 +189,7 @@ test("installApp installs dashboard service and app bundle", (t) => {
   };
   const result = installApp(home, runner, { userHome, uid: 501 });
   assert.equal(result.ok, true);
+  assert.equal(result.launcher, "script");
   const plist = path.join(userHome, "Library", "LaunchAgents", `${DASHBOARD_LABEL}.plist`);
   assert.ok(fs.existsSync(plist));
   const plistBody = fs.readFileSync(plist, "utf8");
@@ -199,7 +200,26 @@ test("installApp installs dashboard service and app bundle", (t) => {
   assert.ok(fs.statSync(exe).mode & 0o100);
   assert.ok(fs.readFileSync(exe, "utf8").includes("localhost:4600"));
   assert.ok(fs.existsSync(path.join(userHome, "Applications", "nautli.app", "Contents", "Info.plist")));
+  assert.ok(calls.some(([cmd]) => cmd === "swiftc"));
   assert.ok(calls.some(([cmd, sub]) => cmd === "launchctl" && sub === "bootstrap"));
+});
+
+test("installApp installs and signs the native launcher when swiftc succeeds", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  const calls = [];
+  const runner = (command, args) => {
+    calls.push([command, ...args]);
+    if (command === "swiftc") {
+      fs.writeFileSync(args.at(-1), "FAKE_BINARY");
+    }
+    return "";
+  };
+
+  const result = installApp(home, runner, { userHome, uid: 501 });
+  assert.equal(result.launcher, "native");
+  assert.ok(calls.some(([cmd]) => cmd === "codesign"));
+  const exe = path.join(result.app, "Contents", "MacOS", "nautli");
+  assert.equal(fs.readFileSync(exe, "utf8"), "FAKE_BINARY");
 });
 
 test("uninstallApp removes service plist and app bundle", (t) => {

@@ -22,11 +22,20 @@ const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
 const APP_ICON = fileURLToPath(
   new URL("../../assets/brand/nautli.icns", import.meta.url),
 );
+const APP_SWIFT_SRC = fileURLToPath(
+  new URL("../../assets/macapp/nautli-app.swift", import.meta.url),
+);
 const DEFAULT_CONFIG = Object.freeze({
   default_scope: "person",
   judge_cmd: null,
 });
-const ALLOWED_COMMANDS = new Set(["claude", "codex", "launchctl"]);
+const ALLOWED_COMMANDS = new Set([
+  "claude",
+  "codex",
+  "launchctl",
+  "swiftc",
+  "codesign",
+]);
 
 function translator(locale) {
   return makeT(locale ?? resolveLocale());
@@ -719,6 +728,8 @@ function appInfoPlist() {
   <key>CFBundleExecutable</key><string>${xml("nautli")}</string>
   <key>CFBundleIconFile</key><string>${xml("icon")}</string>
   <key>LSMinimumSystemVersion</key><string>${xml("11.0")}</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>
 `;
 }
@@ -838,17 +849,41 @@ export function installApp(
   const resources = path.join(contents, "Resources");
   fs.mkdirSync(path.dirname(executable), { recursive: true });
   fs.mkdirSync(resources, { recursive: true });
-  fs.writeFileSync(executable, launcherScript(), { encoding: "utf8", mode: 0o755 });
+  // 런처 일원화(2026-07-16 유저 확정): 네이티브 WKWebView 래퍼가 기본.
+  // 스크립트 런처는 크롬 앱모드 창이라 독에 크롬으로 잡힌다 — swiftc 부재/실패 시에만 폴백.
+  let launcher = "script";
+  if (fs.existsSync(APP_SWIFT_SRC)) {
+    try {
+      runnerText(runner, "swiftc", [
+        "-O", "-framework", "Cocoa", "-framework", "WebKit",
+        APP_SWIFT_SRC, "-o", executable,
+      ]);
+      if (fs.existsSync(executable)) launcher = "native";
+    } catch {
+      // swiftc 부재(Xcode CLT 미설치)·컴파일 실패 → 스크립트 폴백
+    }
+  }
+  if (launcher === "script") {
+    fs.writeFileSync(executable, launcherScript(), { encoding: "utf8", mode: 0o755 });
+  }
   if (fs.existsSync(APP_ICON)) {
     fs.copyFileSync(APP_ICON, path.join(resources, "icon.icns"));
   }
   fs.writeFileSync(path.join(contents, "Info.plist"), appInfoPlist(), "utf8");
+  if (launcher === "native") {
+    try {
+      runnerText(runner, "codesign", ["-s", "-", "--force", app]);
+    } catch {
+      // 서명 실패는 치명 아님 — 로컬 빌드는 대개 무서명으로도 실행된다.
+    }
+  }
 
   return {
     ok: true,
     service: { label: DASHBOARD_LABEL, plist },
     app,
     port: DASHBOARD_PORT,
+    launcher,
   };
 }
 
