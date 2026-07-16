@@ -226,8 +226,8 @@
         "fewer memory tokens per session"
       ],
       [
-        "11%",
-        "longer attention span"
+        "11% → 0.3%",
+        "memory's share of your context window"
       ]
     ]
   },
