@@ -34,6 +34,19 @@ async function dashboard(t, options = {}) {
   return { ...started, home, origin: `http://127.0.0.1:${started.port}` };
 }
 
+test("dashboard serves the official brand favicons", async (t) => {
+  const target = await dashboard(t);
+
+  const svgResponse = await fetch(`${target.url}/favicon.svg`);
+  assert.equal(svgResponse.status, 200);
+  assert.equal(svgResponse.headers.get("content-type"), "image/svg+xml");
+  assert.match(await svgResponse.text(), /#087A6B/);
+
+  const icoResponse = await fetch(`${target.url}/favicon.ico`);
+  assert.equal(icoResponse.status, 200);
+  assert.equal(icoResponse.headers.get("content-type"), "image/x-icon");
+});
+
 test("dashboard status combines setup, doctor, stats, and pending count", async (t) => {
   const target = await dashboard(t);
   initStore(target.home);

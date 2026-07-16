@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">Nautli mark</title>
+  <desc id="desc">An ink spiral curls naturally into a centered deep teal memory-point.</desc>
+  <path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="#141414" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="150" cy="150" r="10.5" fill="#087A6B"/>
+</svg>

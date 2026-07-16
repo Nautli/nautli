@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Nautli app icon</title>
+  <desc id="desc">A cool off-white spiral curls into a centered deep teal point on a rounded near-black field.</desc>
+  <rect width="512" height="512" rx="112" fill="#141414"/>
+  <g transform="translate(38.5 38.5) scale(1.45)">
+    <path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="#F4F4F1" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="150" cy="150" r="10.5" fill="#087A6B"/>
+  </g>
+</svg>

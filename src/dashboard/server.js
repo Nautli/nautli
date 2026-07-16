@@ -51,6 +51,21 @@ const BODY_LIMIT = 64 * 1024;
 const SCAN_CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
 const scanFlights = new Map();
 
+function readOptionalAsset(url) {
+  try {
+    return fs.readFileSync(fileURLToPath(url));
+  } catch {
+    return null;
+  }
+}
+
+const FAVICON_SVG = readOptionalAsset(
+  new URL("../../assets/brand/nautli-favicon.svg", import.meta.url),
+);
+const FAVICON_ICO = readOptionalAsset(
+  new URL("../../assets/brand/nautli-favicon.ico", import.meta.url),
+);
+
 const HUMAN_ERROR_KEYS = Object.freeze({
   [ERR.E_INVALID_INPUT]: "dash.error.invalid_input",
   [ERR.E_MULTI_FACT]: "dash.error.multi_fact",
@@ -678,6 +693,25 @@ export function createDashboardServer(home, options = {}) {
           "content-security-policy": "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
         });
         response.end(HTML);
+        return;
+      }
+
+      const favicon = url.pathname === "/favicon.svg"
+        ? { body: FAVICON_SVG, type: "image/svg+xml" }
+        : url.pathname === "/favicon.ico"
+          ? { body: FAVICON_ICO, type: "image/x-icon" }
+          : null;
+      if (request.method === "GET" && favicon) {
+        if (!favicon.body) {
+          response.writeHead(404).end();
+          return;
+        }
+        response.writeHead(200, {
+          "content-type": favicon.type,
+          "content-length": favicon.body.length,
+          "cache-control": "public, max-age=86400",
+        });
+        response.end(favicon.body);
         return;
       }
 

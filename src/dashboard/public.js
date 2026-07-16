@@ -6,6 +6,8 @@ export const HTML = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${BRAND}</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/x-icon" sizes="32x32" href="/favicon.ico">
 <script>
 (function(){var mode="dark";try{var stored=localStorage.getItem("nautli-theme");if(stored==="dark"||stored==="light"||stored==="system")mode=stored;}catch(error){}var systemDark=typeof window.matchMedia==="function"&&window.matchMedia("(prefers-color-scheme: dark)").matches;document.documentElement.dataset.theme=mode==="system"?(systemDark?"dark":"light"):mode;}());
 </script>

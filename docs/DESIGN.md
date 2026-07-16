@@ -35,9 +35,9 @@
 - 로딩: 스피너 대신 버튼 라벨 교체("등록 중…")+disabled
 - 토스트: 우하단, 성공 --ok 좌측 바 / 실패 --danger 좌측 바 + 사람말 사유 1문장
 
-## 브랜드 표기 규칙 (2026-07-12 확정)
+## 브랜드 표기 규칙 (2026-07-14 브랜드 킷 v1로 갱신 — 구 glymph 절 폐기)
+- **비주얼 아이덴티티 정본 = `assets/brand/` (원본 킷: `~/Desktop/brand-logos/FINAL/nautli/`)** — 로고/아이콘/파비콘은 여기서 파생만 하고 즉석 생성 금지. 원페이저 `assets/brand/BRAND.png`.
+- 팔레트: Ink `#141414` · Teal `#087A6B`(다크 배경에선 `#12A88F`) · Off-white `#F7F7F5`. 틸 액센트 하나만.
+- **⛔ warm clay-orange/cream 금지** — 다른 AI 하우스 스타일로 읽힘. (이 문서 상단 "여명 주황 --accent-dawn"은 킷 이전 대시보드 v1 토큰 — 브랜드 마크에는 쓰지 않는다. 대시보드 UI 정본은 DESIGN-dashboard.md v3 Orca 룩.)
+- 마크: 열린 ~1.5턴 나선 + 스트로크에 닿는 중앙 틸 메모리 포인트. 최소 24px, 그 이하는 파비콘 사용.
 - **모든 곳에서 소문자 `nautli`** — CLI·npm·도메인·로고 워드마크 (bun/deno/vercel 혈통)
-- 어원 레이어: **g**lia(뇌세포)+**lymph**(청소) — 로고에서 g/lymph 색 분리 가능 (여명 주황)
-- 파비콘/앱아이콘: 자음 압축(GLMF류) 금지 — g 모노그램 or 여명 바 심볼. 압축형은 굿즈 이스터에그로만
-- 발음 표기: /glimf/ 글림프. 태그라인: "Your agents learn by day. nautli cleans by night." / "Wake up smarter."
-- 근거: RTFKT식 압축은 원본이 보편 단어일 때만 복원됨 — nautli는 희귀 단어라 압축 시 사망 (제품명-후보-v1 v8~9)
