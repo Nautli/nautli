@@ -13,6 +13,7 @@ import {
   installApp,
   installDaemon,
   installInstructions,
+  notifyDigestResult,
   recordDigestSkip,
   registerMcp,
   removeInstructions,
@@ -41,6 +42,25 @@ function isolatedHome(t) {
   });
   return { home, userHome };
 }
+
+test("notifyDigestResult posts a macOS notification via argv (no injection)", () => {
+  const calls = [];
+  const runner = (command, args) => { calls.push([command, args]); return ""; };
+  const ok = notifyDigestResult(
+    { ok: true, applied: 3, report: { pending: 5 } },
+    { runner, locale: "ko", config: {} },
+  );
+  assert.equal(ok.notified, true);
+  const [command, args] = calls[0];
+  assert.equal(command, "osascript");
+  const body = args[args.length - 2];
+  assert.ok(body.includes("3") && body.includes("5"));
+  // 본문은 argv로만 전달 — -e 스크립트 문자열에 보간되지 않는다
+  assert.ok(!args.filter((a, i) => args[i - 1] === "-e").some((s) => s.includes(body)));
+
+  assert.equal(notifyDigestResult({ ok: true, skipped_run: true }, { runner }).notified, false);
+  assert.equal(notifyDigestResult({ ok: true }, { runner, config: { notifications: false } }).notified, false);
+});
 
 test("onboarding steps are isolated and shell commands use the injected runner", (t) => {
   const { home, userHome } = isolatedHome(t);

@@ -33,6 +33,7 @@ const ALLOWED_COMMANDS = new Set([
   "claude",
   "codex",
   "launchctl",
+  "osascript",
   "swiftc",
   "codesign",
 ]);
@@ -920,6 +921,35 @@ function appendHealth(home, value) {
   const file = path.join(home, "daemon", "health.log");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+// 소화 결과를 macOS 알림으로 푸시 — 유일한 능동 채널(대시보드·리포트는 pull).
+// 인젝션 방지: 문자열을 osascript 스크립트에 보간하지 않고 argv로 넘긴다.
+// 알림 실패는 소화 결과에 영향을 주면 안 된다(전부 삼킴).
+export function notifyDigestResult(result, { runner = defaultRunner, locale, config = {} } = {}) {
+  if (process.platform !== "darwin") return { notified: false, reason: "platform" };
+  if (config.notifications === false) return { notified: false, reason: "disabled" };
+  if (!result || result.skipped_run) return { notified: false, reason: "skipped_run" };
+  const t = translator(locale);
+  const failed = result.ok === false;
+  const body = failed
+    ? t("daemon.notify.failed_body")
+    : t("daemon.notify.done_body", {
+        applied: result.applied ?? 0,
+        pending: result.report?.pending ?? 0,
+      });
+  const title = t("daemon.notify.title");
+  try {
+    runnerText(runner, "osascript", [
+      "-e", "on run argv",
+      "-e", "display notification (item 1 of argv) with title (item 2 of argv)",
+      "-e", "end run",
+      body, title,
+    ]);
+    return { notified: true };
+  } catch {
+    return { notified: false, reason: "osascript_failed" };
+  }
 }
 
 // 스킵도 health.log에 1줄 남긴다. exit 필드를 일부러 넣지 않는다 —

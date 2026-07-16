@@ -41,6 +41,7 @@ import {
   installApp,
   installDaemon,
   installInstructions,
+  notifyDigestResult,
   recordDigestSkip,
   registerMcp,
   removeInstructions,
@@ -467,8 +468,16 @@ async function runDaemon(home, args) {
     }
   }
 
-  const result = await runDigestOnce(home, { dry: parsed.values.dry, locale });
-  return { missing: false, result };
+  try {
+    const result = await runDigestOnce(home, { dry: parsed.values.dry, locale });
+    if (!parsed.values.dry) notifyDigestResult(result, { locale, config: readConfig(home) });
+    return { missing: false, result };
+  } catch (error) {
+    if (!parsed.values.dry) {
+      notifyDigestResult({ ok: false }, { locale, config: readConfig(home) });
+    }
+    throw error;
+  }
 }
 
 async function setupCommand(home, args) {

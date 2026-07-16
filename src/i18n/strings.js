@@ -94,6 +94,10 @@ mcp        MCP 서버를 실행해요.
   "setup.digest_no_result": { en: "Found memories to digest but received no judgment. Check the Claude CLI connection", ko: "체험 소화할 기억은 찾았지만 판정 결과를 받지 못했어요. Claude CLI 연결을 확인해 주세요." },
   "setup.digest_already_running": { en: "Another digestion is already running; skipping this run", ko: "다른 소화가 이미 실행 중이라 이번 실행은 건너뛰어요." },
 
+  "daemon.notify.title": { en: "nautli", ko: "nautli" },
+  "daemon.notify.done_body": { en: "Night digestion done — {applied} applied, {pending} review card(s) waiting. Open the nautli app to answer.", ko: "밤 소화 완료 — 적용 {applied}건, 리뷰 카드 {pending}건 대기. nautli 앱에서 답해 주세요." },
+  "daemon.notify.failed_body": { en: "Night digestion failed — run npx nautli checkup to inspect.", ko: "밤 소화에 실패했어요 — npx nautli checkup으로 점검해 주세요." },
+
   "checkup.harness_claude": { en: "Claude harness (~/.claude)", ko: "Claude 하네스 (~/.claude)" },
   "checkup.harness_codex": { en: "Codex harness (~/.codex)", ko: "Codex 하네스 (~/.codex)" },
   "checkup.harness_gemini": { en: "Gemini harness (~/.gemini)", ko: "Gemini 하네스 (~/.gemini)" },
