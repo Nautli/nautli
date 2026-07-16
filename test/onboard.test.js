@@ -7,8 +7,10 @@ import { fileURLToPath } from "node:url";
 import { listCards } from "../src/core/review.js";
 import {
   DAEMON_LABEL,
+  DASHBOARD_LABEL,
   digestFreshness,
   initStore,
+  installApp,
   installDaemon,
   installInstructions,
   recordDigestSkip,
@@ -18,6 +20,7 @@ import {
   runDigestOnce,
   seedSampleFacts,
   statusAll,
+  uninstallApp,
   uninstallDaemon,
 } from "../src/onboard/setup.js";
 import { INSTRUCTIONS_START } from "../src/onboard/instructions.js";
@@ -175,6 +178,38 @@ test("bootstrap failure surfaces the stale-label guidance", (t) => {
     (error) => error.code === "E_LAUNCHCTL_FAILED"
       && /bootout gui\/501\/com\.nautli\.daemon/.test(error.message),
   );
+});
+
+test("installApp installs dashboard service and app bundle", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  const calls = [];
+  const runner = (command, args) => {
+    calls.push([command, ...args]);
+    return "";
+  };
+  const result = installApp(home, runner, { userHome, uid: 501 });
+  assert.equal(result.ok, true);
+  const plist = path.join(userHome, "Library", "LaunchAgents", `${DASHBOARD_LABEL}.plist`);
+  assert.ok(fs.existsSync(plist));
+  const plistBody = fs.readFileSync(plist, "utf8");
+  assert.ok(plistBody.includes("<key>KeepAlive</key>"));
+  assert.ok(plistBody.includes("--no-open"));
+  const exe = path.join(userHome, "Applications", "nautli.app", "Contents", "MacOS", "nautli");
+  assert.ok(fs.existsSync(exe));
+  assert.ok(fs.statSync(exe).mode & 0o100);
+  assert.ok(fs.readFileSync(exe, "utf8").includes("localhost:4600"));
+  assert.ok(fs.existsSync(path.join(userHome, "Applications", "nautli.app", "Contents", "Info.plist")));
+  assert.ok(calls.some(([cmd, sub]) => cmd === "launchctl" && sub === "bootstrap"));
+});
+
+test("uninstallApp removes service plist and app bundle", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  const runner = () => "";
+  installApp(home, runner, { userHome, uid: 501 });
+  const result = uninstallApp(home, runner, { userHome, uid: 501 });
+  assert.equal(result.ok, true);
+  assert.ok(!fs.existsSync(path.join(userHome, "Library", "LaunchAgents", `${DASHBOARD_LABEL}.plist`)));
+  assert.ok(!fs.existsSync(path.join(userHome, "Applications", "nautli.app")));
 });
 
 test("digestFreshness keys on the last scheduled slot, not a 24h window", (t) => {

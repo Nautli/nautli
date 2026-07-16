@@ -16,7 +16,12 @@ import {
 } from "./instructions.js";
 
 export const DAEMON_LABEL = "com.nautli.daemon";
+export const DASHBOARD_LABEL = "com.nautli.dashboard";
+export const DASHBOARD_PORT = 4600;
 const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
+const APP_ICON = fileURLToPath(
+  new URL("../../assets/brand/nautli.icns", import.meta.url),
+);
 const DEFAULT_CONFIG = Object.freeze({
   default_scope: "person",
   judge_cmd: null,
@@ -74,6 +79,13 @@ function userPaths(userHome) {
       "LaunchAgents",
       `${DAEMON_LABEL}.plist`,
     ),
+    dashboardPlist: path.join(
+      userHome,
+      "Library",
+      "LaunchAgents",
+      `${DASHBOARD_LABEL}.plist`,
+    ),
+    app: path.join(userHome, "Applications", "nautli.app"),
   };
 }
 
@@ -356,7 +368,12 @@ export function statusAll(home, {
   claude: suppliedClaude,
   codex: suppliedCodex,
 } = {}) {
-  const { instructions, plist } = userPaths(userHome);
+  const {
+    instructions,
+    plist,
+    dashboardPlist: dashboardPlistFile,
+    app,
+  } = userPaths(userHome);
   const claude = suppliedClaude ?? (
     checkClaude
       ? claudeStatus(runner)
@@ -404,6 +421,10 @@ export function statusAll(home, {
     optional: {
       cursor: { complete: false, available: true },
       sample: { complete: sampleFacts(home).length > 0 },
+    },
+    app: {
+      plist_exists: fs.existsSync(dashboardPlistFile),
+      app_exists: fs.existsSync(app),
     },
     complete: Object.values(required).every((step) => step.complete),
   };
@@ -656,6 +677,52 @@ function daemonPlist(home) {
 `;
 }
 
+function dashboardPlist(home) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${DASHBOARD_LABEL}</string>
+  <key>ProgramArguments</key><array><string>${xml(process.execPath)}</string><string>${xml(CLI_FILE)}</string><string>dashboard</string><string>--no-open</string></array>
+  <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string></dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${xml(path.join(home, "daemon", "dashboard.log"))}</string>
+  <key>StandardErrorPath</key><string>${xml(path.join(home, "daemon", "dashboard.err"))}</string>
+</dict></plist>
+`;
+}
+
+function launcherScript() {
+  return `#!/bin/bash
+# 서버는 launchd(${DASHBOARD_LABEL})가 상시 유지한다. 여기는 문만 연다.
+if ! nc -z 127.0.0.1 ${DASHBOARD_PORT} 2>/dev/null; then
+  launchctl kickstart gui/$(id -u)/${DASHBOARD_LABEL} 2>/dev/null
+  for i in $(seq 1 20); do nc -z 127.0.0.1 ${DASHBOARD_PORT} 2>/dev/null && break; sleep 0.5; done
+fi
+if [ -d "/Applications/Google Chrome.app" ]; then
+  exec open -na "Google Chrome" --args --app=http://localhost:${DASHBOARD_PORT}
+fi
+exec open "http://localhost:${DASHBOARD_PORT}"
+`;
+}
+
+function appInfoPlist() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleName</key><string>${xml("nautli")}</string>
+  <key>CFBundleDisplayName</key><string>${xml("nautli")}</string>
+  <key>CFBundleIdentifier</key><string>${xml("ai.nautli.app")}</string>
+  <key>CFBundleVersion</key><string>${xml("1.0")}</string>
+  <key>CFBundleShortVersionString</key><string>${xml("1.0")}</string>
+  <key>CFBundlePackageType</key><string>${xml("APPL")}</string>
+  <key>CFBundleExecutable</key><string>${xml("nautli")}</string>
+  <key>CFBundleIconFile</key><string>${xml("icon")}</string>
+  <key>LSMinimumSystemVersion</key><string>${xml("11.0")}</string>
+</dict></plist>
+`;
+}
+
 export function installDaemon(
   home,
   runner = defaultRunner,
@@ -723,6 +790,95 @@ export function uninstallDaemon(
   }
 
   return { ok: true, removed: false, plist: file };
+}
+
+export function installApp(
+  home,
+  runner = defaultRunner,
+  {
+    userHome = os.homedir(),
+    uid = process.getuid?.() ?? 0,
+    locale,
+  } = {},
+) {
+  const t = translator(locale);
+  if (process.platform !== "darwin") {
+    return { ok: false, reason: t("setup.app_darwin_only") };
+  }
+
+  initStore(home);
+  const { dashboardPlist: plist, app } = userPaths(userHome);
+  fs.mkdirSync(path.dirname(plist), { recursive: true });
+  fs.writeFileSync(plist, dashboardPlist(home), "utf8");
+
+  try {
+    runnerText(runner, "launchctl", [
+      "bootout",
+      `gui/${uid}/${DASHBOARD_LABEL}`,
+    ]);
+  } catch {
+    // 미로드 상태의 bootout 실패는 무시한다.
+  }
+
+  const args = ["bootstrap", `gui/${uid}`, plist];
+  try {
+    runnerText(runner, "launchctl", args);
+  } catch (cause) {
+    throw setupError(
+      ERR.E_LAUNCHCTL_FAILED,
+      `${t("setup.daemon_failed")} ${t("setup.daemon_failed_conflict", { uid })}`
+        .replaceAll(DAEMON_LABEL, DASHBOARD_LABEL),
+      ["launchctl", ...args].join(" "),
+      cause,
+    );
+  }
+
+  const contents = path.join(app, "Contents");
+  const executable = path.join(contents, "MacOS", "nautli");
+  const resources = path.join(contents, "Resources");
+  fs.mkdirSync(path.dirname(executable), { recursive: true });
+  fs.mkdirSync(resources, { recursive: true });
+  fs.writeFileSync(executable, launcherScript(), { encoding: "utf8", mode: 0o755 });
+  if (fs.existsSync(APP_ICON)) {
+    fs.copyFileSync(APP_ICON, path.join(resources, "icon.icns"));
+  }
+  fs.writeFileSync(path.join(contents, "Info.plist"), appInfoPlist(), "utf8");
+
+  return {
+    ok: true,
+    service: { label: DASHBOARD_LABEL, plist },
+    app,
+    port: DASHBOARD_PORT,
+  };
+}
+
+export function uninstallApp(
+  home,
+  runner = defaultRunner,
+  {
+    userHome = os.homedir(),
+    uid = process.getuid?.() ?? 0,
+  } = {},
+) {
+  void home;
+  const { dashboardPlist: plist, app } = userPaths(userHome);
+  const removed = {
+    plist: fs.existsSync(plist),
+    app: fs.existsSync(app),
+  };
+
+  try {
+    runnerText(runner, "launchctl", [
+      "bootout",
+      `gui/${uid}/${DASHBOARD_LABEL}`,
+    ]);
+  } catch {
+    // 미로드 상태의 bootout 실패는 무시한다.
+  }
+
+  fs.rmSync(plist, { force: true });
+  fs.rmSync(app, { recursive: true, force: true });
+  return { ok: true, removed };
 }
 
 function appendHealth(home, value) {

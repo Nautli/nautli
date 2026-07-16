@@ -38,6 +38,7 @@ import { checkClaudeLogin, doctor } from "./onboard/doctor.js";
 import {
   digestFreshness,
   initStore,
+  installApp,
   installDaemon,
   installInstructions,
   recordDigestSkip,
@@ -47,6 +48,7 @@ import {
   runDigestOnce,
   seedSampleFacts,
   statusAll,
+  uninstallApp,
   uninstallDaemon,
 } from "./onboard/setup.js";
 
@@ -485,6 +487,8 @@ async function setupCommand(home, args) {
     if (name === "remove-instructions") return removeInstructions(home);
     if (name === "daemon") return installDaemon(home, undefined, { locale });
     if (name === "uninstall-daemon") return uninstallDaemon(home);
+    if (name === "app") return installApp(home, undefined, { locale });
+    if (name === "uninstall-app") return uninstallApp(home);
     if (name === "digest") return runDigestOnce(home, { locale });
     if (name === "sample") return seedSampleFacts(home);
     if (name === "remove-sample") return removeSampleFacts(home);
@@ -499,6 +503,7 @@ async function setupCommand(home, args) {
   results.push({ step: "mcp", result: await runStep("mcp") });
   results.push({ step: "instructions", result: await runStep("instructions") });
   results.push({ step: "daemon", result: await runStep("daemon") });
+  results.push({ step: "app", result: await runStep("app") });
   results.push({ step: "digest", result: await runStep("digest") });
   return { ok: true, results, status: statusAll(home) };
 }
