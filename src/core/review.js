@@ -15,6 +15,7 @@ const ACTIONS = new Set([
   "both_valid",
   "unknown",
   "other",
+  "report_issue",
 ]);
 const CAPTURE_ACTIONS = new Set(["remember", "dismissed", "unknown", "deferred"]);
 
@@ -137,6 +138,17 @@ export function applyCard(store, home, pairId, action, extraText) {
 
     if (action === "keep_separate" || action === "both_valid" || action === "unknown") {
       status = "dismissed";
+    }
+    if (action === "report_issue") {
+      // 엣지케이스 신고: 기억은 건드리지 않고 카드만 닫되, 사유를 영속 기록해
+      // 판정 품질 개선의 원료로 쓴다 (유저 요청 2026-07-16 "왜 뜨는지 모르겠다").
+      if (typeof extraText !== "string" || extraText.trim() === "") throw codedError(ERR.E_INVALID_INPUT);
+      status = "dismissed";
+      fs.appendFileSync(
+        path.join(home, "review", "issue-reports.jsonl"),
+        `${JSON.stringify({ pair_id: pairId, text: extraText.trim(), verdict: entries[index].verdict, at: new Date().toISOString() })}\n`,
+        "utf8",
+      );
     }
     if (action === "defer") {
       status = "deferred";

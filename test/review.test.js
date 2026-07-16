@@ -103,6 +103,26 @@ test("unknown dismisses the card without transitioning either fact", (t) => {
   assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
 });
 
+test("report_issue dismisses without touching facts and logs the report", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t, "duplicate");
+
+  assert.throws(() => applyCard(store, home, pairId, "report_issue"));
+  assert.throws(() => applyCard(store, home, pairId, "report_issue", "  "));
+
+  const result = applyCard(store, home, pairId, "report_issue", "나와 관련 없는 내용이에요");
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "dismissed");
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+
+  const reports = fs.readFileSync(path.join(home, "review", "issue-reports.jsonl"), "utf8")
+    .trim().split("\n").map((line) => JSON.parse(line));
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].pair_id, pairId);
+  assert.equal(reports[0].text, "나와 관련 없는 내용이에요");
+  assert.equal(reports[0].verdict, "duplicate");
+});
+
 test("unknown cards no longer appear in listCards", (t) => {
   const { home, store, pairId } = fixture(t, "contradiction");
   applyCard(store, home, pairId, "unknown");
