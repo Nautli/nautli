@@ -42,7 +42,7 @@
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
     "h1": "Cross-AI memory that lives on your disk.",
-    "subline": "Conflicts surfaced overnight. Settled by you.",
+    "subline": "When your AIs disagree, they ask you.",
     "commands": [
       "npm i -g nautli",
       "nautli init",

@@ -42,7 +42,7 @@
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
     "h1": "AIをまたぐ記憶を、あなたのディスクに",
-    "subline": "夜のうちに見つかった矛盾。決めるのはあなた。",
+    "subline": "AIたちの話が食い違ったら、あなたに聞きます。",
     "commands": [
       "npm i -g nautli",
       "nautli init",

@@ -42,7 +42,7 @@
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
     "h1": "AI들이 함께 쓰는 기억, 네 디스크에 산다",
-    "subline": "밤새 찾아낸 모순, 판정은 당신이 합니다.",
+    "subline": "AI들이 서로 딴소리하면, 당신에게 물어봅니다.",
     "commands": [
       "npm i -g nautli",
       "nautli init",
