@@ -84,6 +84,25 @@ function runnerText(runner, command, args, options) {
   return Buffer.isBuffer(value) ? value.toString("utf8") : String(value ?? "");
 }
 
+// launchctl bootout은 비동기 드레인이라 직후 bootstrap이 레이스로 실패할 수 있다 — 짧게 재시도.
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function bootstrapWithRetry(runner, uid, plist, { attempts = 4, delayMs = 400 } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      runnerText(runner, "launchctl", ["bootstrap", `gui/${uid}`, plist]);
+      return;
+    } catch (error) {
+      lastError = error;
+      sleepSync(delayMs);
+    }
+  }
+  throw lastError;
+}
+
 function userPaths(userHome) {
   return {
     instructions: path.join(userHome, ".claude", "CLAUDE.md"),
@@ -784,7 +803,7 @@ export function installDaemon(
 
   const args = ["bootstrap", `gui/${uid}`, file];
   try {
-    runnerText(runner, "launchctl", args);
+    bootstrapWithRetry(runner, uid, file);
   } catch (cause) {
     throw setupError(
       ERR.E_LAUNCHCTL_FAILED,
@@ -862,7 +881,7 @@ export function installApp(
 
   const args = ["bootstrap", `gui/${uid}`, plist];
   try {
-    runnerText(runner, "launchctl", args);
+    bootstrapWithRetry(runner, uid, plist);
   } catch (cause) {
     throw setupError(
       ERR.E_LAUNCHCTL_FAILED,
@@ -929,11 +948,7 @@ export function installApp(
       // 미로드 상태의 bootout 실패는 무시한다.
     }
     try {
-      runnerText(runner, "launchctl", [
-        "bootstrap",
-        `gui/${uid}`,
-        menubarPlistFile,
-      ]);
+      bootstrapWithRetry(runner, uid, menubarPlistFile);
     } catch {
       // 메뉴바는 부가 기능 — 등록 실패해도 설치를 막지 않는다.
       menubar = false;

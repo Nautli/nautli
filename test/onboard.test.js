@@ -255,6 +255,27 @@ test("installApp installs and signs the native launcher when swiftc succeeds", (
   )));
 });
 
+test("installApp retries bootstrap while launchctl drains a stale label", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  let bootstrapCalls = 0;
+  const runner = (command, args) => {
+    if (command === "swiftc") {
+      fs.writeFileSync(args.at(-1), "FAKE_BINARY");
+    }
+    if (command === "launchctl" && args[0] === "bootstrap") {
+      bootstrapCalls += 1;
+      if (bootstrapCalls <= 2) {
+        throw new Error("Bootstrap failed: 5: Input/output error");
+      }
+    }
+    return "";
+  };
+
+  const result = installApp(home, runner, { userHome, uid: 501 });
+  assert.equal(result.ok, true);
+  assert.ok(bootstrapCalls >= 3);
+});
+
 test("uninstallApp removes service plist and app bundle", (t) => {
   const { home, userHome } = isolatedHome(t);
   const runner = (command, args) => {
