@@ -552,7 +552,8 @@ export function installInstructions(
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const current = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
 
-  if (!current.includes(INSTRUCTIONS_START)) {
+  const start = current.indexOf(INSTRUCTIONS_START);
+  if (start === -1) {
     const prefix = current === "" || current.endsWith("\n")
       ? current
       : `${current}\n`;
@@ -561,12 +562,39 @@ export function installInstructions(
       `${prefix}${prefix === "" ? "" : "\n"}${instructions}\n`,
       "utf8",
     );
+    return {
+      ok: true,
+      installed: true,
+      changed: true,
+      preview,
+      block: instructions,
+      file,
+    };
   }
+
+  const end = current.indexOf(INSTRUCTIONS_END, start);
+  if (end === -1) {
+    return {
+      ok: false,
+      installed: true,
+      changed: false,
+      reason: t("setup.instructions_broken_block", { file }),
+      preview,
+      block: instructions,
+      file,
+    };
+  }
+
+  const next = current.slice(0, start)
+    + instructions
+    + current.slice(end + INSTRUCTIONS_END.length);
+  const changed = next !== current;
+  if (changed) fs.writeFileSync(file, next, "utf8");
 
   return {
     ok: true,
     installed: true,
-    changed: !current.includes(INSTRUCTIONS_START),
+    changed,
     preview,
     block: instructions,
     file,

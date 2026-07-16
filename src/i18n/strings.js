@@ -86,6 +86,7 @@ mcp        MCP 서버를 실행해요.
   "setup.codex_missing": { en: "Codex CLI is not installed. Install it, then run the manual command", ko: "Codex CLI가 설치되어 있지 않아요. 설치한 뒤 수동 명령을 실행해 주세요." },
   "setup.codex_mcp_failed": { en: "Could not register the Codex MCP automatically. Run the command below in your terminal", ko: "Codex MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요." },
   "setup.instructions_preview": { en: "Location: {file}\n\nBlock to add:\n{block}", ko: "추가될 위치: {file}\n\n추가될 블록:\n{block}" },
+  "setup.instructions_broken_block": { en: "Found the start marker but not the end marker in {file}; not touching it. Remove the nautli block manually and reinstall.", ko: "{file}에서 시작 마커만 있고 끝 마커가 없어요. 파일을 건드리지 않았어요 — nautli 블록을 직접 지운 뒤 다시 설치해 주세요." },
   "setup.daemon_failed": { en: "Could not register the nightly digestion daemon. Run the command below in your terminal", ko: "밤 소화 데몬 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요." },
   "setup.daemon_failed_conflict": { en: "If launchctl printed error 5 (Input/output error), the label com.nautli.daemon may already be loaded from another plist path. Run `launchctl bootout gui/{uid}/com.nautli.daemon` and retry", ko: "launchctl이 error 5(Input/output error)를 냈다면 com.nautli.daemon 라벨이 이미 다른 plist 경로로 로드돼 있을 수 있어요. `launchctl bootout gui/{uid}/com.nautli.daemon` 실행 후 다시 시도해 주세요." },
   "setup.digest_judge_failed": { en: "Sample digestion failed: {reason}", ko: "체험 소화 판정에 실패했어요: {reason}" },

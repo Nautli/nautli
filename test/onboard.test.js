@@ -83,6 +83,27 @@ test("onboarding steps are isolated and shell commands use the injected runner",
   assert.ok(calls.some((call) => call[0] === "launchctl" && call[1] === "bootout"));
 });
 
+test("installInstructions refreshes a stale installed block in place", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  installInstructions(home, { userHome, locale: "ko" });
+  const file = path.join(userHome, ".claude", "CLAUDE.md");
+  // 블록을 구버전으로 오염 + 블록 밖 유저 내용 추가
+  const stale = fs.readFileSync(file, "utf8").replace("기억을 먼저 확인한다", "기억을 먼저 확인한다(구버전)");
+  fs.writeFileSync(file, `# 유저 상단 내용\n\n${stale}\n# 유저 하단 내용\n`, "utf8");
+
+  const result = installInstructions(home, { userHome, locale: "ko" });
+  assert.equal(result.changed, true);
+  const refreshed = fs.readFileSync(file, "utf8");
+  assert.ok(!refreshed.includes("(구버전)"));
+  assert.ok(refreshed.includes("# 유저 상단 내용"));
+  assert.ok(refreshed.includes("# 유저 하단 내용"));
+  assert.equal(refreshed.split("<!-- nautli:instructions -->").length, 2); // 마커 중복 없음
+
+  // 동일 내용 재실행은 무변경
+  const again = installInstructions(home, { userHome, locale: "ko" });
+  assert.equal(again.changed, false);
+});
+
 test("daemon completion is independent from digestion health", (t) => {
   const { home, userHome } = isolatedHome(t);
   const runner = () => "ok\n";
