@@ -47,6 +47,17 @@ test("dashboard serves the official brand favicons", async (t) => {
   assert.equal(icoResponse.headers.get("content-type"), "image/x-icon");
 });
 
+test("dashboard serves the appbar and command palette without native drag regions", async (t) => {
+  const target = await dashboard(t);
+  const response = await fetch(target.url);
+  assert.equal(response.status, 200);
+  const page = await response.text();
+  assert.match(page, /id="appbar"/);
+  assert.match(page, /id="cmdk"/);
+  assert.match(page, /id="cmdk-input"/);
+  assert.doesNotMatch(page, /-webkit-app-region/);
+});
+
 test("dashboard status combines setup, doctor, stats, and pending count", async (t) => {
   const target = await dashboard(t);
   initStore(target.home);
