@@ -70,7 +70,7 @@ mcp        MCP 서버를 실행해요.
   "cli.capture.invalid_payload": { en: "Invalid capture hook payload", ko: "자동 캡처 훅 입력이 올바르지 않아요." },
   "cli.dashboard.invalid_port": { en: "Invalid dashboard port", ko: "대시보드 포트를 확인해 주세요." },
   "cli.daemon.not_built": { en: "daemon not built", ko: "데몬이 빌드되지 않았어요." },
-  "cli.daemon.skipped_fresh": { en: "Last digestion succeeded within 24 hours ({last}); skipping this run", ko: "최근 24시간 안에 소화가 성공해서({last}) 이번 실행은 건너뛰어요." },
+  "cli.daemon.skipped_fresh": { en: "Digestion already succeeded for the current 03:30 slot ({last}); skipping this run", ko: "이번 03:30 슬롯의 소화가 이미 성공해서({last}) 이번 실행은 건너뛰어요." },
   "cli.setup.unknown_step": { en: "Unknown setup step: {name}", ko: "알 수 없는 설치 단계: {name}" },
   "cli.review.empty": { en: "No questions to answer. The next digestion runs at 3:30 AM", ko: "답할 질문이 없어요. 다음 소화는 오늘 새벽 3:30이에요." },
   "cli.review.duplicate": { en: "Duplicate", ko: "중복 정리" },

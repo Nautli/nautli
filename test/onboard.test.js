@@ -11,6 +11,7 @@ import {
   initStore,
   installDaemon,
   installInstructions,
+  recordDigestSkip,
   registerMcp,
   removeInstructions,
   removeSampleFacts,
@@ -155,26 +156,45 @@ test("bootstrap failure surfaces the stale-label guidance", (t) => {
   );
 });
 
-test("digestFreshness keys on the last successful digestion", (t) => {
+test("digestFreshness keys on the last scheduled slot, not a 24h window", (t) => {
   const { home } = isolatedHome(t);
   const file = path.join(home, "daemon", "health.log");
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const hoursAgo = (n) => new Date(Date.now() - n * 60 * 60 * 1000).toISOString();
+  // 로컬타임 생성자 사용 — TZ 무관 결정적
+  const fire = new Date(2026, 6, 16, 3, 30, 5); // 오늘 03:30:05 정기 발사
+  const write = (entries) => fs.writeFileSync(file, entries.map((e) => `${JSON.stringify(e)}\n`).join(""), "utf8");
 
-  assert.equal(digestFreshness(home).fresh, false);
+  assert.equal(digestFreshness(home, { now: fire }).fresh, false);
 
-  fs.writeFileSync(file, `${JSON.stringify({ at: hoursAgo(25), exit: 0 })}\n`, "utf8");
-  assert.equal(digestFreshness(home).fresh, false);
+  // 회귀 케이스: 어제 03:30:31 성공(24h - 26초 전) → 오늘 정기 실행은 돌아야 한다
+  write([{ at: new Date(2026, 6, 15, 3, 30, 31).toISOString(), exit: 0 }]);
+  assert.equal(digestFreshness(home, { now: fire }).fresh, false);
 
-  fs.appendFileSync(file, `${JSON.stringify({ at: hoursAgo(2), exit: 0 })}\n`, "utf8");
-  assert.equal(digestFreshness(home).fresh, true);
+  // 오늘 슬롯 이후 성공 → 같은 날 RunAtLoad(부팅)는 스킵
+  write([{ at: new Date(2026, 6, 16, 3, 31, 0).toISOString(), exit: 0 }]);
+  assert.equal(digestFreshness(home, { now: new Date(2026, 6, 16, 9, 0, 0) }).fresh, true);
 
-  // 성공 이후의 실패 기록은 catch-up 판단을 뒤집지 않는다.
-  fs.appendFileSync(file, `${JSON.stringify({ at: hoursAgo(1), exit: 1 })}\n`, "utf8");
-  assert.equal(digestFreshness(home).fresh, true);
+  // 성공 이후의 실패 기록은 catch-up 판단을 뒤집지 않는다
+  fs.appendFileSync(file, `${JSON.stringify({ at: new Date(2026, 6, 16, 5, 0, 0).toISOString(), exit: 1 })}\n`, "utf8");
+  assert.equal(digestFreshness(home, { now: new Date(2026, 6, 16, 9, 0, 0) }).fresh, true);
 
-  fs.writeFileSync(file, `${JSON.stringify({ at: hoursAgo(1), exit: 1 })}\n`, "utf8");
-  assert.equal(digestFreshness(home).fresh, false);
+  // 낮에 수동(--force) 성공 → 다음날 03:30 정기 실행은 새 슬롯이므로 돌아야 한다
+  write([{ at: new Date(2026, 6, 16, 13, 0, 0).toISOString(), exit: 0 }]);
+  assert.equal(digestFreshness(home, { now: new Date(2026, 6, 17, 3, 30, 5) }).fresh, false);
+});
+
+test("recordDigestSkip leaves a durable line that does not count as success", (t) => {
+  const { home } = isolatedHome(t);
+  const file = path.join(home, "daemon", "health.log");
+  recordDigestSkip(home, "test skip");
+  const lines = fs.readFileSync(file, "utf8").trim().split("\n");
+  assert.equal(lines.length, 1);
+  const entry = JSON.parse(lines[0]);
+  assert.equal(entry.skipped_run, true);
+  assert.equal(entry.reason, "test skip");
+  assert.ok(Number.isFinite(Date.parse(entry.at)));
+  // 스킵 기록이 게이트를 연장하면 안 된다
+  assert.equal(digestFreshness(home, { now: new Date(Date.parse(entry.at) + 1000) }).fresh, false);
 });
 
 test("runDigestOnce skips when another digestion holds the lock", async (t) => {

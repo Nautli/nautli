@@ -40,6 +40,7 @@ import {
   initStore,
   installDaemon,
   installInstructions,
+  recordDigestSkip,
   registerMcp,
   removeInstructions,
   removeSampleFacts,
@@ -450,12 +451,14 @@ async function runDaemon(home, args) {
   if (!parsed.values.dry && !parsed.values.force) {
     const freshness = digestFreshness(home);
     if (freshness.fresh) {
+      const reason = t("cli.daemon.skipped_fresh", { last: freshness.last_success_at });
+      recordDigestSkip(home, reason);
       return {
         missing: false,
         result: {
           ok: true,
           skipped_run: true,
-          reason: t("cli.daemon.skipped_fresh", { last: freshness.last_success_at }),
+          reason,
           last_success_at: freshness.last_success_at,
         },
       };

@@ -147,11 +147,21 @@ function readHealth(home) {
   };
 }
 
-export const DIGEST_FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const DIGEST_SCHEDULE_HOUR = 3;
+export const DIGEST_SCHEDULE_MINUTE = 30;
+
+// 가장 최근의 예약 슬롯(매일 03:30) 시각. now가 03:30 이전이면 전날 03:30.
+export function lastScheduledDigestAt(now = new Date()) {
+  const boundary = new Date(now);
+  boundary.setHours(DIGEST_SCHEDULE_HOUR, DIGEST_SCHEDULE_MINUTE, 0, 0);
+  if (boundary > now) boundary.setDate(boundary.getDate() - 1);
+  return boundary;
+}
 
 // anacron식 catch-up 게이트 — RunAtLoad(부팅/로그인)와 3:30 정기 실행이 공유한다.
-// 마지막 '성공' 소화(appendHealth의 exit 0 기록)가 24시간 이내면 이번 실행을 건너뛴다.
-export function digestFreshness(home, { windowMs = DIGEST_FRESH_WINDOW_MS } = {}) {
+// 가장 최근 예약 슬롯 이후에 이미 성공 소화가 있으면 이번 실행을 건너뛴다.
+// (고정 24h 윈도우는 종료시각 기록 vs 정시 발사의 수십초 차로 다음날 정기 실행을 항상 스킵시켰다.)
+export function digestFreshness(home, { now = new Date() } = {}) {
   const file = path.join(home, "daemon", "health.log");
   if (!fs.existsSync(file)) return { fresh: false, last_success_at: null, age_ms: null };
 
@@ -162,11 +172,13 @@ export function digestFreshness(home, { windowMs = DIGEST_FRESH_WINDOW_MS } = {}
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     try {
       const value = JSON.parse(lines[index]);
+      if (value.skipped_run) continue;
       if (value.exit !== 0) continue;
       const timestamp = Date.parse(value.at);
       if (!Number.isFinite(timestamp)) continue;
-      const age = Math.max(0, Date.now() - timestamp);
-      return { fresh: age < windowMs, last_success_at: value.at, age_ms: age };
+      const age = Math.max(0, now.getTime() - timestamp);
+      const fresh = timestamp >= lastScheduledDigestAt(now).getTime();
+      return { fresh, last_success_at: value.at, age_ms: age };
     } catch {
       // launchd가 남긴 비-JSON 출력은 건너뛴다.
     }
@@ -177,7 +189,7 @@ export function digestFreshness(home, { windowMs = DIGEST_FRESH_WINDOW_MS } = {}
 
 function nextDigestAt(now = new Date()) {
   const next = new Date(now);
-  next.setHours(3, 30, 0, 0);
+  next.setHours(DIGEST_SCHEDULE_HOUR, DIGEST_SCHEDULE_MINUTE, 0, 0);
   if (next <= now) next.setDate(next.getDate() + 1);
   return next.toISOString();
 }
@@ -689,6 +701,12 @@ function appendHealth(home, value) {
   const file = path.join(home, "daemon", "health.log");
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, `${JSON.stringify(value)}\n`, "utf8");
+}
+
+// 스킵도 health.log에 1줄 남긴다. exit 필드를 일부러 넣지 않는다 —
+// digestFreshness가 이 기록을 성공으로 오인해 게이트를 연장하면 안 된다.
+export function recordDigestSkip(home, reason) {
+  appendHealth(home, { at: new Date().toISOString(), skipped_run: true, reason });
 }
 
 const DIGEST_LOCK_STALE_MS = 3 * 60 * 60 * 1000;
