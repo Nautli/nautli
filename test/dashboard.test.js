@@ -438,9 +438,11 @@ test("dashboard onboarding copy keeps the inline hero and privacy contract", asy
 test("dashboard served script parses after template-literal unescaping (i18n regression gate)", async () => {
   const { HTML } = await import("../src/dashboard/public.js");
   assert.match(HTML, /T\("AI 추천"\)/u);
-  assert.match(HTML, /T\("추천대로 처리"\)/u);
+  assert.match(HTML, /T\("추천대로 A가 맞아요"\)/u);
+  assert.match(HTML, /T\("추천대로 B가 맞아요"\)/u);
+  assert.match(HTML, /어느 쪽을 골라도 지워지는 기억은 없어요/u);
   assert.match(HTML, /"AI 추천":"AI suggests"/u);
-  assert.match(HTML, /"추천대로 처리":"Accept suggestion"/u);
+  assert.match(HTML, /"추천대로 A가 맞아요":"Accept AI suggestion: A is right"/u);
   assert.match(HTML, /card\.newer==="a"\|\|card\.newer==="b"/u);
   assert.match(HTML, /recommended==="a"\?"a_wins":recommended==="b"\?"b_wins":null/u);
   assert.match(
