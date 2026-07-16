@@ -8,6 +8,7 @@ import { listCards } from "../src/core/review.js";
 import {
   DAEMON_LABEL,
   DASHBOARD_LABEL,
+  MENUBAR_LABEL,
   digestFreshness,
   initStore,
   installApp,
@@ -210,8 +211,11 @@ test("installApp installs dashboard service and app bundle", (t) => {
   const result = installApp(home, runner, { userHome, uid: 501 });
   assert.equal(result.ok, true);
   assert.equal(result.launcher, "script");
+  assert.equal(result.menubar, false);
   const plist = path.join(userHome, "Library", "LaunchAgents", `${DASHBOARD_LABEL}.plist`);
+  const menubarPlist = path.join(userHome, "Library", "LaunchAgents", `${MENUBAR_LABEL}.plist`);
   assert.ok(fs.existsSync(plist));
+  assert.ok(!fs.existsSync(menubarPlist));
   const plistBody = fs.readFileSync(plist, "utf8");
   assert.ok(plistBody.includes("<key>KeepAlive</key>"));
   assert.ok(plistBody.includes("--no-open"));
@@ -237,18 +241,31 @@ test("installApp installs and signs the native launcher when swiftc succeeds", (
 
   const result = installApp(home, runner, { userHome, uid: 501 });
   assert.equal(result.launcher, "native");
+  assert.equal(result.menubar, true);
   assert.ok(calls.some(([cmd]) => cmd === "codesign"));
   const exe = path.join(result.app, "Contents", "MacOS", "nautli");
   assert.equal(fs.readFileSync(exe, "utf8"), "FAKE_BINARY");
+  const menubarPlist = path.join(userHome, "Library", "LaunchAgents", `${MENUBAR_LABEL}.plist`);
+  assert.ok(fs.existsSync(menubarPlist));
+  assert.ok(fs.readFileSync(menubarPlist, "utf8").includes(
+    path.join(result.app, "Contents", "MacOS", "nautli-menubar"),
+  ));
+  assert.ok(calls.some(([cmd, sub, , file]) => (
+    cmd === "launchctl" && sub === "bootstrap" && file === menubarPlist
+  )));
 });
 
 test("uninstallApp removes service plist and app bundle", (t) => {
   const { home, userHome } = isolatedHome(t);
-  const runner = () => "";
+  const runner = (command, args) => {
+    if (command === "swiftc") fs.writeFileSync(args.at(-1), "FAKE_BINARY");
+    return "";
+  };
   installApp(home, runner, { userHome, uid: 501 });
   const result = uninstallApp(home, runner, { userHome, uid: 501 });
   assert.equal(result.ok, true);
   assert.ok(!fs.existsSync(path.join(userHome, "Library", "LaunchAgents", `${DASHBOARD_LABEL}.plist`)));
+  assert.ok(!fs.existsSync(path.join(userHome, "Library", "LaunchAgents", `${MENUBAR_LABEL}.plist`)));
   assert.ok(!fs.existsSync(path.join(userHome, "Applications", "nautli.app")));
 });
 

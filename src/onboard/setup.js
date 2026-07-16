@@ -17,6 +17,7 @@ import {
 
 export const DAEMON_LABEL = "com.nautli.daemon";
 export const DASHBOARD_LABEL = "com.nautli.dashboard";
+export const MENUBAR_LABEL = "com.nautli.menubar";
 export const DASHBOARD_PORT = 4600;
 const CLI_FILE = fileURLToPath(new URL("../cli.js", import.meta.url));
 const APP_ICON = fileURLToPath(
@@ -24,6 +25,9 @@ const APP_ICON = fileURLToPath(
 );
 const APP_SWIFT_SRC = fileURLToPath(
   new URL("../../assets/macapp/nautli-app.swift", import.meta.url),
+);
+const MENUBAR_SWIFT_SRC = fileURLToPath(
+  new URL("../../assets/macapp/nautli-menubar.swift", import.meta.url),
 );
 const DEFAULT_CONFIG = Object.freeze({
   default_scope: "person",
@@ -94,6 +98,12 @@ function userPaths(userHome) {
       "Library",
       "LaunchAgents",
       `${DASHBOARD_LABEL}.plist`,
+    ),
+    menubarPlist: path.join(
+      userHome,
+      "Library",
+      "LaunchAgents",
+      `${MENUBAR_LABEL}.plist`,
     ),
     app: path.join(userHome, "Applications", "nautli.app"),
   };
@@ -702,6 +712,20 @@ function dashboardPlist(home) {
 `;
 }
 
+function menubarPlist(home, appPath) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>${MENUBAR_LABEL}</string>
+  <key>ProgramArguments</key><array><string>${xml(`${appPath}/Contents/MacOS/nautli-menubar`)}</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>${xml(path.join(home, "daemon", "menubar.log"))}</string>
+  <key>StandardErrorPath</key><string>${xml(path.join(home, "daemon", "menubar.err"))}</string>
+</dict></plist>
+`;
+}
+
 function launcherScript() {
   return `#!/bin/bash
 # 서버는 launchd(${DASHBOARD_LABEL})가 상시 유지한다. 여기는 문만 연다.
@@ -819,7 +843,11 @@ export function installApp(
   }
 
   initStore(home);
-  const { dashboardPlist: plist, app } = userPaths(userHome);
+  const {
+    dashboardPlist: plist,
+    menubarPlist: menubarPlistFile,
+    app,
+  } = userPaths(userHome);
   fs.mkdirSync(path.dirname(plist), { recursive: true });
   fs.writeFileSync(plist, dashboardPlist(home), "utf8");
 
@@ -864,6 +892,17 @@ export function installApp(
       // swiftc 부재(Xcode CLT 미설치)·컴파일 실패 → 스크립트 폴백
     }
   }
+  // 메뉴바 상주: 리뷰 카드 대기 뱃지. 네이티브 툴체인 있을 때만(스크립트 폴백 환경은 생략).
+  let menubar = false;
+  if (launcher === "native" && fs.existsSync(MENUBAR_SWIFT_SRC)) {
+    const menubarExe = path.join(contents, "MacOS", "nautli-menubar");
+    try {
+      runnerText(runner, "swiftc", ["-O", "-framework", "Cocoa", MENUBAR_SWIFT_SRC, "-o", menubarExe]);
+      if (fs.existsSync(menubarExe)) menubar = true;
+    } catch {
+      // 메뉴바는 부가 기능 — 실패해도 설치를 막지 않는다
+    }
+  }
   if (launcher === "script") {
     fs.writeFileSync(executable, launcherScript(), { encoding: "utf8", mode: 0o755 });
   }
@@ -879,12 +918,35 @@ export function installApp(
     }
   }
 
+  if (menubar) {
+    fs.writeFileSync(menubarPlistFile, menubarPlist(home, app), "utf8");
+    try {
+      runnerText(runner, "launchctl", [
+        "bootout",
+        `gui/${uid}/${MENUBAR_LABEL}`,
+      ]);
+    } catch {
+      // 미로드 상태의 bootout 실패는 무시한다.
+    }
+    try {
+      runnerText(runner, "launchctl", [
+        "bootstrap",
+        `gui/${uid}`,
+        menubarPlistFile,
+      ]);
+    } catch {
+      // 메뉴바는 부가 기능 — 등록 실패해도 설치를 막지 않는다.
+      menubar = false;
+    }
+  }
+
   return {
     ok: true,
     service: { label: DASHBOARD_LABEL, plist },
     app,
     port: DASHBOARD_PORT,
     launcher,
+    menubar,
   };
 }
 
@@ -897,7 +959,11 @@ export function uninstallApp(
   } = {},
 ) {
   void home;
-  const { dashboardPlist: plist, app } = userPaths(userHome);
+  const {
+    dashboardPlist: plist,
+    menubarPlist: menubarPlistFile,
+    app,
+  } = userPaths(userHome);
   const removed = {
     plist: fs.existsSync(plist),
     app: fs.existsSync(app),
@@ -912,7 +978,17 @@ export function uninstallApp(
     // 미로드 상태의 bootout 실패는 무시한다.
   }
 
+  try {
+    runnerText(runner, "launchctl", [
+      "bootout",
+      `gui/${uid}/${MENUBAR_LABEL}`,
+    ]);
+  } catch {
+    // 미로드 상태의 bootout 실패는 무시한다.
+  }
+
   fs.rmSync(plist, { force: true });
+  fs.rmSync(menubarPlistFile, { force: true });
   fs.rmSync(app, { recursive: true, force: true });
   return { ok: true, removed };
 }
