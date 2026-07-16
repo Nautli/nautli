@@ -1,0 +1,304 @@
+{
+  "ogLocale": "ko_KR",
+  "meta": {
+    "index": {
+      "title": "nautli | 내 디스크에 사는 AI 공용 기억",
+      "description": "Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. AI는 묻고, 당신이 정합니다."
+    },
+    "manifesto": {
+      "title": "신조 | nautli",
+      "description": "AI 기억이 내 디스크에 남아야 하는 이유와 기록을 지키는 nautli의 원칙을 설명합니다."
+    },
+    "install": {
+      "title": "설치 | nautli",
+      "description": "macOS에 nautli를 설치하고, 바뀌는 파일을 확인하고, 빈 폴더에서 기억 검진을 시험합니다."
+    },
+    "faq": {
+      "title": "자주 묻는 질문 | nautli",
+      "description": "전송 범위, Claude 판정, 옵시디언 안전, 제거, 가격과 Supporter에 답합니다."
+    },
+    "c": {
+      "title": "기억 건강검진 | nautli",
+      "description": "노트 내용 없이 숫자만 담아 로컬에서 만든 nautli 기억 건강검진 결과입니다."
+    }
+  },
+  "common": {
+    "home": "홈",
+    "primaryNav": "주요 메뉴",
+    "footerNav": "하단 메뉴",
+    "manifesto": "신조",
+    "install": "설치",
+    "faq": "자주 묻는 질문",
+    "themeToDark": "어두운 테마 사용",
+    "themeToLight": "밝은 테마 사용",
+    "license": "MIT 라이선스 오픈 소스",
+    "copy": "복사",
+    "copyAll": "모두 복사",
+    "copySuccess": "복사했습니다",
+    "copyFailure": "복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요.",
+    "copyPrompt": "이 명령을 직접 복사해 주세요:",
+    "skip": "본문으로 건너뛰기"
+  },
+  "home": {
+    "eyebrow": "Open source · MIT · Local-first",
+    "h1": "AI들이 함께 쓰는 기억, 네 디스크에 산다",
+    "subline": "AI는 묻고, 당신이 정합니다.",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ],
+    "trustLine": "당신의 노트는 nautli 서버에 닿지 않습니다 · 몰래 고치지 않음 · MIT · macOS",
+    "creedLocal": "모델은 스쳐가도, 당신의 기억은 남는다",
+    "boundaryLabel": "데이터 경계",
+    "boundaryTitle": "nautli가 읽는 것, 쓰는 것, 보내는 것",
+    "boundaries": [
+      {
+        "title": "읽는 것",
+        "lines": [
+          "당신이 고른 폴더만",
+          "선택한 범위의 마크다운 노트",
+          "최상위 폴더는 제외 가능",
+          "건강검진은 원본 노트를 수정하지 않음"
+        ]
+      },
+      {
+        "title": "쓰는 것",
+        "lines": [
+          "~/.nautli 아래 기억 파일",
+          "켰을 때만 표시된 지시문 블록 하나",
+          "켰을 때만 MCP와 launchd 설정",
+          "연결마다 제거 방법 제공"
+        ],
+        "link": {
+          "href": "/ko/install.html",
+          "label": "파일 목록과 제거 방법 보기"
+        }
+      },
+      {
+        "title": "보내는 것",
+        "lines": [
+          "nautli 서버로 보내는 노트 내용: 없음",
+          "본인 Claude 구독을 거쳐 Anthropic으로 가는 판정 프롬프트",
+          "선택 수집은 기본으로 꺼짐",
+          "공유 검진에는 노트가 아닌 숫자만 포함"
+        ]
+      }
+    ],
+    "trustLabel": "직접 확인하기",
+    "trustTitle": "눈으로 확인할 수 있는 신뢰 경계",
+    "trustCards": [
+      {
+        "title": "노트는 nautli 서버로 가지 않습니다",
+        "body": "로컬 저장소, 이벤트 로그, 리포트는 ~/.nautli에 남습니다. nautli 실행 중 연결을 직접 확인할 수 있습니다.",
+        "command": "lsof -i -n -P | grep -i nautli",
+        "href": "https://github.com/Nautli/nautli#data-boundary",
+        "link": "데이터 경계 읽기"
+      },
+      {
+        "title": "파일이 정본으로 남습니다",
+        "body": "사실과 변경 이력은 로컬 파일에 남습니다. 검색 인덱스는 그 파일로 다시 만들 수 있습니다.",
+        "command": "find ~/.nautli -maxdepth 2 -type f | sort",
+        "href": "https://github.com/Nautli/nautli#architecture",
+        "link": "구조 확인하기"
+      },
+      {
+        "title": "애매하면 질문이 됩니다",
+        "body": "모순은 리뷰 대기열에 올라갑니다. 당신이 답해야 결정이 현재 사실로 반영됩니다.",
+        "command": "nautli review",
+        "href": "https://github.com/Nautli/nautli/tree/main/src/daemon",
+        "link": "리뷰 흐름 확인하기"
+      }
+    ],
+    "factIntro": "사실 하나에는 주장, 출처, 대체한 결정이 함께 남습니다.",
+    "fact": [
+      ["fact_id", "042"],
+      ["claim", "인증은 RS256 JWT를 쓰며 30일마다 키를 교체함"],
+      ["source", "claude-code · 2026-06-14 · project:api"],
+      ["supersedes", "fact_id: 019"]
+    ],
+    "howLabel": "작동 방식",
+    "howTitle": "AI는 물을 수 있습니다. 기록을 정하는 건 당신입니다.",
+    "howIntro": "밤새 nautli가 모순을 질문으로 올립니다. Claude Code, Codex, Cursor는 승인된 같은 기억을 읽습니다. 당신이 정하기 전에는 어떤 기록도 몰래 바꾸지 않습니다.",
+    "beforeTitle": "nautli가 없을 때",
+    "before": [
+      {
+        "speaker": "Claude Code",
+        "text": "로컬 개발은 PostgreSQL을 씁니다."
+      },
+      {
+        "speaker": "Cursor",
+        "text": "로컬 개발은 SQLite를 씁니다."
+      },
+      {
+        "speaker": "당신",
+        "text": "지금 결정은 어느 쪽이지?"
+      }
+    ],
+    "afterTitle": "nautli가 있을 때",
+    "after": [
+      {
+        "speaker": "nautli",
+        "text": "PostgreSQL과 SQLite가 충돌합니다. 결정이 바뀌었나요?",
+        "added": true
+      },
+      {
+        "speaker": "당신",
+        "text": "네. SQLite가 PostgreSQL을 대체합니다.",
+        "added": true
+      },
+      {
+        "speaker": "연결된 모든 AI",
+        "text": "현재 결정은 SQLite입니다. PostgreSQL은 이력에 남습니다.",
+        "added": true
+      }
+    ],
+    "checkLabel": "기억 건강검진",
+    "checkTitle": "네 볼트, 몇 점?",
+    "checkIntro": "아무것도 가져오기 전에 실제 모순, 시간이 지나 바뀐 결정, 중복을 확인하세요.",
+    "emptyState": "nautli checkup을 실행하면 이 카드가 채워집니다.",
+    "reviews": [
+      {
+        "type": "진짜 모순",
+        "title": "현재 포트가 두 개",
+        "body": "한 노트에는 API 포트가 3000, 다른 현재 노트에는 4000이라고 적혀 있습니다.",
+        "note": "nautli가 어느 주장이 현재인지 묻습니다. 스스로 어느 쪽도 반영하지 않습니다."
+      },
+      {
+        "type": "바뀐 결정",
+        "title": "PostgreSQL에서 SQLite로",
+        "body": "나중에 쓴 노트가 이전 데이터베이스 결정을 명시적으로 대체합니다.",
+        "note": "오류가 아니라 기록입니다. 새 사실이 이전 사실을 지우지 않고 대체합니다."
+      },
+      {
+        "type": "단순 중복",
+        "title": "같은 재시도 규칙 두 번",
+        "body": "두 노트가 같은 범위와 의미로 동일한 재시도 횟수를 말합니다.",
+        "note": "합치기 전에 리뷰에서 두 출처를 모두 보여줍니다."
+      }
+    ],
+    "formula": "점수 산식 보기",
+    "compareLabel": "비교",
+    "compareTitle": "호스팅 기억 계층과 nautli",
+    "compareHeaders": ["", "호스팅 기억 계층", "nautli"],
+    "compareRows": [
+      ["전송", "기억이 호스팅 서비스로 전송될 수 있음", "노트는 nautli 서버로 가지 않음"],
+      ["정본", "서비스가 관리하는 저장소", "~/.nautli 아래 파일"],
+      ["판정 주체", "서비스 정책 또는 모델", "리뷰 질문에 답하는 당신"]
+    ],
+    "supporterTitle": "작업을 후원하기",
+    "supporterBody": "코어는 MIT 라이선스로 남습니다. 후원자 이름은 명시적으로 동의했을 때만 공개합니다.",
+    "supporterLink": "Supporter 되기",
+    "discordTitle": "관리자와 이야기하기",
+    "discordBody": "구현 질문과 프로젝트 논의는 Discord에서 나눌 수 있습니다.",
+    "discordLink": "Discord 열기"
+  },
+  "manifesto": {
+    "eyebrow": "신조",
+    "creedLocal": "모델은 스쳐가도, 당신의 기억은 남는다",
+    "tableLabel": "우리가 지키는 경계",
+    "doTitle": "우리가 하는 것",
+    "dontTitle": "우리가 하지 않는 것",
+    "rows": [
+      ["출처와 함께 사실을 덧붙입니다", "원본 노트를 대신 바꾸지 않습니다"],
+      ["모순을 리뷰 질문으로 올립니다", "몰래 한쪽을 고르지 않습니다"],
+      ["대체된 사실의 이력을 보존합니다", "인덱스를 정리하려고 과거를 지우지 않습니다"],
+      ["저장소를 당신의 디스크에 둡니다", "호스팅 계정을 정본으로 만들지 않습니다"]
+    ],
+    "essay": [
+      "AI 모델은 6개월마다 바뀐다. 네 결정은 아니다.",
+      "모델은 바꿔 쓸 수 있는 도구입니다. 일의 배경과 제약, 그 안에서 내린 결정은 당신의 것입니다. 새 모델과 새 편집기, 새 구독 뒤에도 남아야 합니다.",
+      "nautli는 연결된 AI들에게 하나의 로컬 기록을 제공합니다. 사실마다 출처가 남습니다. 두 주장이 어긋나면 과거를 조용히 고치는 대신 질문을 올립니다.",
+      "당신의 답이 현재 사실이 됩니다. 이전 사실도 이력에 남기 때문에 바뀐 결정은 오류가 아니라 과정으로 읽힙니다.",
+      "기억은 옮길 수 있고, 들여다볼 수 있고, 그 기억이 가리키는 일을 한 사람이 다스릴 수 있어야 합니다. nautli는 이 경계를 지킵니다."
+    ]
+  },
+  "install": {
+    "eyebrow": "설치",
+    "title": "눈으로 확인할 수 있는 로컬 저장소부터",
+    "intro": "저장소를 만든 다음, 다른 연결을 켜기 전에 고른 폴더를 먼저 검진할 수 있습니다.",
+    "requirementsLabel": "요구사항",
+    "requirements": [
+      ["Node.js", "20 이상"],
+      ["운영체제", "자동 야간 launchd 작업은 macOS 지원"],
+      ["Claude Code CLI", "중복과 모순 판정을 위해 설치와 로그인 필요"],
+      ["Python 3", "기억 건강검진 단계에 필요"],
+      ["다른 운영체제", "Node.js가 있으면 코어 CLI와 MCP 서버 실행 가능, daemon-run은 직접 예약"]
+    ],
+    "commandsLabel": "명령",
+    "commandsTitle": "설치하고, 만들고, 확인하기",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ],
+    "changesLabel": "변경 사항",
+    "changesTitle": "당신이 통제하는 파일과 설정",
+    "fileHeader": "파일 또는 설정",
+    "changeHeader": "바뀌는 것",
+    "undoHeader": "되돌리는 법",
+    "changes": [
+      ["~/.nautli/", "init이 로컬 저장소, 설정, 인덱스, 리포트를 이곳에 만듦", "필요한 내용을 백업한 뒤 이 폴더 제거"],
+      ["~/.claude.json", "Claude Code 연결을 켰을 때만 MCP 등록 추가", "claude mcp remove -s user nautli"],
+      ["~/.claude/CLAUDE.md", "켰을 때만 표시가 있는 nautli 지시문 블록 하나 추가", "nautli setup --step remove-instructions"],
+      ["~/Library/LaunchAgents/com.nautli.daemon.plist", "켰을 때만 macOS 야간 작업 추가", "nautli setup --step uninstall-daemon"],
+      ["Cursor mcp.json", "nautli는 설정 조각만 제공하며 직접 붙여넣어야 함", "직접 넣은 nautli 항목 제거"]
+    ],
+    "undoNote": "위 세 명령은 ~/.nautli만 만듭니다. AI 연결과 야간 작업은 별도 설정 단계에서 동의해야 추가됩니다.",
+    "testLabel": "안전한 시험",
+    "testTitle": "먼저 빈 폴더로 시험하세요",
+    "testBody": "개인 노트나 업무 노트를 가리키기 전에 빈 폴더에서 결과 형태부터 확인할 수 있습니다.",
+    "helpTitle": "막히는 곳이 있다면",
+    "helpBody": "nautli doctor를 실행한 뒤 민감하지 않은 결과를 GitHub Issues에 올리거나 Discord에서 물어보세요."
+  },
+  "faq": {
+    "eyebrow": "자주 묻는 질문",
+    "title": "설치 전에 물어볼 만한 것들",
+    "intro": "짧게 말하면 저장소는 로컬에 있고, 판정은 눈에 보이며, 모든 연결은 제거할 수 있습니다.",
+    "items": [
+      {
+        "question": "내 컴퓨터 밖으로 무엇이 나가나요?",
+        "answer": "노트는 nautli 서버로 가지 않습니다. 중복과 모순을 판정하는 프롬프트는 본인의 Claude 구독을 거쳐 Anthropic으로 갑니다. 선택 수집은 기본으로 꺼져 있습니다."
+      },
+      {
+        "question": "판정할 때 Claude로 무엇을 보내나요?",
+        "answer": "중복과 모순 후보 사실을 비교하는 데 필요한 텍스트를 보냅니다. 볼트 전체를 보내지 않습니다. 판정에 실패하거나 애매하면 아무것도 하지 않거나 리뷰 질문으로 올립니다."
+      },
+      {
+        "question": "건강검진이 옵시디언 볼트를 바꾸나요?",
+        "answer": "아니요. 건강검진은 당신이 고른 폴더의 마크다운 노트를 읽지만 원본을 수정하지 않습니다. 시작 전에 최상위 폴더를 제외할 수 있습니다. 발견 내용을 가져와도 ~/.nautli에 쓸 뿐 볼트에 되쓰지 않습니다."
+      },
+      {
+        "question": "nautli를 어떻게 제거하나요?",
+        "answer": "nautli setup --step remove-instructions로 표시된 지시문 블록을 지우고, nautli setup --step uninstall-daemon으로 야간 작업을 제거한 다음 MCP 등록을 지우세요. 로컬 기억이 더 필요 없다면 백업 후 ~/.nautli를 삭제할 수 있습니다."
+      },
+      {
+        "question": "가격과 Supporter는 어떻게 되나요?",
+        "answer": "코어는 MIT 라이선스 오픈 소스입니다. Supporter 후원은 유지보수에 쓰입니다. 이름 공개는 선택이며 명시적으로 동의하기 전에는 꺼져 있습니다."
+      }
+    ]
+  },
+  "share": {
+    "emptyLabel": "기억 건강검진",
+    "emptyTitle": "이 링크에는 결과가 없습니다",
+    "emptyBody": "URL에 숫자로 된 검진 항목이 있을 때만 공유 결과를 표시합니다. 노트 텍스트는 받지 않습니다.",
+    "resultLabel": "로컬에서 생성됨",
+    "title": "기억 건강검진",
+    "scoreSuffix": " / 100",
+    "metrics": [
+      {"key": "notes", "label": "확인한 노트"},
+      {"key": "contradictions", "label": "모순"},
+      {"key": "duplicates", "label": "중복 묶음"},
+      {"key": "reviews", "label": "리뷰 카드"}
+    ],
+    "resultNote": "이 카드에는 숫자만 있습니다. 노트 내용은 소유자의 컴퓨터에 남습니다.",
+    "turnLabel": "당신 차례",
+    "turnTitle": "내 기억을 직접 확인하세요",
+    "turnBody": "건강검진은 로컬에서 실행됩니다. 폴더도, 가져올 내용도 당신이 고릅니다.",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ]
+  }
+}

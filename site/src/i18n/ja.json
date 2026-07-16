@@ -1,0 +1,304 @@
+{
+  "ogLocale": "ja_JP",
+  "meta": {
+    "index": {
+      "title": "nautli | ディスクに置くAI共通メモリ",
+      "description": "Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。AIは尋ね、あなたが決める。"
+    },
+    "manifesto": {
+      "title": "マニフェスト | nautli",
+      "description": "AIの記憶を自分のディスクに置き、履歴を残し、判断を人に委ねる理由を説明します。"
+    },
+    "install": {
+      "title": "インストール | nautli",
+      "description": "macOSにnautliを入れ、変更されるファイルを確認し、空のフォルダで記憶診断を試します。"
+    },
+    "faq": {
+      "title": "よくある質問 | nautli",
+      "description": "データ送信、Claudeによる判定、Obsidianの安全性、削除、料金、Supporterについて答えます。"
+    },
+    "c": {
+      "title": "記憶診断 | nautli",
+      "description": "ノート本文を含まず、数値だけを載せたローカル生成のnautli記憶診断結果です。"
+    }
+  },
+  "common": {
+    "home": "ホーム",
+    "primaryNav": "メインナビゲーション",
+    "footerNav": "フッターナビゲーション",
+    "manifesto": "マニフェスト",
+    "install": "インストール",
+    "faq": "よくある質問",
+    "themeToDark": "ダークテーマを使う",
+    "themeToLight": "ライトテーマを使う",
+    "license": "MITライセンスのオープンソース",
+    "copy": "コピー",
+    "copyAll": "すべてコピー",
+    "copySuccess": "コピーしました",
+    "copyFailure": "コピーできませんでした。コマンドを選択して手動でコピーしてください。",
+    "copyPrompt": "このコマンドを手動でコピーしてください:",
+    "skip": "本文へ移動"
+  },
+  "home": {
+    "eyebrow": "Open source · MIT · Local-first",
+    "h1": "AIをまたぐ記憶を、あなたのディスクに",
+    "subline": "AIは尋ね、あなたが決める。",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ],
+    "trustLine": "ノートがnautliのサーバーへ送られることはありません · 無断で書き換えない · MIT · macOS",
+    "creedLocal": "モデルが変わっても、あなたの記憶は残る。",
+    "boundaryLabel": "データ境界",
+    "boundaryTitle": "nautliが読むもの、書くもの、送るもの",
+    "boundaries": [
+      {
+        "title": "読むもの",
+        "lines": [
+          "あなたが選んだフォルダだけ",
+          "選択範囲にあるMarkdownノート",
+          "最上位フォルダは除外可能",
+          "診断は元のノートを変更しない"
+        ]
+      },
+      {
+        "title": "書くもの",
+        "lines": [
+          "~/.nautli配下の記憶ファイル",
+          "有効にした場合だけ、印付きの指示ブロックを1つ",
+          "有効にした場合だけMCPとlaunchdの設定",
+          "各連携に削除手順を用意"
+        ],
+        "link": {
+          "href": "/ja/install.html",
+          "label": "ファイルと削除手順を見る"
+        }
+      },
+      {
+        "title": "送るもの",
+        "lines": [
+          "nautliのサーバーへ送るノート本文: なし",
+          "自分のClaude契約を通してAnthropicへ送る判定プロンプト",
+          "任意の情報収集は初期状態でオフ",
+          "共有診断に含むのはノートではなく数値だけ"
+        ]
+      }
+    ],
+    "trustLabel": "自分で確かめる",
+    "trustTitle": "目で追える信頼の境界",
+    "trustCards": [
+      {
+        "title": "ノートはnautliのサーバーへ送られません",
+        "body": "ローカルストア、イベントログ、レポートは~/.nautliに残ります。実行中の接続も自分で確認できます。",
+        "command": "lsof -i -n -P | grep -i nautli",
+        "href": "https://github.com/Nautli/nautli#data-boundary",
+        "link": "データ境界を読む"
+      },
+      {
+        "title": "ファイルが正本です",
+        "body": "事実と変更履歴はローカルファイルに残ります。検索インデックスはそのファイルから再構築できます。",
+        "command": "find ~/.nautli -maxdepth 2 -type f | sort",
+        "href": "https://github.com/Nautli/nautli#architecture",
+        "link": "構造を確認する"
+      },
+      {
+        "title": "曖昧なら質問になります",
+        "body": "矛盾はレビューューに入ります。あなたが答えた後で、その判断が現在の事実になります。",
+        "command": "nautli review",
+        "href": "https://github.com/Nautli/nautli/tree/main/src/daemon",
+        "link": "レビュー経路を確認する"
+      }
+    ],
+    "factIntro": "事実には主張、出典、置き換えた判断が一緒に残ります。",
+    "fact": [
+      ["fact_id", "042"],
+      ["claim", "認証はRS256 JWTを使い、鍵は30日ごとに更新する"],
+      ["source", "claude-code · 2026-06-14 · project:api"],
+      ["supersedes", "fact_id: 019"]
+    ],
+    "howLabel": "仕組み",
+    "howTitle": "AIは質問できる。記録を確定するのはあなたです。",
+    "howIntro": "夜の間にnautliが矛盾を質問として提示します。Claude Code、Codex、Cursorは承認済みの同じ記憶を読みます。あなたが決めるまで、記録を無断で書き換えることはありません。",
+    "beforeTitle": "nautliがない場合",
+    "before": [
+      {
+        "speaker": "Claude Code",
+        "text": "ローカル開発ではPostgreSQLを使います。"
+      },
+      {
+        "speaker": "Cursor",
+        "text": "ローカル開発ではSQLiteを使います。"
+      },
+      {
+        "speaker": "あなた",
+        "text": "今の判断はどちらだろう?"
+      }
+    ],
+    "afterTitle": "nautliがある場合",
+    "after": [
+      {
+        "speaker": "nautli",
+        "text": "PostgreSQLとSQLiteが競合しています。判断を変更しましたか?",
+        "added": true
+      },
+      {
+        "speaker": "あなた",
+        "text": "はい。SQLiteがPostgreSQLを置き換えます。",
+        "added": true
+      },
+      {
+        "speaker": "接続したすべてのAI",
+        "text": "現在の判断はSQLiteです。PostgreSQLは履歴に残ります。",
+        "added": true
+      }
+    ],
+    "checkLabel": "記憶診断",
+    "checkTitle": "あなたの保管庫は何点?",
+    "checkIntro": "何かを取り込む前に、実際の矛盾、時間とともに変わった判断、重複を確認できます。",
+    "emptyState": "nautli checkupを実行すると、このカードに結果が入ります。",
+    "reviews": [
+      {
+        "type": "本当の矛盾",
+        "title": "現在のポートが2つ",
+        "body": "一方のノートにはAPIポートが3000、別の現行ノートには4000とあります。",
+        "note": "nautliはどちらが現在の主張かを尋ねます。自動ではどちらも適用しません。"
+      },
+      {
+        "type": "変わった判断",
+        "title": "PostgreSQLからSQLiteへ",
+        "body": "後のノートが以前のデータベース判断を明示的に置き換えています。",
+        "note": "これはエラーではなく履歴です。新しい事実は古い事実を消さずに置き換えます。"
+      },
+      {
+        "type": "単純な重複",
+        "title": "同じ再試行ルールが2つ",
+        "body": "2つのノートが同じ範囲と意味で、同じ再試行回数を示しています。",
+        "note": "統合する前に、レビューで両方の出典を表示します。"
+      }
+    ],
+    "formula": "採点式を見る",
+    "compareLabel": "比較",
+    "compareTitle": "ホステッド記憶レイヤーとnautli",
+    "compareHeaders": ["", "ホステッド記憶レイヤー", "nautli"],
+    "compareRows": [
+      ["送信", "記憶がホステッドサービスへ送られる場合がある", "ノートはnautliのサーバーへ送られない"],
+      ["正本", "サービス管理のストア", "~/.nautli配下のファイル"],
+      ["判断する人", "サービスの方針またはモデル", "レビュー質問に答えるあなた"]
+    ],
+    "supporterTitle": "開発を支える",
+    "supporterBody": "コアはMITライセンスのままです。支援者名は明示的に希望した場合だけ掲載します。",
+    "supporterLink": "Supporterになる",
+    "discordTitle": "メンテナーと話す",
+    "discordBody": "実装の質問やプロジェクトの相談はDiscordで受け付けています。",
+    "discordLink": "Discordを開く"
+  },
+  "manifesto": {
+    "eyebrow": "マニフェスト",
+    "creedLocal": "モデルが変わっても、あなたの記憶は残る。",
+    "tableLabel": "守る境界",
+    "doTitle": "すること",
+    "dontTitle": "しないこと",
+    "rows": [
+      ["出典と一緒に事実を追加する", "元のノートを代わりに書き換える"],
+      ["矛盾をレビュー質問として提示する", "無断で片方を選ぶ"],
+      ["置き換えられた履歴を残す", "インデックスを整えるために過去を消す"],
+      ["ストアをあなたのディスクに置く", "ホステッドアカウントを正本にする"]
+    ],
+    "essay": [
+      "AIモデルは6か月ごとに変わる。あなたの判断は違う。",
+      "モデルは交換できる道具です。仕事の背景、制約、その中で下した判断はあなたのものです。新しいモデルやエディタ、契約に変わっても残るべきです。",
+      "nautliは接続したAIに1つのローカル記録を提供します。事実ごとに出典が残ります。2つの主張が食い違えば、過去を静かに書き換えず質問を提示します。",
+      "あなたの答えが現在の事実になります。以前の事実も履歴に残るため、変更した判断はエラーではなく過程として読めます。",
+      "記憶は持ち運べて、中身を確認できて、その仕事をした人が管理できるべきです。nautliはこの境界を守ります。"
+    ]
+  },
+  "install": {
+    "eyebrow": "インストール",
+    "title": "確認できるローカルストアから始める",
+    "intro": "ストアを作り、追加の連携を有効にする前に、選んだフォルダを診断できます。",
+    "requirementsLabel": "必要なもの",
+    "requirements": [
+      ["Node.js", "20以上"],
+      ["OS", "自動の夜間launchdジョブはmacOS対応"],
+      ["Claude Code CLI", "重複と矛盾の判定にはインストールとログインが必要"],
+      ["Python 3", "記憶診断の手順で必要"],
+      ["その他のOS", "Node.jsが動けばコアCLIとMCPサーバーは実行可能。daemon-runは自分で定期実行"]
+    ],
+    "commandsLabel": "コマンド",
+    "commandsTitle": "入れる、作る、確かめる",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ],
+    "changesLabel": "変更内容",
+    "changesTitle": "自分で管理できるファイルと設定",
+    "fileHeader": "ファイルまたは設定",
+    "changeHeader": "変更内容",
+    "undoHeader": "元に戻す方法",
+    "changes": [
+      ["~/.nautli/", "initがローカルストア、設定、インデックス、レポートをここに作成", "必要なものをバックアップしてから、このフォルダを削除"],
+      ["~/.claude.json", "Claude Code連携を有効にした場合だけMCP登録を追加", "claude mcp remove -s user nautli"],
+      ["~/.claude/CLAUDE.md", "有効にした場合だけ、印付きのnautli指示ブロックを1つ追加", "nautli setup --step remove-instructions"],
+      ["~/Library/LaunchAgents/com.nautli.daemon.plist", "有効にした場合だけmacOSの夜間ジョブを追加", "nautli setup --step uninstall-daemon"],
+      ["Cursor mcp.json", "nautliは設定スニペットを表示し、自分で貼り付ける", "追加したnautli項目を削除"]
+    ],
+    "undoNote": "上の3コマンドが作るのは~/.nautliだけです。AI連携と夜間ジョブは別の設定手順で同意した場合だけ追加されます。",
+    "testLabel": "安全な試用",
+    "testTitle": "まず空のフォルダで試す",
+    "testBody": "個人や仕事のノートを指定する前に、空のフォルダで結果の形を確認できます。",
+    "helpTitle": "うまく進まない場合",
+    "helpBody": "nautli doctorを実行し、機密情報を除いた結果をGitHub Issuesに投稿するか、Discordで質問してください。"
+  },
+  "faq": {
+    "eyebrow": "よくある質問",
+    "title": "インストール前に確かめたいこと",
+    "intro": "要点は、ストアはローカル、判定は見える形で行われ、すべての連携を削除できることです。",
+    "items": [
+      {
+        "question": "自分の端末から何が送られますか?",
+        "answer": "ノートはnautliのサーバーへ送られません。重複と矛盾を判定するプロンプトは、自分のClaude契約を通してAnthropicへ送られます。任意の情報収集は初期状態でオフです。"
+      },
+      {
+        "question": "Claudeでの判定には何を送りますか?",
+        "answer": "重複や矛盾の候補となる事実を比較するために必要なテキストを送ります。保管庫全体は送りません。判定に失敗した場合や曖昧な場合は、何もしないかレビュー質問にします。"
+      },
+      {
+        "question": "診断でObsidian保管庫が変わりますか?",
+        "answer": "変わりません。診断は選んだフォルダのMarkdownノートを読みますが、元のノートは変更しません。開始前に最上位フォルダを除外できます。結果を取り込んでも~/.nautliへ書くだけで、保管庫へは書き戻しません。"
+      },
+      {
+        "question": "nautliを削除するには?",
+        "answer": "nautli setup --step remove-instructionsで印付きの指示ブロックを削除し、nautli setup --step uninstall-daemonで夜間ジョブを削除してから、MCP登録を外します。ローカル記憶が不要なら、バックアップ後に~/.nautliを削除できます。"
+      },
+      {
+        "question": "料金とSupporterについて教えてください",
+        "answer": "コアはMITライセンスのオープンソースです。Supporterの支援はメンテナンスに使われます。名前の公開は任意で、明示的に希望するまではオフです。"
+      }
+    ]
+  },
+  "share": {
+    "emptyLabel": "記憶診断",
+    "emptyTitle": "このリンクには結果がありません",
+    "emptyBody": "URLに数値の診断項目がある場合だけ共有結果を表示します。ノート本文は受け付けません。",
+    "resultLabel": "ローカルで生成",
+    "title": "記憶診断",
+    "scoreSuffix": " / 100",
+    "metrics": [
+      {"key": "notes", "label": "確認したノート"},
+      {"key": "contradictions", "label": "矛盾"},
+      {"key": "duplicates", "label": "重複グループ"},
+      {"key": "reviews", "label": "レビューカード"}
+    ],
+    "resultNote": "このカードに含まれるのは数値だけです。ノート本文は所有者の端末に残ります。",
+    "turnLabel": "次はあなた",
+    "turnTitle": "自分の記憶を確かめる",
+    "turnBody": "診断はローカルで動きます。フォルダも、取り込む内容も自分で選べます。",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ]
+  }
+}
