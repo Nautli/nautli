@@ -1024,3 +1024,8 @@ tbody th {
     scroll-behavior: auto;
   }
 }
+
+.stats-strip { display: flex; flex-wrap: wrap; gap: 12px 28px; list-style: none; padding: 20px 0 0; margin: 0; }
+.stats-strip li { display: flex; flex-direction: column; gap: 2px; }
+.stats-strip strong { font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.stats-strip span { font-size: 13px; color: var(--text-dim); }

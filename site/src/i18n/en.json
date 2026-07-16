@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "95% fewer memory tokens. No more coin-flip answers.",
+    "h1": "95% fewer memory tokens. No hallucinations from conflicting notes.",
     "subline": "Private memory on your disk, shared across Claude, Codex, and Cursor, organized every night.",
     "commands": [
       "npm i -g nautli",
@@ -219,7 +219,25 @@
     "supporterLink": "Become a Supporter",
     "discordTitle": "Talk with maintainers",
     "discordBody": "Use Discord for implementation questions and project discussion.",
-    "discordLink": "Open Discord"
+    "discordLink": "Open Discord",
+    "stats": [
+      [
+        "95%",
+        "fewer memory tokens per session"
+      ],
+      [
+        "11%",
+        "of your context window returned"
+      ],
+      [
+        "0 min",
+        "to onboard a new AI"
+      ],
+      [
+        "3 cards",
+        "a day is all it asks"
+      ]
+    ]
   },
   "manifesto": {
     "eyebrow": "Manifesto",

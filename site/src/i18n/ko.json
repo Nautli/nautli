@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "메모리 토큰은 95% 줄고, 복불복 답변은 사라집니다.",
+    "h1": "메모리 토큰은 95% 줄고, 기억이 만들던 할루시네이션은 사라집니다.",
     "subline": "디스크에 사는 프라이빗 메모리. Claude, Codex, Cursor가 함께 읽고, 매일 밤 정리됩니다.",
     "commands": [
       "npm i -g nautli",
@@ -219,7 +219,25 @@
     "supporterLink": "Supporter 되기",
     "discordTitle": "관리자와 이야기하기",
     "discordBody": "구현 질문과 프로젝트 논의는 Discord에서 나눌 수 있습니다.",
-    "discordLink": "Discord 열기"
+    "discordLink": "Discord 열기",
+    "stats": [
+      [
+        "95%",
+        "세션당 메모리 토큰 절감"
+      ],
+      [
+        "11%",
+        "돌려받는 컨텍스트 창"
+      ],
+      [
+        "0분",
+        "새 AI 온보딩"
+      ],
+      [
+        "3장",
+        "하루에 답할 질문 카드"
+      ]
+    ]
   },
   "manifesto": {
     "eyebrow": "신조",

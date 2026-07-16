@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "メモリのトークンを95%削減。運まかせの回答をゼロに。",
+    "h1": "メモリのトークンを95%削減。記憶の食い違いによるハルシネーションをゼロに。",
     "subline": "ディスクに住むプライベートメモリ。Claude、Codex、Cursorが共有し、毎晩整理されます。",
     "commands": [
       "npm i -g nautli",
@@ -219,7 +219,25 @@
     "supporterLink": "Supporterになる",
     "discordTitle": "メンテナーと話す",
     "discordBody": "実装の質問やプロジェクトの相談はDiscordで受け付けています。",
-    "discordLink": "Discordを開く"
+    "discordLink": "Discordを開く",
+    "stats": [
+      [
+        "95%",
+        "セッションあたりのメモリトークン削減"
+      ],
+      [
+        "11%",
+        "取り戻せるコンテキスト"
+      ],
+      [
+        "0分",
+        "新しいAIのオンボーディング"
+      ],
+      [
+        "3枚",
+        "1日に答える質問カード"
+      ]
+    ]
   },
   "manifesto": {
     "eyebrow": "マニフェスト",

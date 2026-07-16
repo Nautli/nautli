@@ -102,6 +102,7 @@ function homePage(locale, copy) {
       </div>
       ${commandBlock(commands, copy, "hero-commands")}
       <p class="trust-line">🔒 ${escapeHtml(h.trustLine)}</p>
+      ${Array.isArray(h.stats) && h.stats.length ? `<ul class="stats-strip">${h.stats.map((st) => `<li><strong>${escapeHtml(st[0])}</strong><span>${escapeHtml(st[1])}</span></li>`).join("")}</ul>` : ""}
     </section>
 
     <section class="creed-banner">
