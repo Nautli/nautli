@@ -264,7 +264,7 @@ test("checkup sample seed is reproducible and excluded_dirs become vendor exclud
   assert.equal(invocations[0][seedAt + 1], invocations[1][seedAt + 1]);
   const excludeAt = invocations[0].indexOf("--exclude");
   assert.equal(invocations[0][excludeAt + 1], "skip");
-  assert.match(readCurrent(path.join(userHome, ".nautli-a")).run_dir, /-x[0-9a-f]{6}$/u);
+  assert.match(readCurrent(path.join(userHome, ".nautli-a")).run_dir, /-[0-9a-f]{10}$/u);
 });
 
 test("checkupStatus exposes partial contradiction and duplicate findings with a teaser", (t) => {
