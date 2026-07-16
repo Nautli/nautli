@@ -89,6 +89,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         if !flag { window.makeKeyAndOrderFront(nil) }
         return true
     }
+
+    @objc func reloadPage() {
+        retries = 0
+        kickstartServerIfNeeded()
+        webView.reload()
+        if webView.url == nil { webView.load(URLRequest(url: DASHBOARD_URL)) }
+    }
 }
 
 let app = NSApplication.shared
@@ -113,6 +120,9 @@ editMenuItem.submenu = editMenu
 let windowMenuItem = NSMenuItem()
 mainMenu.addItem(windowMenuItem)
 let windowMenu = NSMenu(title: "Window")
+let reloadItem = NSMenuItem(title: "Reload", action: #selector(AppDelegate.reloadPage), keyEquivalent: "r")
+reloadItem.target = delegate
+windowMenu.addItem(reloadItem)
 windowMenu.addItem(NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
 windowMenu.addItem(NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"))
 windowMenuItem.submenu = windowMenu
