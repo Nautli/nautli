@@ -1,0 +1,304 @@
+{
+  "ogLocale": "en_US",
+  "meta": {
+    "index": {
+      "title": "nautli | Cross-AI memory on your disk",
+      "description": "Local-first memory shared by Claude Code, Codex, Cursor, and other MCP clients. AI asks. You decide."
+    },
+    "manifesto": {
+      "title": "Manifesto | nautli",
+      "description": "Why your AI memory should live on your disk, keep its history, and wait for your decisions."
+    },
+    "install": {
+      "title": "Install | nautli",
+      "description": "Install nautli on macOS, inspect every file it changes, and try a memory checkup in an empty folder."
+    },
+    "faq": {
+      "title": "FAQ | nautli",
+      "description": "Clear answers about data transmission, Claude judgments, Obsidian safety, removal, pricing, and Supporters."
+    },
+    "c": {
+      "title": "Memory checkup | nautli",
+      "description": "A locally generated nautli memory checkup result with numbers only and no note content."
+    }
+  },
+  "common": {
+    "home": "home",
+    "primaryNav": "Primary navigation",
+    "footerNav": "Footer navigation",
+    "manifesto": "Manifesto",
+    "install": "Install",
+    "faq": "FAQ",
+    "themeToDark": "Use dark theme",
+    "themeToLight": "Use light theme",
+    "license": "Open source under the MIT License",
+    "copy": "Copy",
+    "copyAll": "Copy all",
+    "copySuccess": "Copied",
+    "copyFailure": "Copy failed. Select the command and copy it manually.",
+    "copyPrompt": "Copy this command manually:",
+    "skip": "Skip to content"
+  },
+  "home": {
+    "eyebrow": "Open source · MIT · Local-first",
+    "h1": "Cross-AI memory that lives on your disk.",
+    "subline": "AI asks. You decide.",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ],
+    "trustLine": "Your notes never reach our servers · No silent rewrites · MIT · macOS",
+    "creedLocal": "Your memory stays with you.",
+    "boundaryLabel": "Data boundary",
+    "boundaryTitle": "What nautli reads, writes, and sends",
+    "boundaries": [
+      {
+        "title": "Reads",
+        "lines": [
+          "Only folders you select",
+          "Markdown notes in the selected scope",
+          "Top-level folders can be excluded",
+          "A checkup does not modify source notes"
+        ]
+      },
+      {
+        "title": "Writes",
+        "lines": [
+          "Memory files under ~/.nautli",
+          "One marked instruction block when enabled",
+          "MCP and launchd settings only when enabled",
+          "Each integration has a removal path"
+        ],
+        "link": {
+          "href": "/install.html",
+          "label": "See files and removal steps"
+        }
+      },
+      {
+        "title": "Sends",
+        "lines": [
+          "Note content to nautli servers: none",
+          "Judgment prompts through your Claude subscription to Anthropic",
+          "Optional collection is off by default",
+          "Shared checkups contain numbers, not notes"
+        ]
+      }
+    ],
+    "trustLabel": "Verify it",
+    "trustTitle": "Trust boundaries you can inspect",
+    "trustCards": [
+      {
+        "title": "Your notes stay off our servers",
+        "body": "The local store, event logs, and reports remain under ~/.nautli. Check active connections while nautli runs.",
+        "command": "lsof -i -n -P | grep -i nautli",
+        "href": "https://github.com/Nautli/nautli#data-boundary",
+        "link": "Read the data boundary"
+      },
+      {
+        "title": "Files remain the source of truth",
+        "body": "Facts and their history stay in local files. The search index can be rebuilt from those files.",
+        "command": "find ~/.nautli -maxdepth 2 -type f | sort",
+        "href": "https://github.com/Nautli/nautli#architecture",
+        "link": "Inspect the architecture"
+      },
+      {
+        "title": "Ambiguity becomes a question",
+        "body": "Contradictions are placed in a review queue. A decision becomes active only after you answer.",
+        "command": "nautli review",
+        "href": "https://github.com/Nautli/nautli/tree/main/src/daemon",
+        "link": "Inspect the review path"
+      }
+    ],
+    "factIntro": "A fact keeps the claim, its source, and the decision it replaced.",
+    "fact": [
+      ["fact_id", "042"],
+      ["claim", "auth uses RS256 JWT, rotates 30d"],
+      ["source", "claude-code · 2026-06-14 · project:api"],
+      ["supersedes", "fact_id: 019"]
+    ],
+    "howLabel": "How it works",
+    "howTitle": "The models can ask. Only you can settle the record.",
+    "howIntro": "While you sleep, nautli surfaces conflicts as questions. Claude Code, Codex, and Cursor read the same approved memory. Nothing is rewritten until you decide.",
+    "beforeTitle": "Before nautli",
+    "before": [
+      {
+        "speaker": "Claude Code",
+        "text": "Local development uses PostgreSQL."
+      },
+      {
+        "speaker": "Cursor",
+        "text": "Local development uses SQLite."
+      },
+      {
+        "speaker": "You",
+        "text": "Which decision is current?"
+      }
+    ],
+    "afterTitle": "With nautli",
+    "after": [
+      {
+        "speaker": "nautli",
+        "text": "PostgreSQL and SQLite conflict. Did the decision change?",
+        "added": true
+      },
+      {
+        "speaker": "You",
+        "text": "Yes. SQLite supersedes PostgreSQL.",
+        "added": true
+      },
+      {
+        "speaker": "Every connected AI",
+        "text": "SQLite is current. PostgreSQL remains in history.",
+        "added": true
+      }
+    ],
+    "checkLabel": "Memory checkup",
+    "checkTitle": "How healthy is your vault?",
+    "checkIntro": "Run a checkup to see real contradictions, changed decisions, and duplicates before importing anything.",
+    "emptyState": "Run nautli checkup to fill this card.",
+    "reviews": [
+      {
+        "type": "Contradiction",
+        "title": "Two current ports",
+        "body": "One note says the API uses port 3000. Another current note says port 4000.",
+        "note": "nautli asks which claim is current. It applies neither on its own."
+      },
+      {
+        "type": "Changed decision",
+        "title": "PostgreSQL became SQLite",
+        "body": "The later note explicitly replaces the earlier database decision.",
+        "note": "This is history, not an error. The new fact supersedes the old one without deleting it."
+      },
+      {
+        "type": "Duplicate",
+        "title": "The same retry rule twice",
+        "body": "Two notes state the same retry limit with the same scope and meaning.",
+        "note": "The review shows both sources before any consolidation."
+      }
+    ],
+    "formula": "See the scoring formula",
+    "compareLabel": "Compare",
+    "compareTitle": "Hosted memory layer and nautli",
+    "compareHeaders": ["", "Hosted memory layer", "nautli"],
+    "compareRows": [
+      ["Transmission", "Memory may be sent to a hosted service", "Notes do not reach nautli servers"],
+      ["Source of truth", "Service-managed store", "Files under ~/.nautli"],
+      ["Who decides", "Service policy or model", "You answer review questions"]
+    ],
+    "supporterTitle": "Support the work",
+    "supporterBody": "Core software stays MIT licensed. Supporter names appear only with explicit opt-in.",
+    "supporterLink": "Become a Supporter",
+    "discordTitle": "Talk with maintainers",
+    "discordBody": "Use Discord for implementation questions and project discussion.",
+    "discordLink": "Open Discord"
+  },
+  "manifesto": {
+    "eyebrow": "Manifesto",
+    "creedLocal": "Your memory stays with you.",
+    "tableLabel": "Our boundary",
+    "doTitle": "What we do",
+    "dontTitle": "What we do not do",
+    "rows": [
+      ["Append facts with their source", "Replace your source notes"],
+      ["Surface contradictions for review", "Silently choose a winner"],
+      ["Preserve superseded history", "Delete the past to make the index tidy"],
+      ["Keep the store on your disk", "Make a hosted account the source of truth"]
+    ],
+    "essay": [
+      "AI models change every six months. Your decisions do not.",
+      "A model is a tool you may replace. The reasoning, constraints, and choices behind your work belong to you. They should survive a new model, a new editor, and a new subscription.",
+      "nautli gives connected AI clients one local record. Each fact keeps its source. When two claims disagree, nautli raises a question instead of quietly rewriting the past.",
+      "Your answer becomes the current fact. The older fact remains in history, so a changed decision stays legible rather than looking like an error.",
+      "Memory should be portable, inspectable, and governed by the person whose work it represents. That is the boundary we build around."
+    ]
+  },
+  "install": {
+    "eyebrow": "Install",
+    "title": "Start with an inspectable local store",
+    "intro": "These steps create the store, then let you check a folder before choosing any additional integrations.",
+    "requirementsLabel": "Requirements",
+    "requirements": [
+      ["Node.js", "20 or newer"],
+      ["Operating system", "macOS for the automatic nightly launchd job"],
+      ["Claude Code CLI", "Installed and logged in for duplicate and contradiction judgments"],
+      ["Python 3", "Required for the memory checkup step"],
+      ["Other platforms", "Core CLI and MCP server run where Node.js runs; schedule daemon-run yourself"]
+    ],
+    "commandsLabel": "Commands",
+    "commandsTitle": "Install, initialize, inspect",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ],
+    "changesLabel": "Changes",
+    "changesTitle": "Files and settings you control",
+    "fileHeader": "File or setting",
+    "changeHeader": "What changes",
+    "undoHeader": "How to undo it",
+    "changes": [
+      ["~/.nautli/", "init creates the local store, config, index, and reports here", "Back up anything you need, then remove this directory"],
+      ["~/.claude.json", "MCP registration is added only when you enable Claude Code integration", "claude mcp remove -s user nautli"],
+      ["~/.claude/CLAUDE.md", "One marked nautli instruction block is added only when enabled", "nautli setup --step remove-instructions"],
+      ["~/Library/LaunchAgents/com.nautli.daemon.plist", "The nightly macOS job is added only when enabled", "nautli setup --step uninstall-daemon"],
+      ["Cursor mcp.json", "nautli provides a snippet; you paste it manually", "Remove the nautli entry you added"]
+    ],
+    "undoNote": "The three commands above create only ~/.nautli. Integrations and the nightly job require separate opt-in setup steps.",
+    "testLabel": "Safe test",
+    "testTitle": "Try an empty folder first",
+    "testBody": "Use an empty folder to inspect the result shape before pointing nautli at personal or work notes.",
+    "helpTitle": "If something blocks you",
+    "helpBody": "Run nautli doctor, then share its non-sensitive result in GitHub Issues or ask in Discord."
+  },
+  "faq": {
+    "eyebrow": "FAQ",
+    "title": "Questions worth asking before install",
+    "intro": "The short version: your store is local, judgments are explicit, and every integration can be removed.",
+    "items": [
+      {
+        "question": "What leaves my machine?",
+        "answer": "Your notes do not go to nautli servers. Duplicate and contradiction judgment prompts are sent through your own Claude subscription to Anthropic. Optional collection is off by default."
+      },
+      {
+        "question": "What does the judge send to Claude?",
+        "answer": "It sends the text needed to compare candidate facts for duplicate and contradiction judgments. It does not send your whole vault, and a failed or ambiguous judgment becomes no action or a review question."
+      },
+      {
+        "question": "Will a checkup change my Obsidian vault?",
+        "answer": "No. A checkup reads Markdown notes in the folders you select and does not modify the source notes. You can exclude top-level folders before it starts. Importing findings writes to ~/.nautli, not back into the vault."
+      },
+      {
+        "question": "How do I remove nautli?",
+        "answer": "Remove the marked instruction block with nautli setup --step remove-instructions, remove the launchd job with nautli setup --step uninstall-daemon, remove MCP registrations, then back up and delete ~/.nautli if you no longer need the local memory."
+      },
+      {
+        "question": "What does it cost, and what is a Supporter?",
+        "answer": "The core is open source under the MIT License. Supporters fund maintenance. Public recognition is optional and off unless a supporter explicitly opts in."
+      }
+    ]
+  },
+  "share": {
+    "emptyLabel": "Memory checkup",
+    "emptyTitle": "No result data in this link",
+    "emptyBody": "A shared result appears only when the URL contains numeric checkup fields. No note text is accepted.",
+    "resultLabel": "Generated locally",
+    "title": "Memory checkup",
+    "scoreSuffix": " / 100",
+    "metrics": [
+      {"key": "notes", "label": "Notes checked"},
+      {"key": "contradictions", "label": "Contradictions"},
+      {"key": "duplicates", "label": "Duplicate clusters"},
+      {"key": "reviews", "label": "Review cards"}
+    ],
+    "resultNote": "This card contains numbers only. Note content stays on its owner's machine.",
+    "turnLabel": "Your turn",
+    "turnTitle": "Check your own memory",
+    "turnBody": "Run the checkup locally. You choose the folder and decide what to import.",
+    "commands": [
+      "npm i -g nautli",
+      "nautli init",
+      "nautli checkup ~/notes"
+    ]
+  }
+}

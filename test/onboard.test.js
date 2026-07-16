@@ -256,9 +256,17 @@ test("installApp installs and signs the native launcher when swiftc succeeds", (
   assert.equal(fs.readFileSync(exe, "utf8"), "FAKE_BINARY");
   const menubarPlist = path.join(userHome, "Library", "LaunchAgents", `${MENUBAR_LABEL}.plist`);
   assert.ok(fs.existsSync(menubarPlist));
+  const menubarExe = path.join(home, "bin", "nautli-menubar");
+  assert.ok(fs.existsSync(menubarExe));
   assert.ok(fs.readFileSync(menubarPlist, "utf8").includes(
-    path.join(result.app, "Contents", "MacOS", "nautli-menubar"),
+    menubarExe,
   ));
+  assert.ok(!fs.existsSync(path.join(
+    result.app,
+    "Contents",
+    "MacOS",
+    "nautli-menubar",
+  )));
   assert.ok(calls.some(([cmd, sub, , file]) => (
     cmd === "launchctl" && sub === "bootstrap" && file === menubarPlist
   )));
@@ -296,6 +304,7 @@ test("uninstallApp removes service plist and app bundle", (t) => {
   assert.equal(result.ok, true);
   assert.ok(!fs.existsSync(path.join(userHome, "Library", "LaunchAgents", `${DASHBOARD_LABEL}.plist`)));
   assert.ok(!fs.existsSync(path.join(userHome, "Library", "LaunchAgents", `${MENUBAR_LABEL}.plist`)));
+  assert.ok(!fs.existsSync(path.join(home, "bin", "nautli-menubar")));
   assert.ok(!fs.existsSync(path.join(userHome, "Applications", "nautli.app")));
 });
 

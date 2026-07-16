@@ -740,12 +740,12 @@ function dashboardPlist(home) {
 `;
 }
 
-function menubarPlist(home, appPath) {
+function menubarPlist(home) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>${MENUBAR_LABEL}</string>
-  <key>ProgramArguments</key><array><string>${xml(`${appPath}/Contents/MacOS/nautli-menubar`)}</string></array>
+  <key>ProgramArguments</key><array><string>${xml(path.join(home, "bin", "nautli-menubar"))}</string></array>
   <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string><key>PATH</key><string>${xml(launchdPath())}</string></dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -922,12 +922,17 @@ export function installApp(
     }
   }
   // 메뉴바 상주: 리뷰 카드 대기 뱃지. 네이티브 툴체인 있을 때만(스크립트 폴백 환경은 생략).
+  const menubarExe = path.join(home, "bin", "nautli-menubar");
   let menubar = false;
   if (launcher === "native" && fs.existsSync(MENUBAR_SWIFT_SRC)) {
-    const menubarExe = path.join(contents, "MacOS", "nautli-menubar");
+    fs.mkdirSync(path.join(home, "bin"), { recursive: true });
     try {
       runnerText(runner, "swiftc", ["-O", "-framework", "Cocoa", MENUBAR_SWIFT_SRC, "-o", menubarExe]);
-      if (fs.existsSync(menubarExe)) menubar = true;
+      if (fs.existsSync(menubarExe)) {
+        menubar = true;
+        // 번들 안에 두면 LaunchServices가 메뉴바를 앱 인스턴스로 등록해 open이 메인 앱을 안 띄운다.
+        fs.rmSync(path.join(contents, "MacOS", "nautli-menubar"), { force: true });
+      }
     } catch {
       // 메뉴바는 부가 기능 — 실패해도 설치를 막지 않는다
     }
@@ -946,9 +951,16 @@ export function installApp(
       // 서명 실패는 치명 아님 — 로컬 빌드는 대개 무서명으로도 실행된다.
     }
   }
+  if (menubar) {
+    try {
+      runnerText(runner, "codesign", ["-s", "-", "--force", menubarExe]);
+    } catch {
+      // 메뉴바 서명 실패도 치명 아님 — 로컬 애드혹 서명은 최선 노력이다.
+    }
+  }
 
   if (menubar) {
-    fs.writeFileSync(menubarPlistFile, menubarPlist(home, app), "utf8");
+    fs.writeFileSync(menubarPlistFile, menubarPlist(home), "utf8");
     try {
       runnerText(runner, "launchctl", [
         "bootout",
@@ -983,7 +995,6 @@ export function uninstallApp(
     uid = process.getuid?.() ?? 0,
   } = {},
 ) {
-  void home;
   const {
     dashboardPlist: plist,
     menubarPlist: menubarPlistFile,
@@ -1014,6 +1025,7 @@ export function uninstallApp(
 
   fs.rmSync(plist, { force: true });
   fs.rmSync(menubarPlistFile, { force: true });
+  fs.rmSync(path.join(home, "bin", "nautli-menubar"), { force: true });
   fs.rmSync(app, { recursive: true, force: true });
   return { ok: true, removed };
 }

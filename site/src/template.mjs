@@ -134,6 +134,7 @@ function homePage(locale, copy) {
     <section class="section shell wide-shell">
       ${sectionLabel(h.howLabel)}
       <h2>${escapeHtml(h.howTitle)}</h2>
+      <p class="section-intro">${escapeHtml(h.howIntro)}</p>
       <div class="conversation-grid">
         <article class="conversation"><h3>${escapeHtml(h.beforeTitle)}</h3>${h.before.map((line) => `<p><strong>${escapeHtml(line.speaker)}</strong> ${escapeHtml(line.text)}</p>`).join("")}</article>
         <article class="conversation after"><h3>${escapeHtml(h.afterTitle)}</h3>${h.after.map((line) => `<p${line.added ? ' class="added"' : ""}><strong>${escapeHtml(line.speaker)}</strong> ${escapeHtml(line.text)}</p>`).join("")}</article>
