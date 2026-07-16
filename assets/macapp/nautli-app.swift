@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     // 서버 기동 직후 레이스: 로드 실패 시 1초 간격 재시도
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        guard retries < 15 else { return }
+        guard retries < 60 else { return }
         retries += 1
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.webView.load(URLRequest(url: DASHBOARD_URL))
@@ -73,6 +73,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         return true
+    }
+
+    // 서버 재시작 타이밍에 열려 빈 화면으로 굳는 것 방지 — 앱 재활성화 시 재접속
+    func applicationDidBecomeActive(_ notification: Notification) {
+        if webView.url == nil {
+            retries = 0
+            kickstartServerIfNeeded()
+            webView.load(URLRequest(url: DASHBOARD_URL))
+        }
     }
 
     // 독 아이콘 클릭 시 창 복원
