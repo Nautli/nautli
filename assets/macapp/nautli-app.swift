@@ -23,6 +23,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
             defer: false
         )
         window.title = "nautli"
+        // 옵시디언식 심리스 크롬: 타이틀바를 대시보드 배경(#0a0a0a)에 녹인다
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.backgroundColor = NSColor(srgbRed: 0x0a/255.0, green: 0x0a/255.0, blue: 0x0a/255.0, alpha: 1.0)
         window.center()
         window.contentView = webView
         window.setFrameAutosaveName("nautli.main")
