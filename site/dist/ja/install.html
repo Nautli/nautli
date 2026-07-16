@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>インストール | nautli</title>
+  <meta name="description" content="macOSにnautliを入れ、変更されるファイルを確認し、空のフォルダで記憶診断を試します。">
+  <link rel="canonical" href="https://nautli.ai/ja/install.html">
+  <link rel="alternate" hreflang="en" href="https://nautli.ai/install.html">
+  <link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/install.html">
+  <link rel="alternate" hreflang="ja" href="https://nautli.ai/ja/install.html">
+  <link rel="alternate" hreflang="x-default" href="https://nautli.ai/install.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="nautli">
+  <meta property="og:title" content="インストール | nautli">
+  <meta property="og:description" content="macOSにnautliを入れ、変更されるファイルを確認し、空のフォルダで記憶診断を試します。">
+  <meta property="og:url" content="https://nautli.ai/ja/install.html">
+  <meta property="og:image" content="/assets/og.png">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/assets/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"macOSにnautliを入れ、変更されるファイルを確認し、空のフォルダで記憶診断を試します。","url":"https://nautli.ai/ja/install.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ja/faq.html"}</script>
+  <script src="/main.js" defer></script>
+</head>
+<body class="" data-page="install" data-copy-success="コピーしました" data-copy-failure="コピーできませんでした。コマンドを選択して手動でコピーしてください。" data-copy-prompt="このコマンドを手動でコピーしてください:">
+  <a class="skip-link" href="#main-content">本文へ移動</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="wordmark" href="/ja/" aria-label="nautli ホーム">nautli</a>
+      <nav class="primary-links" aria-label="メインナビゲーション">
+        <a class="text-nav" href="/ja/manifesto.html">マニフェスト</a>
+        <a class="text-nav" href="/ja/install.html" aria-current="page">インストール</a>
+        <a class="icon-link" href="https://github.com/Nautli/nautli" aria-label="GitHub" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.82a9.5 9.5 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg></a>
+        <a class="icon-link" href="https://discord.gg/nautli" aria-label="Discord" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.5 5.34A17.2 17.2 0 0 0 15.44 4l-.5 1.02a15.9 15.9 0 0 0-5.86 0L8.56 4A17.3 17.3 0 0 0 4.5 5.35C1.93 9.16 1.23 12.88 1.58 16.54a17.1 17.1 0 0 0 4.98 2.52l1.2-1.64a11.1 11.1 0 0 1-1.9-.91l.47-.37a12.3 12.3 0 0 0 11.34 0l.47.37c-.6.36-1.24.66-1.9.9l1.2 1.65a17 17 0 0 0 4.98-2.52c.41-4.24-.7-7.93-2.92-11.2ZM8.5 14.3c-1.1 0-2-1.02-2-2.27 0-1.25.88-2.28 2-2.28s2.02 1.03 2 2.28c0 1.25-.88 2.27-2 2.27Zm7 0c-1.1 0-2-1.02-2-2.27 0-1.25.88-2.28 2-2.28s2.02 1.03 2 2.28c0 1.25-.88 2.27-2 2.27Z"/></svg></a>
+        <div class="language-picker">
+    <button class="icon-text-button language-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="language-menu">🌐 日本語</button>
+    <div class="language-menu" id="language-menu" role="menu" hidden>
+      <a role="menuitem" lang="en" hreflang="en" href="/install.html">English</a><a role="menuitem" lang="ko" hreflang="ko" href="/ko/install.html">한국어</a><a role="menuitem" lang="ja" hreflang="ja" href="/ja/install.html" aria-current="page">日本語</a>
+    </div>
+  </div>
+        <button class="theme-button" type="button" aria-label="ダークテーマを使う" data-light-label="ライトテーマを使う" data-dark-label="ダークテーマを使う">☾</button>
+      </nav>
+    </div>
+  </header>
+  <div id="main-content"><main class="subpage shell">
+    <header class="subpage-lead"><p class="eyebrow">インストール</p><h1>確認できるローカルストアから始める</h1><p>ストアを作り、追加の連携を有効にする前に、選んだフォルダを診断できます。</p></header>
+    <section class="section"><p class="section-label">必要なもの</p><div class="table-wrap"><table><tbody><tr><th scope="row">Node.js</th><td>20以上</td></tr><tr><th scope="row">OS</th><td>自動の夜間launchdジョブはmacOS対応</td></tr><tr><th scope="row">Claude Code CLI</th><td>重複と矛盾の判定にはインストールとログインが必要</td></tr><tr><th scope="row">Python 3</th><td>記憶診断の手順で必要</td></tr><tr><th scope="row">その他のOS</th><td>Node.jsが動けばコアCLIとMCPサーバーは実行可能。daemon-runは自分で定期実行</td></tr></tbody></table></div></section>
+    <section class="section"><p class="section-label">コマンド</p><h2>入れる、作る、確かめる</h2><div class="command-block install-commands">
+    <div class="command-row">
+      <code id="command-install-0">npm i -g nautli</code>
+      <button class="copy-button" type="button" data-copy="npm i -g nautli" aria-describedby="copy-status-install-0">コピー</button>
+      <span class="copy-status" id="copy-status-install-0" role="status" aria-live="polite"></span>
+    </div><div class="command-row">
+      <code id="command-install-1">nautli init</code>
+      <button class="copy-button" type="button" data-copy="nautli init" aria-describedby="copy-status-install-1">コピー</button>
+      <span class="copy-status" id="copy-status-install-1" role="status" aria-live="polite"></span>
+    </div><div class="command-row">
+      <code id="command-install-2">nautli checkup ~/notes</code>
+      <button class="copy-button" type="button" data-copy="nautli checkup ~/notes" aria-describedby="copy-status-install-2">コピー</button>
+      <span class="copy-status" id="copy-status-install-2" role="status" aria-live="polite"></span>
+    </div>
+    <div class="copy-all-row"><button class="secondary-button copy-button" type="button" data-copy="npm i -g nautli
+nautli init
+nautli checkup ~/notes" aria-describedby="copy-status-all">すべてコピー</button><span class="copy-status" id="copy-status-all" role="status" aria-live="polite"></span></div>
+  </div></section>
+    <section class="section"><p class="section-label">変更内容</p><h2>自分で管理できるファイルと設定</h2><div class="table-wrap"><table><thead><tr><th scope="col">ファイルまたは設定</th><th scope="col">変更内容</th><th scope="col">元に戻す方法</th></tr></thead><tbody><tr><th scope="row"><code>~/.nautli/</code></th><td>initがローカルストア、設定、インデックス、レポートをここに作成</td><td>必要なものをバックアップしてから、このフォルダを削除</td></tr><tr><th scope="row"><code>~/.claude.json</code></th><td>Claude Code連携を有効にした場合だけMCP登録を追加</td><td>claude mcp remove -s user nautli</td></tr><tr><th scope="row"><code>~/.claude/CLAUDE.md</code></th><td>有効にした場合だけ、印付きのnautli指示ブロックを1つ追加</td><td>nautli setup --step remove-instructions</td></tr><tr><th scope="row"><code>~/Library/LaunchAgents/com.nautli.daemon.plist</code></th><td>有効にした場合だけmacOSの夜間ジョブを追加</td><td>nautli setup --step uninstall-daemon</td></tr><tr><th scope="row"><code>Cursor mcp.json</code></th><td>nautliは設定スニペットを表示し、自分で貼り付ける</td><td>追加したnautli項目を削除</td></tr></tbody></table></div><p class="small-note">上の3コマンドが作るのは~/.nautliだけです。AI連携と夜間ジョブは別の設定手順で同意した場合だけ追加されます。</p></section>
+    <section class="section test-block"><p class="section-label">安全な試用</p><h2>まず空のフォルダで試す</h2><code>nautli checkup ./empty-test</code><p>個人や仕事のノートを指定する前に、空のフォルダで結果の形を確認できます。</p></section>
+    <section class="section help-block"><h2>うまく進まない場合</h2><p>nautli doctorを実行し、機密情報を除いた結果をGitHub Issuesに投稿するか、Discordで質問してください。</p><p><a href="https://github.com/Nautli/nautli/issues" rel="noreferrer">GitHub Issues</a> · <a href="https://discord.gg/nautli" rel="noreferrer">Discord</a></p></section>
+  </main></div>
+  <footer class="site-footer shell">
+    <div><a class="wordmark" href="/ja/">nautli</a><span>MITライセンスのオープンソース</span></div>
+    <nav aria-label="フッターナビゲーション">
+      <a href="https://github.com/Nautli/nautli" rel="noreferrer">GitHub</a>
+      <a href="https://discord.gg/nautli" rel="noreferrer">Discord</a>
+      <a href="/ja/faq.html">よくある質問</a>
+      <span>EN · KO · JA</span>
+    </nav>
+  </footer>
+</body>
+</html>

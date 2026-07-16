@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nautli | ディスクに置くAI共通メモリ</title>
+  <meta name="description" content="Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。AIは尋ね、あなたが決める。">
+  <link rel="canonical" href="https://nautli.ai/ja/">
+  <link rel="alternate" hreflang="en" href="https://nautli.ai/">
+  <link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/">
+  <link rel="alternate" hreflang="ja" href="https://nautli.ai/ja/">
+  <link rel="alternate" hreflang="x-default" href="https://nautli.ai/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="nautli">
+  <meta property="og:title" content="nautli | ディスクに置くAI共通メモリ">
+  <meta property="og:description" content="Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。AIは尋ね、あなたが決める。">
+  <meta property="og:url" content="https://nautli.ai/ja/">
+  <meta property="og:image" content="/assets/og.png">
+  <meta property="og:locale" content="ja_JP">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/assets/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。AIは尋ね、あなたが決める。","url":"https://nautli.ai/ja/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ja/faq.html"}</script>
+  <script src="/main.js" defer></script>
+</head>
+<body class="" data-page="index" data-copy-success="コピーしました" data-copy-failure="コピーできませんでした。コマンドを選択して手動でコピーしてください。" data-copy-prompt="このコマンドを手動でコピーしてください:">
+  <a class="skip-link" href="#main-content">本文へ移動</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="wordmark" href="/ja/" aria-label="nautli ホーム">nautli</a>
+      <nav class="primary-links" aria-label="メインナビゲーション">
+        <a class="text-nav" href="/ja/manifesto.html">マニフェスト</a>
+        <a class="text-nav" href="/ja/install.html">インストール</a>
+        <a class="icon-link" href="https://github.com/Nautli/nautli" aria-label="GitHub" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.82a9.5 9.5 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg></a>
+        <a class="icon-link" href="https://discord.gg/nautli" aria-label="Discord" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.5 5.34A17.2 17.2 0 0 0 15.44 4l-.5 1.02a15.9 15.9 0 0 0-5.86 0L8.56 4A17.3 17.3 0 0 0 4.5 5.35C1.93 9.16 1.23 12.88 1.58 16.54a17.1 17.1 0 0 0 4.98 2.52l1.2-1.64a11.1 11.1 0 0 1-1.9-.91l.47-.37a12.3 12.3 0 0 0 11.34 0l.47.37c-.6.36-1.24.66-1.9.9l1.2 1.65a17 17 0 0 0 4.98-2.52c.41-4.24-.7-7.93-2.92-11.2ZM8.5 14.3c-1.1 0-2-1.02-2-2.27 0-1.25.88-2.28 2-2.28s2.02 1.03 2 2.28c0 1.25-.88 2.27-2 2.27Zm7 0c-1.1 0-2-1.02-2-2.27 0-1.25.88-2.28 2-2.28s2.02 1.03 2 2.28c0 1.25-.88 2.27-2 2.27Z"/></svg></a>
+        <div class="language-picker">
+    <button class="icon-text-button language-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="language-menu">🌐 日本語</button>
+    <div class="language-menu" id="language-menu" role="menu" hidden>
+      <a role="menuitem" lang="en" hreflang="en" href="/">English</a><a role="menuitem" lang="ko" hreflang="ko" href="/ko/">한국어</a><a role="menuitem" lang="ja" hreflang="ja" href="/ja/" aria-current="page">日本語</a>
+    </div>
+  </div>
+        <button class="theme-button" type="button" aria-label="ダークテーマを使う" data-light-label="ライトテーマを使う" data-dark-label="ダークテーマを使う">☾</button>
+      </nav>
+    </div>
+  </header>
+  <div id="main-content"><main>
+    <section class="hero shell wide-shell">
+      <svg class="spiral" viewBox="0 0 300 300" aria-hidden="true"><path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="hero-copy">
+        <p class="eyebrow">Open source · MIT · Local-first</p>
+        <h1>AIをまたぐ記憶を、あなたのディスクに</h1>
+        <p class="hero-subline">夜のうちに見つかった矛盾。決めるのはあなた。</p>
+      </div>
+      <div class="command-block hero-commands">
+    <div class="command-row">
+      <code id="command-home-0">npm i -g nautli</code>
+      <button class="copy-button" type="button" data-copy="npm i -g nautli" aria-describedby="copy-status-home-0">コピー</button>
+      <span class="copy-status" id="copy-status-home-0" role="status" aria-live="polite"></span>
+    </div><div class="command-row">
+      <code id="command-home-1">nautli init</code>
+      <button class="copy-button" type="button" data-copy="nautli init" aria-describedby="copy-status-home-1">コピー</button>
+      <span class="copy-status" id="copy-status-home-1" role="status" aria-live="polite"></span>
+    </div><div class="command-row">
+      <code id="command-home-2">nautli checkup ~/notes</code>
+      <button class="copy-button" type="button" data-copy="nautli checkup ~/notes" aria-describedby="copy-status-home-2">コピー</button>
+      <span class="copy-status" id="copy-status-home-2" role="status" aria-live="polite"></span>
+    </div>
+    <div class="copy-all-row"><button class="secondary-button copy-button" type="button" data-copy="npm i -g nautli
+nautli init
+nautli checkup ~/notes" aria-describedby="copy-status-all">すべてコピー</button><span class="copy-status" id="copy-status-all" role="status" aria-live="polite"></span></div>
+  </div>
+      <p class="trust-line">🔒 ノートがnautliのサーバーへ送られることはありません · 無断で書き換えない · MIT · macOS</p>
+    </section>
+
+    <section class="creed-banner">
+      <div class="shell wide-shell creed-inner">
+        <div><h2 lang="en">Your memory outlives every model.</h2><p>モデルが変わっても、あなたの記憶は残る。</p></div>
+        <a href="/ja/manifesto.html">→ マニフェスト</a>
+      </div>
+    </section>
+
+    <section class="section shell wide-shell">
+      <p class="section-label">データ境界</p>
+      <h2>nautliが読むもの、書くもの、送るもの</h2>
+      <div class="boundary-grid">
+        <article class="boundary-card"><h3>読むもの</h3><ul><li>あなたが選んだフォルダだけ</li><li>選択範囲にあるMarkdownノート</li><li>最上位フォルダは除外可能</li><li>診断は元のノートを変更しない</li></ul></article><article class="boundary-card"><h3>書くもの</h3><ul><li>~/.nautli配下の記憶ファイル</li><li>有効にした場合だけ、印付きの指示ブロックを1つ</li><li>有効にした場合だけMCPとlaunchdの設定</li><li>各連携に削除手順を用意</li></ul><a href="/ja/install.html" rel="noreferrer">ファイルと削除手順を見る</a></article><article class="boundary-card"><h3>送るもの</h3><ul><li>nautliのサーバーへ送るノート本文: なし</li><li>自分のClaude契約を通してAnthropicへ送る判定プロンプト</li><li>任意の情報収集は初期状態でオフ</li><li>共有診断に含むのはノートではなく数値だけ</li></ul></article>
+      </div>
+    </section>
+
+    <section class="section shell wide-shell">
+      <p class="section-label">自分で確かめる</p>
+      <h2>目で追える信頼の境界</h2>
+      <div class="card-grid trust-grid">
+        <article class="card"><h3>ノートはnautliのサーバーへ送られません</h3><p>ローカルストア、イベントログ、レポートは~/.nautliに残ります。実行中の接続も自分で確認できます。</p><code class="verify-command">lsof -i -n -P | grep -i nautli</code><a class="plain-link" href="https://github.com/Nautli/nautli#data-boundary" rel="noreferrer">データ境界を読む</a></article><article class="card"><h3>ファイルが正本です</h3><p>事実と変更履歴はローカルファイルに残ります。検索インデックスはそのファイルから再構築できます。</p><code class="verify-command">find ~/.nautli -maxdepth 2 -type f | sort</code><a class="plain-link" href="https://github.com/Nautli/nautli#architecture" rel="noreferrer">構造を確認する</a></article><article class="card"><h3>曖昧なら質問になります</h3><p>矛盾はレビューューに入ります。あなたが答えた後で、その判断が現在の事実になります。</p><code class="verify-command">nautli review</code><a class="plain-link" href="https://github.com/Nautli/nautli/tree/main/src/daemon" rel="noreferrer">レビュー経路を確認する</a></article>
+      </div>
+      <div class="fact-example">
+        <p>事実には主張、出典、置き換えた判断が一緒に残ります。</p>
+        <dl><div><dt><code>fact_id</code></dt><dd><code>042</code></dd></div><div><dt><code>claim</code></dt><dd><code>認証はRS256 JWTを使い、鍵は30日ごとに更新する</code></dd></div><div><dt><code>source</code></dt><dd><code>claude-code · 2026-06-14 · project:api</code></dd></div><div><dt><code>supersedes</code></dt><dd><code>fact_id: 019</code></dd></div></dl>
+      </div>
+    </section>
+
+    <section class="section shell wide-shell">
+      <p class="section-label">仕組み</p>
+      <h2>AIは質問できる。記録を確定するのはあなたです。</h2>
+      <p class="section-intro">夜の間にnautliが矛盾を質問として提示します。Claude Code、Codex、Cursorは承認済みの同じ記憶を読みます。あなたが決めるまで、記録を無断で書き換えることはありません。</p>
+      <div class="conversation-grid">
+        <article class="conversation"><h3>nautliがない場合</h3><p><strong>Claude Code</strong> ローカル開発ではPostgreSQLを使います。</p><p><strong>Cursor</strong> ローカル開発ではSQLiteを使います。</p><p><strong>あなた</strong> 今の判断はどちらだろう?</p></article>
+        <article class="conversation after"><h3>nautliがある場合</h3><p class="added"><strong>nautli</strong> PostgreSQLとSQLiteが競合しています。判断を変更しましたか?</p><p class="added"><strong>あなた</strong> はい。SQLiteがPostgreSQLを置き換えます。</p><p class="added"><strong>接続したすべてのAI</strong> 現在の判断はSQLiteです。PostgreSQLは履歴に残ります。</p></article>
+      </div>
+    </section>
+
+    <section class="section shell wide-shell">
+      <p class="section-label">記憶診断</p>
+      <h2>あなたの保管庫は何点?</h2>
+      <p class="section-intro">何かを取り込む前に、実際の矛盾、時間とともに変わった判断、重複を確認できます。</p>
+      <article class="empty-card"><p>nautli checkupを実行すると、このカードに結果が入ります。</p><code>nautli checkup ~/notes</code></article>
+      <div class="review-grid">
+        <article class="review-card"><p class="review-type">本当の矛盾</p><h3>現在のポートが2つ</h3><p>一方のノートにはAPIポートが3000、別の現行ノートには4000とあります。</p><p class="review-note">nautliはどちらが現在の主張かを尋ねます。自動ではどちらも適用しません。</p></article><article class="review-card"><p class="review-type">変わった判断</p><h3>PostgreSQLからSQLiteへ</h3><p>後のノートが以前のデータベース判断を明示的に置き換えています。</p><p class="review-note">これはエラーではなく履歴です。新しい事実は古い事実を消さずに置き換えます。</p></article><article class="review-card"><p class="review-type">単純な重複</p><h3>同じ再試行ルールが2つ</h3><p>2つのノートが同じ範囲と意味で、同じ再試行回数を示しています。</p><p class="review-note">統合する前に、レビューで両方の出典を表示します。</p></article>
+      </div>
+      <a class="formula-link" href="https://github.com/Nautli/nautli/blob/main/docs/checkup-score.md" rel="noreferrer">→ 採点式を見る</a>
+    </section>
+
+    <section class="section shell wide-shell">
+      <p class="section-label">比較</p>
+      <h2>ホステッド記憶レイヤーとnautli</h2>
+      <div class="table-wrap"><table><thead><tr><th scope="col"></th><th scope="col">ホステッド記憶レイヤー</th><th scope="col">nautli</th></tr></thead><tbody><tr><th scope="row">送信</th><td>記憶がホステッドサービスへ送られる場合がある</td><td>ノートはnautliのサーバーへ送られない</td></tr><tr><th scope="row">正本</th><td>サービス管理のストア</td><td>~/.nautli配下のファイル</td></tr><tr><th scope="row">判断する人</th><td>サービスの方針またはモデル</td><td>レビュー質問に答えるあなた</td></tr></tbody></table></div>
+    </section>
+
+    <section class="section shell wide-shell community-grid">
+      <article class="community-block"><h2>開発を支える</h2><p>コアはMITライセンスのままです。支援者名は明示的に希望した場合だけ掲載します。</p><a class="secondary-button" href="https://github.com/sponsors/Nautli" rel="noreferrer">Supporterになる</a></article>
+      <article class="community-block"><h2>メンテナーと話す</h2><p>実装の質問やプロジェクトの相談はDiscordで受け付けています。</p><a class="secondary-button" href="https://discord.gg/nautli" rel="noreferrer">Discordを開く</a></article>
+    </section>
+  </main></div>
+  <footer class="site-footer shell">
+    <div><a class="wordmark" href="/ja/">nautli</a><span>MITライセンスのオープンソース</span></div>
+    <nav aria-label="フッターナビゲーション">
+      <a href="https://github.com/Nautli/nautli" rel="noreferrer">GitHub</a>
+      <a href="https://discord.gg/nautli" rel="noreferrer">Discord</a>
+      <a href="/ja/faq.html">よくある質問</a>
+      <span>EN · KO · JA</span>
+    </nav>
+  </footer>
+</body>
+</html>

@@ -42,7 +42,7 @@
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
     "h1": "AIをまたぐ記憶を、あなたのディスクに",
-    "subline": "AIは尋ね、あなたが決める。",
+    "subline": "夜のうちに見つかった矛盾。決めるのはあなた。",
     "commands": [
       "npm i -g nautli",
       "nautli init",
@@ -112,10 +112,22 @@
     ],
     "factIntro": "事実には主張、出典、置き換えた判断が一緒に残ります。",
     "fact": [
-      ["fact_id", "042"],
-      ["claim", "認証はRS256 JWTを使い、鍵は30日ごとに更新する"],
-      ["source", "claude-code · 2026-06-14 · project:api"],
-      ["supersedes", "fact_id: 019"]
+      [
+        "fact_id",
+        "042"
+      ],
+      [
+        "claim",
+        "認証はRS256 JWTを使い、鍵は30日ごとに更新する"
+      ],
+      [
+        "source",
+        "claude-code · 2026-06-14 · project:api"
+      ],
+      [
+        "supersedes",
+        "fact_id: 019"
+      ]
     ],
     "howLabel": "仕組み",
     "howTitle": "AIは質問できる。記録を確定するのはあなたです。",
@@ -180,11 +192,27 @@
     "formula": "採点式を見る",
     "compareLabel": "比較",
     "compareTitle": "ホステッド記憶レイヤーとnautli",
-    "compareHeaders": ["", "ホステッド記憶レイヤー", "nautli"],
+    "compareHeaders": [
+      "",
+      "ホステッド記憶レイヤー",
+      "nautli"
+    ],
     "compareRows": [
-      ["送信", "記憶がホステッドサービスへ送られる場合がある", "ノートはnautliのサーバーへ送られない"],
-      ["正本", "サービス管理のストア", "~/.nautli配下のファイル"],
-      ["判断する人", "サービスの方針またはモデル", "レビュー質問に答えるあなた"]
+      [
+        "送信",
+        "記憶がホステッドサービスへ送られる場合がある",
+        "ノートはnautliのサーバーへ送られない"
+      ],
+      [
+        "正本",
+        "サービス管理のストア",
+        "~/.nautli配下のファイル"
+      ],
+      [
+        "判断する人",
+        "サービスの方針またはモデル",
+        "レビュー質問に答えるあなた"
+      ]
     ],
     "supporterTitle": "開発を支える",
     "supporterBody": "コアはMITライセンスのままです。支援者名は明示的に希望した場合だけ掲載します。",
@@ -200,10 +228,22 @@
     "doTitle": "すること",
     "dontTitle": "しないこと",
     "rows": [
-      ["出典と一緒に事実を追加する", "元のノートを代わりに書き換える"],
-      ["矛盾をレビュー質問として提示する", "無断で片方を選ぶ"],
-      ["置き換えられた履歴を残す", "インデックスを整えるために過去を消す"],
-      ["ストアをあなたのディスクに置く", "ホステッドアカウントを正本にする"]
+      [
+        "出典と一緒に事実を追加する",
+        "元のノートを代わりに書き換える"
+      ],
+      [
+        "矛盾をレビュー質問として提示する",
+        "無断で片方を選ぶ"
+      ],
+      [
+        "置き換えられた履歴を残す",
+        "インデックスを整えるために過去を消す"
+      ],
+      [
+        "ストアをあなたのディスクに置く",
+        "ホステッドアカウントを正本にする"
+      ]
     ],
     "essay": [
       "AIモデルは6か月ごとに変わる。あなたの判断は違う。",
@@ -219,11 +259,26 @@
     "intro": "ストアを作り、追加の連携を有効にする前に、選んだフォルダを診断できます。",
     "requirementsLabel": "必要なもの",
     "requirements": [
-      ["Node.js", "20以上"],
-      ["OS", "自動の夜間launchdジョブはmacOS対応"],
-      ["Claude Code CLI", "重複と矛盾の判定にはインストールとログインが必要"],
-      ["Python 3", "記憶診断の手順で必要"],
-      ["その他のOS", "Node.jsが動けばコアCLIとMCPサーバーは実行可能。daemon-runは自分で定期実行"]
+      [
+        "Node.js",
+        "20以上"
+      ],
+      [
+        "OS",
+        "自動の夜間launchdジョブはmacOS対応"
+      ],
+      [
+        "Claude Code CLI",
+        "重複と矛盾の判定にはインストールとログインが必要"
+      ],
+      [
+        "Python 3",
+        "記憶診断の手順で必要"
+      ],
+      [
+        "その他のOS",
+        "Node.jsが動けばコアCLIとMCPサーバーは実行可能。daemon-runは自分で定期実行"
+      ]
     ],
     "commandsLabel": "コマンド",
     "commandsTitle": "入れる、作る、確かめる",
@@ -238,11 +293,31 @@
     "changeHeader": "変更内容",
     "undoHeader": "元に戻す方法",
     "changes": [
-      ["~/.nautli/", "initがローカルストア、設定、インデックス、レポートをここに作成", "必要なものをバックアップしてから、このフォルダを削除"],
-      ["~/.claude.json", "Claude Code連携を有効にした場合だけMCP登録を追加", "claude mcp remove -s user nautli"],
-      ["~/.claude/CLAUDE.md", "有効にした場合だけ、印付きのnautli指示ブロックを1つ追加", "nautli setup --step remove-instructions"],
-      ["~/Library/LaunchAgents/com.nautli.daemon.plist", "有効にした場合だけmacOSの夜間ジョブを追加", "nautli setup --step uninstall-daemon"],
-      ["Cursor mcp.json", "nautliは設定スニペットを表示し、自分で貼り付ける", "追加したnautli項目を削除"]
+      [
+        "~/.nautli/",
+        "initがローカルストア、設定、インデックス、レポートをここに作成",
+        "必要なものをバックアップしてから、このフォルダを削除"
+      ],
+      [
+        "~/.claude.json",
+        "Claude Code連携を有効にした場合だけMCP登録を追加",
+        "claude mcp remove -s user nautli"
+      ],
+      [
+        "~/.claude/CLAUDE.md",
+        "有効にした場合だけ、印付きのnautli指示ブロックを1つ追加",
+        "nautli setup --step remove-instructions"
+      ],
+      [
+        "~/Library/LaunchAgents/com.nautli.daemon.plist",
+        "有効にした場合だけmacOSの夜間ジョブを追加",
+        "nautli setup --step uninstall-daemon"
+      ],
+      [
+        "Cursor mcp.json",
+        "nautliは設定スニペットを表示し、自分で貼り付ける",
+        "追加したnautli項目を削除"
+      ]
     ],
     "undoNote": "上の3コマンドが作るのは~/.nautliだけです。AI連携と夜間ジョブは別の設定手順で同意した場合だけ追加されます。",
     "testLabel": "安全な試用",
@@ -286,10 +361,22 @@
     "title": "記憶診断",
     "scoreSuffix": " / 100",
     "metrics": [
-      {"key": "notes", "label": "確認したノート"},
-      {"key": "contradictions", "label": "矛盾"},
-      {"key": "duplicates", "label": "重複グループ"},
-      {"key": "reviews", "label": "レビューカード"}
+      {
+        "key": "notes",
+        "label": "確認したノート"
+      },
+      {
+        "key": "contradictions",
+        "label": "矛盾"
+      },
+      {
+        "key": "duplicates",
+        "label": "重複グループ"
+      },
+      {
+        "key": "reviews",
+        "label": "レビューカード"
+      }
     ],
     "resultNote": "このカードに含まれるのは数値だけです。ノート本文は所有者の端末に残ります。",
     "turnLabel": "次はあなた",

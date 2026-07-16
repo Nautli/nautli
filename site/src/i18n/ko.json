@@ -42,7 +42,7 @@
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
     "h1": "AI들이 함께 쓰는 기억, 네 디스크에 산다",
-    "subline": "AI는 묻고, 당신이 정합니다.",
+    "subline": "밤새 찾아낸 모순, 판정은 당신이 합니다.",
     "commands": [
       "npm i -g nautli",
       "nautli init",
@@ -112,10 +112,22 @@
     ],
     "factIntro": "사실 하나에는 주장, 출처, 대체한 결정이 함께 남습니다.",
     "fact": [
-      ["fact_id", "042"],
-      ["claim", "인증은 RS256 JWT를 쓰며 30일마다 키를 교체함"],
-      ["source", "claude-code · 2026-06-14 · project:api"],
-      ["supersedes", "fact_id: 019"]
+      [
+        "fact_id",
+        "042"
+      ],
+      [
+        "claim",
+        "인증은 RS256 JWT를 쓰며 30일마다 키를 교체함"
+      ],
+      [
+        "source",
+        "claude-code · 2026-06-14 · project:api"
+      ],
+      [
+        "supersedes",
+        "fact_id: 019"
+      ]
     ],
     "howLabel": "작동 방식",
     "howTitle": "AI는 물을 수 있습니다. 기록을 정하는 건 당신입니다.",
@@ -180,11 +192,27 @@
     "formula": "점수 산식 보기",
     "compareLabel": "비교",
     "compareTitle": "호스팅 기억 계층과 nautli",
-    "compareHeaders": ["", "호스팅 기억 계층", "nautli"],
+    "compareHeaders": [
+      "",
+      "호스팅 기억 계층",
+      "nautli"
+    ],
     "compareRows": [
-      ["전송", "기억이 호스팅 서비스로 전송될 수 있음", "노트는 nautli 서버로 가지 않음"],
-      ["정본", "서비스가 관리하는 저장소", "~/.nautli 아래 파일"],
-      ["판정 주체", "서비스 정책 또는 모델", "리뷰 질문에 답하는 당신"]
+      [
+        "전송",
+        "기억이 호스팅 서비스로 전송될 수 있음",
+        "노트는 nautli 서버로 가지 않음"
+      ],
+      [
+        "정본",
+        "서비스가 관리하는 저장소",
+        "~/.nautli 아래 파일"
+      ],
+      [
+        "판정 주체",
+        "서비스 정책 또는 모델",
+        "리뷰 질문에 답하는 당신"
+      ]
     ],
     "supporterTitle": "작업을 후원하기",
     "supporterBody": "코어는 MIT 라이선스로 남습니다. 후원자 이름은 명시적으로 동의했을 때만 공개합니다.",
@@ -200,10 +228,22 @@
     "doTitle": "우리가 하는 것",
     "dontTitle": "우리가 하지 않는 것",
     "rows": [
-      ["출처와 함께 사실을 덧붙입니다", "원본 노트를 대신 바꾸지 않습니다"],
-      ["모순을 리뷰 질문으로 올립니다", "몰래 한쪽을 고르지 않습니다"],
-      ["대체된 사실의 이력을 보존합니다", "인덱스를 정리하려고 과거를 지우지 않습니다"],
-      ["저장소를 당신의 디스크에 둡니다", "호스팅 계정을 정본으로 만들지 않습니다"]
+      [
+        "출처와 함께 사실을 덧붙입니다",
+        "원본 노트를 대신 바꾸지 않습니다"
+      ],
+      [
+        "모순을 리뷰 질문으로 올립니다",
+        "몰래 한쪽을 고르지 않습니다"
+      ],
+      [
+        "대체된 사실의 이력을 보존합니다",
+        "인덱스를 정리하려고 과거를 지우지 않습니다"
+      ],
+      [
+        "저장소를 당신의 디스크에 둡니다",
+        "호스팅 계정을 정본으로 만들지 않습니다"
+      ]
     ],
     "essay": [
       "AI 모델은 6개월마다 바뀐다. 네 결정은 아니다.",
@@ -219,11 +259,26 @@
     "intro": "저장소를 만든 다음, 다른 연결을 켜기 전에 고른 폴더를 먼저 검진할 수 있습니다.",
     "requirementsLabel": "요구사항",
     "requirements": [
-      ["Node.js", "20 이상"],
-      ["운영체제", "자동 야간 launchd 작업은 macOS 지원"],
-      ["Claude Code CLI", "중복과 모순 판정을 위해 설치와 로그인 필요"],
-      ["Python 3", "기억 건강검진 단계에 필요"],
-      ["다른 운영체제", "Node.js가 있으면 코어 CLI와 MCP 서버 실행 가능, daemon-run은 직접 예약"]
+      [
+        "Node.js",
+        "20 이상"
+      ],
+      [
+        "운영체제",
+        "자동 야간 launchd 작업은 macOS 지원"
+      ],
+      [
+        "Claude Code CLI",
+        "중복과 모순 판정을 위해 설치와 로그인 필요"
+      ],
+      [
+        "Python 3",
+        "기억 건강검진 단계에 필요"
+      ],
+      [
+        "다른 운영체제",
+        "Node.js가 있으면 코어 CLI와 MCP 서버 실행 가능, daemon-run은 직접 예약"
+      ]
     ],
     "commandsLabel": "명령",
     "commandsTitle": "설치하고, 만들고, 확인하기",
@@ -238,11 +293,31 @@
     "changeHeader": "바뀌는 것",
     "undoHeader": "되돌리는 법",
     "changes": [
-      ["~/.nautli/", "init이 로컬 저장소, 설정, 인덱스, 리포트를 이곳에 만듦", "필요한 내용을 백업한 뒤 이 폴더 제거"],
-      ["~/.claude.json", "Claude Code 연결을 켰을 때만 MCP 등록 추가", "claude mcp remove -s user nautli"],
-      ["~/.claude/CLAUDE.md", "켰을 때만 표시가 있는 nautli 지시문 블록 하나 추가", "nautli setup --step remove-instructions"],
-      ["~/Library/LaunchAgents/com.nautli.daemon.plist", "켰을 때만 macOS 야간 작업 추가", "nautli setup --step uninstall-daemon"],
-      ["Cursor mcp.json", "nautli는 설정 조각만 제공하며 직접 붙여넣어야 함", "직접 넣은 nautli 항목 제거"]
+      [
+        "~/.nautli/",
+        "init이 로컬 저장소, 설정, 인덱스, 리포트를 이곳에 만듦",
+        "필요한 내용을 백업한 뒤 이 폴더 제거"
+      ],
+      [
+        "~/.claude.json",
+        "Claude Code 연결을 켰을 때만 MCP 등록 추가",
+        "claude mcp remove -s user nautli"
+      ],
+      [
+        "~/.claude/CLAUDE.md",
+        "켰을 때만 표시가 있는 nautli 지시문 블록 하나 추가",
+        "nautli setup --step remove-instructions"
+      ],
+      [
+        "~/Library/LaunchAgents/com.nautli.daemon.plist",
+        "켰을 때만 macOS 야간 작업 추가",
+        "nautli setup --step uninstall-daemon"
+      ],
+      [
+        "Cursor mcp.json",
+        "nautli는 설정 조각만 제공하며 직접 붙여넣어야 함",
+        "직접 넣은 nautli 항목 제거"
+      ]
     ],
     "undoNote": "위 세 명령은 ~/.nautli만 만듭니다. AI 연결과 야간 작업은 별도 설정 단계에서 동의해야 추가됩니다.",
     "testLabel": "안전한 시험",
@@ -286,10 +361,22 @@
     "title": "기억 건강검진",
     "scoreSuffix": " / 100",
     "metrics": [
-      {"key": "notes", "label": "확인한 노트"},
-      {"key": "contradictions", "label": "모순"},
-      {"key": "duplicates", "label": "중복 묶음"},
-      {"key": "reviews", "label": "리뷰 카드"}
+      {
+        "key": "notes",
+        "label": "확인한 노트"
+      },
+      {
+        "key": "contradictions",
+        "label": "모순"
+      },
+      {
+        "key": "duplicates",
+        "label": "중복 묶음"
+      },
+      {
+        "key": "reviews",
+        "label": "리뷰 카드"
+      }
     ],
     "resultNote": "이 카드에는 숫자만 있습니다. 노트 내용은 소유자의 컴퓨터에 남습니다.",
     "turnLabel": "당신 차례",

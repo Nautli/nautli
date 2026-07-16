@@ -127,7 +127,7 @@ function homePage(locale, copy) {
       </div>
       <div class="fact-example">
         <p>${escapeHtml(h.factIntro)}</p>
-        <dl>${h.fact.map((row) => `<div><dt><code>${escapeHtml(row.key)}</code></dt><dd><code>${escapeHtml(row.value)}</code></dd></div>`).join("")}</dl>
+        <dl>${h.fact.map((row) => `<div><dt><code>${escapeHtml(row[0])}</code></dt><dd><code>${escapeHtml(row[1])}</code></dd></div>`).join("")}</dl>
       </div>
     </section>
 

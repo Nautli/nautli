@@ -42,7 +42,7 @@
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
     "h1": "Cross-AI memory that lives on your disk.",
-    "subline": "AI asks. You decide.",
+    "subline": "Conflicts surfaced overnight. Settled by you.",
     "commands": [
       "npm i -g nautli",
       "nautli init",
@@ -112,10 +112,22 @@
     ],
     "factIntro": "A fact keeps the claim, its source, and the decision it replaced.",
     "fact": [
-      ["fact_id", "042"],
-      ["claim", "auth uses RS256 JWT, rotates 30d"],
-      ["source", "claude-code · 2026-06-14 · project:api"],
-      ["supersedes", "fact_id: 019"]
+      [
+        "fact_id",
+        "042"
+      ],
+      [
+        "claim",
+        "auth uses RS256 JWT, rotates 30d"
+      ],
+      [
+        "source",
+        "claude-code · 2026-06-14 · project:api"
+      ],
+      [
+        "supersedes",
+        "fact_id: 019"
+      ]
     ],
     "howLabel": "How it works",
     "howTitle": "The models can ask. Only you can settle the record.",
@@ -180,11 +192,27 @@
     "formula": "See the scoring formula",
     "compareLabel": "Compare",
     "compareTitle": "Hosted memory layer and nautli",
-    "compareHeaders": ["", "Hosted memory layer", "nautli"],
+    "compareHeaders": [
+      "",
+      "Hosted memory layer",
+      "nautli"
+    ],
     "compareRows": [
-      ["Transmission", "Memory may be sent to a hosted service", "Notes do not reach nautli servers"],
-      ["Source of truth", "Service-managed store", "Files under ~/.nautli"],
-      ["Who decides", "Service policy or model", "You answer review questions"]
+      [
+        "Transmission",
+        "Memory may be sent to a hosted service",
+        "Notes do not reach nautli servers"
+      ],
+      [
+        "Source of truth",
+        "Service-managed store",
+        "Files under ~/.nautli"
+      ],
+      [
+        "Who decides",
+        "Service policy or model",
+        "You answer review questions"
+      ]
     ],
     "supporterTitle": "Support the work",
     "supporterBody": "Core software stays MIT licensed. Supporter names appear only with explicit opt-in.",
@@ -200,10 +228,22 @@
     "doTitle": "What we do",
     "dontTitle": "What we do not do",
     "rows": [
-      ["Append facts with their source", "Replace your source notes"],
-      ["Surface contradictions for review", "Silently choose a winner"],
-      ["Preserve superseded history", "Delete the past to make the index tidy"],
-      ["Keep the store on your disk", "Make a hosted account the source of truth"]
+      [
+        "Append facts with their source",
+        "Replace your source notes"
+      ],
+      [
+        "Surface contradictions for review",
+        "Silently choose a winner"
+      ],
+      [
+        "Preserve superseded history",
+        "Delete the past to make the index tidy"
+      ],
+      [
+        "Keep the store on your disk",
+        "Make a hosted account the source of truth"
+      ]
     ],
     "essay": [
       "AI models change every six months. Your decisions do not.",
@@ -219,11 +259,26 @@
     "intro": "These steps create the store, then let you check a folder before choosing any additional integrations.",
     "requirementsLabel": "Requirements",
     "requirements": [
-      ["Node.js", "20 or newer"],
-      ["Operating system", "macOS for the automatic nightly launchd job"],
-      ["Claude Code CLI", "Installed and logged in for duplicate and contradiction judgments"],
-      ["Python 3", "Required for the memory checkup step"],
-      ["Other platforms", "Core CLI and MCP server run where Node.js runs; schedule daemon-run yourself"]
+      [
+        "Node.js",
+        "20 or newer"
+      ],
+      [
+        "Operating system",
+        "macOS for the automatic nightly launchd job"
+      ],
+      [
+        "Claude Code CLI",
+        "Installed and logged in for duplicate and contradiction judgments"
+      ],
+      [
+        "Python 3",
+        "Required for the memory checkup step"
+      ],
+      [
+        "Other platforms",
+        "Core CLI and MCP server run where Node.js runs; schedule daemon-run yourself"
+      ]
     ],
     "commandsLabel": "Commands",
     "commandsTitle": "Install, initialize, inspect",
@@ -238,11 +293,31 @@
     "changeHeader": "What changes",
     "undoHeader": "How to undo it",
     "changes": [
-      ["~/.nautli/", "init creates the local store, config, index, and reports here", "Back up anything you need, then remove this directory"],
-      ["~/.claude.json", "MCP registration is added only when you enable Claude Code integration", "claude mcp remove -s user nautli"],
-      ["~/.claude/CLAUDE.md", "One marked nautli instruction block is added only when enabled", "nautli setup --step remove-instructions"],
-      ["~/Library/LaunchAgents/com.nautli.daemon.plist", "The nightly macOS job is added only when enabled", "nautli setup --step uninstall-daemon"],
-      ["Cursor mcp.json", "nautli provides a snippet; you paste it manually", "Remove the nautli entry you added"]
+      [
+        "~/.nautli/",
+        "init creates the local store, config, index, and reports here",
+        "Back up anything you need, then remove this directory"
+      ],
+      [
+        "~/.claude.json",
+        "MCP registration is added only when you enable Claude Code integration",
+        "claude mcp remove -s user nautli"
+      ],
+      [
+        "~/.claude/CLAUDE.md",
+        "One marked nautli instruction block is added only when enabled",
+        "nautli setup --step remove-instructions"
+      ],
+      [
+        "~/Library/LaunchAgents/com.nautli.daemon.plist",
+        "The nightly macOS job is added only when enabled",
+        "nautli setup --step uninstall-daemon"
+      ],
+      [
+        "Cursor mcp.json",
+        "nautli provides a snippet; you paste it manually",
+        "Remove the nautli entry you added"
+      ]
     ],
     "undoNote": "The three commands above create only ~/.nautli. Integrations and the nightly job require separate opt-in setup steps.",
     "testLabel": "Safe test",
@@ -286,10 +361,22 @@
     "title": "Memory checkup",
     "scoreSuffix": " / 100",
     "metrics": [
-      {"key": "notes", "label": "Notes checked"},
-      {"key": "contradictions", "label": "Contradictions"},
-      {"key": "duplicates", "label": "Duplicate clusters"},
-      {"key": "reviews", "label": "Review cards"}
+      {
+        "key": "notes",
+        "label": "Notes checked"
+      },
+      {
+        "key": "contradictions",
+        "label": "Contradictions"
+      },
+      {
+        "key": "duplicates",
+        "label": "Duplicate clusters"
+      },
+      {
+        "key": "reviews",
+        "label": "Review cards"
+      }
     ],
     "resultNote": "This card contains numbers only. Note content stays on its owner's machine.",
     "turnLabel": "Your turn",
