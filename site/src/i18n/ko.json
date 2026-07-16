@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "메모리 토큰은 95% 줄고, 기억이 만들던 할루시네이션은 사라집니다.",
+    "h1": "95% 가벼운 기억, 딴소리 없는 대답.",
     "subline": "디스크에 사는 프라이빗 메모리. Claude, Codex, Cursor가 함께 읽고, 매일 밤 정리됩니다.",
     "commands": [
       "npm i -g nautli",
