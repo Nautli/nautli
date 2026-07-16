@@ -41,8 +41,8 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "AIをまたぐ記憶を、あなたのディスクに",
-    "subline": "AIたちの話が食い違ったら、あなたに聞きます。",
+    "h1": "あなたが成長するほど、記憶は鮮明になる。",
+    "subline": "ディスクに住むプライベートメモリ。Claude、Codex、Cursorが共有し、毎晩整理されます。",
     "commands": [
       "npm i -g nautli",
       "nautli init",

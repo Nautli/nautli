@@ -41,8 +41,8 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "AI들이 함께 쓰는 기억, 네 디스크에 산다",
-    "subline": "AI들이 서로 딴소리하면, 당신에게 물어봅니다.",
+    "h1": "당신이 성장할수록, 기억은 더 선명해집니다.",
+    "subline": "디스크에 사는 프라이빗 메모리. Claude, Codex, Cursor가 함께 읽고, 매일 밤 정리됩니다.",
     "commands": [
       "npm i -g nautli",
       "nautli init",
