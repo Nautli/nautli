@@ -700,6 +700,15 @@ function xml(value) {
     .replaceAll(">", "&gt;");
 }
 
+// launchd는 최소 PATH로 잡을 띄워 nvm 등지의 claude/codex를 못 찾는다 —
+// 설치는 유저 셸에서 실행되므로 그 시점의 PATH를 구워 넣는다.
+// node 자신의 bin 디렉토리(nvm이면 claude도 대개 여기)를 선두에 보장.
+function launchdPath() {
+  const nodeBin = path.dirname(process.execPath);
+  const base = process.env.PATH || "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+  return base.split(":").includes(nodeBin) ? base : `${nodeBin}:${base}`;
+}
+
 function daemonPlist(home) {
   const health = path.join(home, "daemon", "health.log");
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -707,7 +716,7 @@ function daemonPlist(home) {
 <plist version="1.0"><dict>
   <key>Label</key><string>${DAEMON_LABEL}</string>
   <key>ProgramArguments</key><array><string>${xml(process.execPath)}</string><string>${xml(CLI_FILE)}</string><string>daemon-run</string></array>
-  <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string></dict>
+  <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string><key>PATH</key><string>${xml(launchdPath())}</string></dict>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>30</integer></dict>
   <key>RunAtLoad</key><true/>
   <key>StandardOutPath</key><string>${xml(health)}</string>
@@ -722,7 +731,7 @@ function dashboardPlist(home) {
 <plist version="1.0"><dict>
   <key>Label</key><string>${DASHBOARD_LABEL}</string>
   <key>ProgramArguments</key><array><string>${xml(process.execPath)}</string><string>${xml(CLI_FILE)}</string><string>dashboard</string><string>--no-open</string></array>
-  <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string></dict>
+  <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string><key>PATH</key><string>${xml(launchdPath())}</string></dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${xml(path.join(home, "daemon", "dashboard.log"))}</string>
@@ -737,6 +746,7 @@ function menubarPlist(home, appPath) {
 <plist version="1.0"><dict>
   <key>Label</key><string>${MENUBAR_LABEL}</string>
   <key>ProgramArguments</key><array><string>${xml(`${appPath}/Contents/MacOS/nautli-menubar`)}</string></array>
+  <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string><key>PATH</key><string>${xml(launchdPath())}</string></dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>StandardOutPath</key><string>${xml(path.join(home, "daemon", "menubar.log"))}</string>

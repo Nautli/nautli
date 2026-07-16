@@ -187,6 +187,15 @@ test("daemon plist enables catch-up and stale labels are booted out first", (t) 
   assert.equal(launchctl[1][1], "bootstrap");
 });
 
+test("daemon plist preserves the installer shell PATH for AI CLI discovery", (t) => {
+  const { home, userHome } = isolatedHome(t);
+  const result = installDaemon(home, () => "ok\n", { userHome, uid: 501 });
+  const plist = fs.readFileSync(result.plist, "utf8");
+
+  assert.ok(plist.includes("<key>PATH</key>"));
+  assert.ok(plist.includes(path.dirname(process.execPath)));
+});
+
 test("bootstrap failure surfaces the stale-label guidance", (t) => {
   const { home, userHome } = isolatedHome(t);
   const runner = (command, args) => {
