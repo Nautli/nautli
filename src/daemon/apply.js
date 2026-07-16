@@ -62,6 +62,7 @@ export function applyJudgments(store, judgments, config = {}) {
     let queued = 0;
     let skipped = 0;
     let machineOracle = 0;
+    let triageRouted = 0;
     const journalEntries = [];
 
     for (const judgment of judgments) {
@@ -107,6 +108,9 @@ export function applyJudgments(store, judgments, config = {}) {
           if (judgment.oracle === "machine") {
             machineOracle += 1;
             outcome = "skipped_machine_oracle";
+          } else if (judgment.route === "machine" || judgment.route === "auto") {
+            triageRouted += 1;
+            outcome = "skipped_triage";
           } else {
             if (!queuedPairs.has(judgment.pair_id)) {
               queue.push({
@@ -137,6 +141,12 @@ export function applyJudgments(store, judgments, config = {}) {
     if (queued > 0) writeJsonl(queueFile, queue);
     for (const entry of journalEntries) appendJsonl(journalFile, entry);
 
-    return { applied, queued, skipped, machine_oracle: machineOracle };
+    return {
+      applied,
+      queued,
+      skipped,
+      machine_oracle: machineOracle,
+      triage_routed: triageRouted,
+    };
   });
 }

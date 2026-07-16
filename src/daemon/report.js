@@ -27,18 +27,27 @@ export function writeReport(store, home, results) {
   const cards = pending.slice(0, 3);
   const deferred = Math.max(0, pending.length - cards.length);
   const machineOracle = results.machine_oracle ?? 0;
-  const summary = machineOracle > 0
-    ? `요약: 적용 ${results.applied ?? 0}건, 리뷰 대기 추가 ${results.queued ?? 0}건, 건너뜀 ${results.skipped ?? 0}건, 기술 기록 보류 ${machineOracle}건.`
-    : `요약: 적용 ${results.applied ?? 0}건, 리뷰 대기 추가 ${results.queued ?? 0}건, 건너뜀 ${results.skipped ?? 0}건.`;
+  const triageRouted = results.triage_routed ?? 0;
+  const summaryParts = [
+    `적용 ${results.applied ?? 0}건`,
+    `리뷰 대기 추가 ${results.queued ?? 0}건`,
+    `건너뜀 ${results.skipped ?? 0}건`,
+  ];
+  if (machineOracle > 0) summaryParts.push(`기술 기록 보류 ${machineOracle}건`);
+  if (triageRouted > 0) summaryParts.push(`AI가 대신 맡음 ${triageRouted}건`);
+  const summary = `요약: ${summaryParts.join(", ")}.`;
   const lines = [summary];
   if (machineOracle > 0) {
     lines.push("(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요)");
+  }
+  if (triageRouted > 0) {
+    lines.push("(AI가 대신 맡음: 사람이 답할 필요 없는 질문이라 보류해 뒀어요)");
   }
   lines.push("");
 
   cards.forEach((review, index) => {
     const duplicate = review.verdict === "duplicate";
-    const headline = oneLine(review.crux) || (duplicate
+    const headline = oneLine(review.crux_plain) || oneLine(review.crux) || (duplicate
       ? "이 두 기억이 같은 내용 같아요."
       : "두 기억이 동시에 맞기 어려워 보여요.");
     const question = duplicate

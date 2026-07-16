@@ -17,6 +17,7 @@ process.env.NAUTLI_ALLOW_TEST_JUDGE = "1";
 const config = {
   default_scope: "person",
   judge_cmd: [process.execPath, mockJudge],
+  triage_cmd: false, // 트리아지 게이트 off — 이 파일은 judge/apply 게이트만 검증
   contradiction_auto: true, // 자동 무효화 메커니즘 자체를 테스트 (제품 기본값은 false=리뷰카드)
 };
 

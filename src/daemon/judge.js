@@ -48,24 +48,26 @@ function inputLine(pair) {
   };
 }
 
-export function command(config) {
-  if (Array.isArray(config?.judge_cmd) && config.judge_cmd.length > 0) {
-    const [cmd, ...args] = config.judge_cmd;
+export function buildCommand(config, configKey, prompt) {
+  const configured = config?.[configKey];
+  const label = configKey.endsWith("_cmd") ? configKey.slice(0, -4) : configKey;
+  if (Array.isArray(configured) && configured.length > 0) {
+    const [cmd, ...args] = configured;
     if (typeof cmd !== "string" || cmd === "" || args.some((arg) => typeof arg !== "string")) {
-      throw new Error("Invalid judge_cmd");
+      throw new Error(`Invalid ${configKey}`);
     }
     const basename = path.basename(cmd);
     if (basename === "node") {
       if (process.env.NAUTLI_ALLOW_TEST_JUDGE !== "1") {
-        throw new Error("테스트 judge는 NAUTLI_ALLOW_TEST_JUDGE=1에서만 사용할 수 있습니다.");
+        throw new Error(`테스트 ${label}는 NAUTLI_ALLOW_TEST_JUDGE=1에서만 사용할 수 있습니다.`);
       }
       if (args.length !== 1 || !path.isAbsolute(args[0]) || path.extname(args[0]) !== ".js") {
-        throw new Error("테스트 judge_cmd는 절대 경로의 JavaScript 파일 하나만 허용합니다.");
+        throw new Error(`테스트 ${configKey}는 절대 경로의 JavaScript 파일 하나만 허용합니다.`);
       }
       return { cmd, args };
     }
     if (!ALLOWED_JUDGE_COMMANDS.has(basename)) {
-      throw new Error(`허용되지 않은 judge_cmd입니다: ${basename} (허용: claude, claude-patched)`);
+      throw new Error(`허용되지 않은 ${configKey}입니다: ${basename} (허용: claude, claude-patched)`);
     }
     let promptCount = 0;
     for (let index = 0; index < args.length; index += 1) {
@@ -74,26 +76,30 @@ export function command(config) {
         promptCount += 1;
         index += 1;
         // -p가 마지막 인자면 프롬프트는 코드 상수를 주입한다 (config는 바이너리·모델만 지정하는 게 정상 사용)
-        if (index >= args.length) args.push(JUDGE_PROMPT);
-        else if (args[index] === "") throw new Error("judge_cmd의 -p에는 프롬프트가 필요합니다.");
+        if (index >= args.length) args.push(prompt);
+        else if (args[index] === "") throw new Error(`${configKey}의 -p에는 프롬프트가 필요합니다.`);
       } else if (arg === "--model") {
         index += 1;
         if (index >= args.length || !/^[A-Za-z0-9._-]+$/u.test(args[index])) {
-          throw new Error("judge_cmd의 model 형식이 올바르지 않습니다.");
+          throw new Error(`${configKey}의 model 형식이 올바르지 않습니다.`);
         }
       } else {
-        throw new Error(`허용되지 않은 judge_cmd 인자입니다: ${arg}`);
+        throw new Error(`허용되지 않은 ${configKey} 인자입니다: ${arg}`);
       }
     }
     if (promptCount !== 1) {
-      throw new Error("judge_cmd는 정확히 하나의 -p 프롬프트를 포함해야 합니다.");
+      throw new Error(`${configKey}는 정확히 하나의 -p 프롬프트를 포함해야 합니다.`);
     }
     return { cmd, args };
   }
   return {
     cmd: "claude",
-    args: ["--model", "sonnet", "-p", JUDGE_PROMPT],
+    args: ["--model", configKey === "triage_cmd" ? "opus" : "sonnet", "-p", prompt],
   };
+}
+
+export function command(config) {
+  return buildCommand(config, "judge_cmd", JUDGE_PROMPT);
 }
 
 function redactRawLog(text) {
@@ -108,7 +114,7 @@ function redactRawLog(text) {
   }).join("\n");
 }
 
-function appendRawLog(file, text) {
+export function appendRawLog(file, text) {
   const redacted = Buffer.from(redactRawLog(text), "utf8");
   const safeBytes = redacted.length > RAW_LOG_LIMIT
     ? redacted.subarray(redacted.length - RAW_LOG_LIMIT)
@@ -136,7 +142,7 @@ function safeJudgment(pair_id, reason = "judge output missing or invalid") {
   };
 }
 
-function extractJsonObjects(text) {
+export function extractJsonObjects(text) {
   // 중괄호 균형 스캔 — 한 줄 JSONL뿐 아니라 펜스·pretty-print된 JSON 오브젝트도 회수
   const objects = [];
   let depth = 0;

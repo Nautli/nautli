@@ -57,6 +57,7 @@ test("a genuinely isolated new user completes setup, digestion, and review over 
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
     default_scope: "person",
     judge_cmd: [process.execPath, mockJudge],
+    triage_cmd: false,
   })}\n`, "utf8");
   const seeded = await postSetup("sample");
   assert.equal(seeded.seeded, 4);

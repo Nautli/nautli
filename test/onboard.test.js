@@ -155,6 +155,7 @@ test("sample facts create one duplicate and one contradiction review card", asyn
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
     default_scope: "person",
     judge_cmd: [process.execPath, mockJudge],
+    triage_cmd: false,
   })}\n`, "utf8");
 
   const seeded = seedSampleFacts(home);
@@ -355,6 +356,7 @@ test("runDigestOnce skips when another digestion holds the lock", async (t) => {
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
     default_scope: "person",
     judge_cmd: [process.execPath, mockJudge],
+    triage_cmd: false,
   })}\n`, "utf8");
   const lock = path.join(home, "daemon", "run.lock");
   fs.mkdirSync(path.dirname(lock), { recursive: true });

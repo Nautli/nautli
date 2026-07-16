@@ -53,7 +53,7 @@ test("machine oracle contradiction is journaled without a review card", (t) => {
     oracle: "machine",
   }]);
 
-  assert.deepEqual(result, { applied: 0, queued: 0, skipped: 0, machine_oracle: 1 });
+  assert.deepEqual(result, { applied: 0, queued: 0, skipped: 0, machine_oracle: 1, triage_routed: 0 });
   assert.equal(fs.existsSync(path.join(home, "review", "queue.jsonl")), false);
   assert.equal(store.getFact(a.id).status, STATUS.ACTIVE);
   assert.equal(store.getFact(b.id).status, STATUS.ACTIVE);

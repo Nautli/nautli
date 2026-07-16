@@ -4,6 +4,7 @@ import { drainOnce } from "../capture/drain.js";
 import { listOptedProjects } from "../capture/consent.js";
 import { findPairs } from "./pair.js";
 import { judgePairs } from "./judge.js";
+import { triageCards } from "./triage.js";
 import { applyJudgments } from "./apply.js";
 import { writeReport } from "./report.js";
 import { renderViews } from "./render.js";
@@ -46,6 +47,51 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
     count: judgeResult.parsedCount,
     errors: judgeResult.errors.length,
   });
+
+  const triageStats = { checked: 0, human: 0, routed: 0 };
+  const triageCandidates = [];
+  const judgmentsByPair = new Map();
+  for (const judgment of judgeResult.judgments) {
+    const confidence = Number(judgment?.confidence);
+    const eligible = (judgment?.verdict === "duplicate" && confidence >= 0.6 && confidence < 0.9)
+      || (judgment?.verdict === "contradiction" && confidence >= 0.6);
+    if (!eligible || judgment.oracle === "machine") continue;
+    const ids = typeof judgment.pair_id === "string" ? judgment.pair_id.split(":") : [];
+    const a = ids.length === 2 ? store.getFact(ids[0]) : null;
+    const b = ids.length === 2 ? store.getFact(ids[1]) : null;
+    if (!a || !b) continue;
+    triageCandidates.push({
+      pair_id: judgment.pair_id,
+      verdict: judgment.verdict,
+      crux: judgment.crux,
+      reason: judgment.reason,
+      claim_a: a.claim,
+      claim_b: b.claim,
+      scope: a.scope === b.scope ? a.scope : `${a.scope} | ${b.scope}`,
+    });
+    judgmentsByPair.set(judgment.pair_id, judgment);
+  }
+  triageStats.checked = triageCandidates.length;
+  triageStats.human = triageCandidates.length;
+  // triage_cmd === false는 명시적 opt-out(테스트·트리아지 미사용 환경) — 기본값은 opus 트리아지 on
+  if (triageCandidates.length > 0 && config?.triage_cmd !== false) {
+    try {
+      const triaged = await triageCards(triageCandidates, config, home);
+      for (const [pairId, result] of triaged) {
+        const judgment = judgmentsByPair.get(pairId);
+        if (!judgment) continue;
+        judgment.route = result.route;
+        if (typeof result.crux_plain === "string") judgment.crux_plain = result.crux_plain;
+        if (result.route !== "human") {
+          triageStats.human -= 1;
+          triageStats.routed += 1;
+        }
+      }
+    } catch {
+      // 트리아지 설정·호출 실패는 fail-open: 기존 사람 큐 동작으로 계속 진행한다.
+    }
+  }
+  recordStage(home, "triage", triageStats);
 
   const appliedResults = applyJudgments(store, judgeResult.judgments, config);
   recordStage(home, "apply", appliedResults);
