@@ -148,6 +148,54 @@ test("startCheckup records a running state and refuses a second concurrent run",
   );
 });
 
+test("startCheckup removes stale run artifacts before spawning", (t) => {
+  const userHome = tempHome(t, "nautli-start-fresh-");
+  const home = path.join(userHome, ".nautli");
+  const vault = path.join(userHome, "vault");
+  fs.mkdirSync(vault, { recursive: true });
+  fs.writeFileSync(path.join(vault, "note.md"), "# 기억 노트");
+  let invocations = 0;
+  const spawner = () => ({
+    pid: invocations++ === 0 ? 2147483646 : process.pid,
+    unref() {},
+    on() {},
+  });
+  startCheckup(home, vault, { userHome, spawner });
+  const runDir = readCurrent(home).run_dir;
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(path.join(runDir, "summary.json"), JSON.stringify({ score: 79 }));
+  fs.writeFileSync(path.join(runDir, "atoms.jsonl"), `${JSON.stringify({ id: "fa_old" })}\n`);
+
+  startCheckup(home, vault, { userHome, spawner });
+
+  assert.equal(fs.existsSync(path.join(runDir, "summary.json")), false);
+  assert.equal(fs.existsSync(path.join(runDir, "atoms.jsonl")), false);
+  assert.equal(checkupStatus(home).state, "running");
+});
+
+test("checkupStatus ignores summary older than started_at", (t) => {
+  const userHome = tempHome(t, "nautli-summary-freshness-");
+  const home = path.join(userHome, ".nautli");
+  const vault = path.join(userHome, "vault");
+  fs.mkdirSync(vault, { recursive: true });
+  fs.writeFileSync(path.join(vault, "note.md"), "# 기억 노트");
+  startCheckup(home, vault, {
+    userHome,
+    spawner: () => ({ pid: process.pid, unref() {}, on() {} }),
+  });
+  const runDir = readCurrent(home).run_dir;
+  const summaryFile = path.join(runDir, "summary.json");
+  fs.mkdirSync(runDir, { recursive: true });
+  fs.writeFileSync(summaryFile, JSON.stringify({ score: 79 }));
+  const stale = new Date(Date.now() - 3600000);
+  fs.utimesSync(summaryFile, stale, stale);
+  assert.equal(checkupStatus(home).state, "running");
+
+  const now = new Date();
+  fs.utimesSync(summaryFile, now, now);
+  assert.equal(checkupStatus(home).state, "done");
+});
+
 test("checkup preflight checks python3 and Claude CLI login", (t) => {
   const userHome = tempHome(t, "nautli-preflight-");
   const home = path.join(userHome, ".nautli");

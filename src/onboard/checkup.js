@@ -325,7 +325,10 @@ export function startCheckup(home, vaultPathOrPaths, options = {}) {
     "--max-judge-pairs", String(TASTE.maxJudgePairs),
   ];
   for (const directory of excluded) args.push("--exclude", directory);
-  if (fs.existsSync(runDir)) args.push("--fresh");
+  if (fs.existsSync(runDir)) {
+    args.push("--fresh");
+    fs.rmSync(runDir, { recursive: true, force: true });
+  }
   const child = spawner("python3", args, { detached: true, stdio: ["ignore", log, log] });
   const started = {
     state: "running", vault: resolved[0], vaults: resolved, work_home: workHome, run_dir: runDir,
@@ -367,6 +370,19 @@ function readJsonl(file) {
     return fs.readFileSync(file, "utf8").split("\n").filter((line) => line.trim() !== "").map((line) => JSON.parse(line));
   } catch {
     return [];
+  }
+}
+
+function summaryIsFresh(current, runDir) {
+  if (!runDir) return false;
+  const file = path.join(runDir, "summary.json");
+  if (!fs.existsSync(file)) return false;
+  const startedAt = Date.parse(current.started_at);
+  if (!Number.isFinite(startedAt)) return true;
+  try {
+    return fs.statSync(file).mtimeMs >= startedAt - 2000;
+  } catch {
+    return false;
   }
 }
 
@@ -459,11 +475,12 @@ export function checkupStatus(home) {
   const startedAt = Date.parse(current.started_at);
   const timedOut = current.state === "running" && Number.isFinite(startedAt) && Date.now() - startedAt >= 90 * 60 * 1000;
   // 결과가 이미 있으면(summary/imported) 90분 타임아웃으로 뒤집지 않는다 — 완료 후 시간이 지나면 failed로 위장되던 회귀
-  const hasResult = Boolean(current.imported_at) || (runDir && fs.existsSync(path.join(runDir, "summary.json")));
+  const hasSummary = summaryIsFresh(current, runDir);
+  const hasResult = Boolean(current.imported_at) || hasSummary;
   if (current.state === "failed" || (timedOut && !hasResult)) return failedStatus();
   const manifest = runDir ? readJson(path.join(runDir, "manifest.json")) : null;
   const filesSampled = typeof manifest?.files === "number" ? manifest.files : null;
-  const summary = runDir ? readJson(path.join(runDir, "summary.json")) : null;
+  const summary = hasSummary ? readJson(path.join(runDir, "summary.json")) : null;
   if (summary) {
     const failedBatches = summary.failed_extract_batches ?? 0;
     const partial = failedBatches > 0 || ((summary.notes ?? 0) > 0 && (summary.atoms ?? 0) === 0);
@@ -516,6 +533,9 @@ export function importCheckup(home, config, { locale } = {}) {
   if (!current) throw codedError(ERR.E_NOT_FOUND, t("checkup.import_missing"));
   if (current.imported_at) return current.imported;
   const runDir = current.run_dir;
+  if (!summaryIsFresh(current, runDir)) {
+    throw codedError(ERR.E_NOT_FOUND, t("checkup.memories_missing"));
+  }
   const atoms = runDir ? readJsonl(path.join(runDir, "atoms.jsonl")) : [];
   if (atoms.length === 0) throw codedError(ERR.E_NOT_FOUND, t("checkup.memories_missing"));
   const store = new Store(home);
