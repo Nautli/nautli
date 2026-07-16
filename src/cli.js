@@ -525,9 +525,10 @@ async function reviewCommand(home, args) {
         applyCard(store, home, card.pair_id, action);
       } else {
         answer = (await input.question(t("cli.review.contradiction_prompt"))).trim();
-        if (/^o$/iu.test(answer)) applyCard(store, home, card.pair_id, "newer_wins");
-        else if (/^x$/iu.test(answer)) applyCard(store, home, card.pair_id, "older_wins");
-        else if (/^b$/iu.test(answer)) applyCard(store, home, card.pair_id, "both_valid");
+        if (/^a$/iu.test(answer)) applyCard(store, home, card.pair_id, "a_wins");
+        else if (/^b$/iu.test(answer)) applyCard(store, home, card.pair_id, "b_wins");
+        else if (/^o$/iu.test(answer)) applyCard(store, home, card.pair_id, "both_valid");
+        else if (/^\?$/u.test(answer)) applyCard(store, home, card.pair_id, "unknown");
         else applyCard(store, home, card.pair_id, "other", answer);
       }
       reviewed += 1;

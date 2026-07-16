@@ -32,3 +32,87 @@ test("contradiction defaults to review queue, never auto-invalidates", () => {
   assert.match(queue, /contradiction/);
   store.close();
 });
+
+test("machine oracle contradiction is journaled without a review card", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-policy-"));
+  const store = new Store(home);
+  t.after(() => {
+    store.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const cfg = { default_scope: "person" };
+  const a = remember(store, { claim: "기술 기록: 빌드는 대기 상태다", scope: "project:oracle" }, cfg);
+  const b = remember(store, { claim: "기술 기록: 빌드는 완료 상태다", scope: "project:oracle" }, cfg);
+
+  const result = applyJudgments(store, [{
+    pair_id: `${a.id}:${b.id}`,
+    verdict: "contradiction",
+    confidence: 0.88,
+    newer: "b",
+    reason: "빌드 상태가 다르다",
+    oracle: "machine",
+  }]);
+
+  assert.deepEqual(result, { applied: 0, queued: 0, skipped: 0, machine_oracle: 1 });
+  assert.equal(fs.existsSync(path.join(home, "review", "queue.jsonl")), false);
+  assert.equal(store.getFact(a.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(b.id).status, STATUS.ACTIVE);
+  const journal = fs.readFileSync(path.join(home, "daemon", "journal.jsonl"), "utf8")
+    .trim().split("\n").map(JSON.parse);
+  assert.equal(journal[0].outcome, "skipped_machine_oracle");
+});
+
+test("user oracle contradiction is added to the review queue", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-policy-"));
+  const store = new Store(home);
+  t.after(() => {
+    store.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const cfg = { default_scope: "person" };
+  const a = remember(store, { claim: "프로젝트 방향은 A다", scope: "project:oracle" }, cfg);
+  const b = remember(store, { claim: "프로젝트 방향은 B다", scope: "project:oracle" }, cfg);
+
+  const result = applyJudgments(store, [{
+    pair_id: `${a.id}:${b.id}`,
+    verdict: "contradiction",
+    confidence: 0.88,
+    newer: "b",
+    reason: "프로젝트 방향이 다르다",
+    oracle: "user",
+  }]);
+
+  assert.equal(result.queued, 1);
+  assert.equal(result.machine_oracle, 0);
+  const queue = fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
+    .trim().split("\n").map(JSON.parse);
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].pair_id, `${a.id}:${b.id}`);
+});
+
+test("missing oracle defaults to user and is added to the review queue", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-policy-"));
+  const store = new Store(home);
+  t.after(() => {
+    store.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const cfg = { default_scope: "person" };
+  const a = remember(store, { claim: "선호 설정은 A다", scope: "project:oracle" }, cfg);
+  const b = remember(store, { claim: "선호 설정은 B다", scope: "project:oracle" }, cfg);
+
+  const result = applyJudgments(store, [{
+    pair_id: `${a.id}:${b.id}`,
+    verdict: "contradiction",
+    confidence: 0.88,
+    newer: "b",
+    reason: "선호 설정이 다르다",
+  }]);
+
+  assert.equal(result.queued, 1);
+  assert.equal(result.machine_oracle, 0);
+  const queue = fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
+    .trim().split("\n").map(JSON.parse);
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].pair_id, `${a.id}:${b.id}`);
+});

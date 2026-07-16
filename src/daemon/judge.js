@@ -14,13 +14,15 @@ export const JUDGE_PROMPT = `[출력 규칙 최우선] 너의 응답(stdout)은 
 - related: 같은 주제인데 둘 다 유효 (보완 관계).
 - unrelated: 유사해 보여도 실제 무관.
 - confidence: 0~1. 확실할 때만 0.9+.
+- crux: duplicate/contradiction일 때만 쓴다. 무엇이 갈리는지 사람말 한 문장으로 설명하고 줄표(—)는 쓰지 마라. 예: "npm 발행이 끝났는지가 갈려요. A는 발행 대기, B는 발행 완료."
+- oracle: 이 갈림을 최종 확정할 수 있는 주체. machine = 두 claim이 모두 코드·빌드·배포·발행·인프라·파일 상태 같은 기술 기록이고 정답을 레포·레지스트리·로그 대조로 확인할 수 있을 때만. user = 사업 결정·선호·사람·프로젝트 방향·의도, 또는 조금이라도 애매하면 전부 user. duplicate/contradiction일 때만 출력.
 
 입력: JSONL (pair_id, claim_a/t_a/recorded_a, claim_b/t_b/recorded_b). t_*=사실 유효 시작일, recorded_*=기록 시각.
 newer 판정: 문맥("변경되었다" 등)이 1순위, t_valid 차이가 2순위, 같으면 recorded 시각이 늦은 쪽이 newer.
 
 출력 예시 (이 키들만, 줄당 컴팩트 JSON 1개, 여러 줄로 펼치지 말 것):
-{"pair_id":"fa_x:fa_y","verdict":"contradiction","confidence":0.95,"newer":"b","reason":"포트 값이 다르고 b가 최신"}
-출력: JSONL만, 줄당 {"pair_id":"...","verdict":"duplicate|contradiction|related|unrelated","confidence":0.9,"newer":"a|b|null","reason":"한 문장"}
+{"pair_id":"fa_x:fa_y","verdict":"contradiction","confidence":0.95,"newer":"b","reason":"포트 값이 다르고 b가 최신","crux":"현재 쓰는 포트가 갈려요. A는 3000, B는 4000.","oracle":"machine"}
+출력: JSONL만, 줄당 {"pair_id":"...","verdict":"duplicate|contradiction|related|unrelated","confidence":0.9,"newer":"a|b|null","reason":"한 문장","crux":"duplicate/contradiction일 때만 사람말 한 문장","oracle":"duplicate/contradiction일 때만 machine|user"}
 `;
 
 const VERDICTS = new Set(["duplicate", "contradiction", "related", "unrelated"]);
@@ -177,6 +179,8 @@ function normalizeJudgment(value) {
     confidence: typeof value.confidence === "number" ? value.confidence : Number(value.confidence),
     newer: value.newer === "a" || value.newer === "b" ? value.newer : null,
     reason: typeof value.reason === "string" ? value.reason : "",
+    oracle: value.oracle === "machine" ? "machine" : "user",
+    ...(typeof value.crux === "string" ? { crux: value.crux } : {}),
   };
 }
 

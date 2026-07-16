@@ -10,7 +10,7 @@ import {
   captureMetrics,
   evaluateVerdict,
 } from "../src/capture/metrics.js";
-import { applyCaptureCard } from "../src/core/review.js";
+import { applyCaptureCard, listCards } from "../src/core/review.js";
 import { Store } from "../src/core/store.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -111,6 +111,7 @@ test("captureMetrics reports exact cohort metrics without leaking source content
     candidates: 23,
     approved: 12,
     dismissed: 6,
+    unknown: 0,
     deferred: 2,
     pending: 3,
     approval_rate: 2 / 3,
@@ -162,6 +163,45 @@ test("zero denominators stay null", (t) => {
   assert.equal(report.metrics.explicit.useful_recall_rate, null);
   assert.equal(report.metrics.explicit.recall_refs_per_fact, null);
   assert.equal(report.metrics.comparison.useful_recall_delta, null);
+});
+
+test("unknown decisions count as reviewed without affecting approval rates or pending", (t) => {
+  const home = isolatedHome(t, "nautli-capture-metrics-unknown-");
+  writeJsonl(path.join(home, "review", "queue.jsonl"), [
+    {
+      type: "capture",
+      pair_id: "cap:remember",
+      action: "remember",
+      status: "answered",
+      at: "2025-01-01T00:00:00.000Z",
+      handled_at: "2025-01-01T00:00:01.000Z",
+    },
+    {
+      type: "capture",
+      pair_id: "cap:dismissed",
+      action: "dismissed",
+      status: "dismissed",
+      at: "2025-01-01T00:00:00.000Z",
+      handled_at: "2025-01-01T00:00:03.000Z",
+    },
+    {
+      type: "capture",
+      pair_id: "cap:unknown",
+      action: "unknown",
+      status: "unknown",
+      at: "2025-01-01T00:00:00.000Z",
+      handled_at: "2025-01-01T00:00:05.000Z",
+    },
+  ]);
+
+  const report = captureMetrics(home, { now: "2025-01-01T00:00:05.000Z" });
+
+  assert.equal(report.metrics.auto.unknown, 1);
+  assert.equal(report.metrics.auto.pending, 0);
+  assert.equal(report.metrics.auto.approval_rate, 0.5);
+  assert.equal(report.metrics.auto.false_positive_rate, 0.5);
+  assert.equal(report.metrics.auto.median_review_latency_ms, 3_000);
+  assert.equal(report.sample.decided_cards, 3);
 });
 
 test("evaluateVerdict reproduces insufficient, pass, and kill with sample gate first", () => {
@@ -223,7 +263,7 @@ test("capture metrics CLI renders the insufficient-sample path honestly", (t) =>
   assert.equal(human.status, 0, human.stderr || human.stdout);
   assert.match(human.stdout, /\[표본 부족\]/u);
   assert.match(human.stdout, /승인율\s+측정 전/u);
-  assert.match(human.stdout, /카드 결정 \d+건·회상 \d+건을 더 채우면 판정/u);
+  assert.match(human.stdout, /질문 답변 \d+건과 회상 \d+건이 더 필요해요/u);
 
   const report = JSON.parse(run(["--json"]).stdout);
   assert.equal(report.verdict, "INSUFFICIENT_SAMPLE");
@@ -284,4 +324,45 @@ test("capture decisions are logged once per action and rebuild never treats them
   assert.equal(before, 1);
   store.rebuild();
   assert.equal(store.stats().total, before);
+});
+
+test("unknown capture decisions close the card without storing a fact", (t) => {
+  const home = isolatedHome(t, "nautli-capture-unknown-");
+  const store = new Store(home);
+  t.after(() => store.close());
+  writeJsonl(path.join(home, "review", "queue.jsonl"), [{
+    type: "capture",
+    pair_id: "cap:unknown",
+    claim: "본인도 맞는지 모르는 발견",
+    scope: "person",
+    confidence: 0.5,
+    at: new Date(Date.now() - 1000).toISOString(),
+    status: "pending",
+  }]);
+
+  const result = applyCaptureCard(
+    store,
+    home,
+    "cap:unknown",
+    "unknown",
+    { default_scope: "person" },
+  );
+
+  assert.deepEqual(result, {
+    ok: true,
+    status: "unknown",
+    action: "unknown",
+    remembered: undefined,
+  });
+  assert.equal(store.stats().total, 0);
+  assert.equal(listCards(home).length, 0);
+  const queued = JSON.parse(fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8"));
+  assert.equal(queued.status, "unknown");
+  const eventFiles = fs.readdirSync(path.join(home, "events"))
+    .filter((file) => file.endsWith(".jsonl"));
+  const events = eventFiles.flatMap((file) => fs.readFileSync(path.join(home, "events", file), "utf8")
+    .trim().split("\n").map((line) => JSON.parse(line)));
+  const decided = events.filter((event) => event.ev === "capture.decided");
+  assert.equal(decided.length, 1);
+  assert.equal(decided[0].action, "unknown");
 });

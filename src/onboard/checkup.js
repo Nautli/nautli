@@ -14,6 +14,7 @@ import { checkClaudeLogin, checkCommand } from "./doctor.js";
 const DOCTOR_SCRIPT = fileURLToPath(new URL("../../vendor/vault-doctor/vault_doctor.py", import.meta.url));
 // 맛보기 진단 기본 캡 — 온보딩은 "몇 분" 안에 끝나야 한다 (풀 진단은 CLI 몫)
 export const TASTE = Object.freeze({ maxFiles: 40, junkSample: 12, maxJudgePairs: 150 });
+export const DEFAULT_SWEEP_KINDS = new Set(["claude-harness", "codex-harness", "gemini-harness"]);
 const IMPORT_CAP = 800;
 // 크로스AI 하네스 홈 — 숨김폴더라 walk가 못 찾으니 특례
 const HARNESS_HOMES = [
@@ -135,6 +136,7 @@ export function checkupCandidates({
     const directories = topLevelDirs(candidate.path);
     return {
       ...candidate,
+      default_sweep: DEFAULT_SWEEP_KINDS.has(candidate.kind),
       notes,
       files: notes,
       top_level_dirs: directories,
@@ -142,7 +144,7 @@ export function checkupCandidates({
     };
   })
     .filter((candidate) => candidate.notes > 0)
-    .sort((a, b) => b.notes - a.notes)
+    .sort((a, b) => Number(b.default_sweep) - Number(a.default_sweep) || b.notes - a.notes)
     .slice(0, 8);
 }
 
@@ -211,35 +213,84 @@ export function validateVaultPath(vaultPath, {
   return resolved;
 }
 
-export function checkupPreflight(home, vaultPath, options = {}) {
+function normalizeVaultPaths(vaultPathOrPaths, options) {
+  const inputs = Array.isArray(vaultPathOrPaths) ? vaultPathOrPaths : [vaultPathOrPaths];
+  if (inputs.length === 0) return [validateVaultPath(undefined, options)];
+  const unique = [...new Set(inputs.map((vaultPath) => validateVaultPath(vaultPath, options)))];
+  return unique
+    .filter((candidate) => !unique.some((parent) => {
+      if (parent === candidate) return false;
+      const relative = path.relative(parent, candidate);
+      return relative !== "" && !relative.startsWith(`..${path.sep}`)
+        && relative !== ".." && !path.isAbsolute(relative);
+    }))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function combinedTopLevelDirs(vaults) {
+  const combined = new Map();
+  for (const vault of vaults) {
+    for (const directory of topLevelDirs(vault)) {
+      combined.set(directory.name, (combined.get(directory.name) ?? 0) + directory.files);
+    }
+  }
+  return [...combined.entries()]
+    .map(([name, files]) => ({ name, files }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function vaultSetSampleSeed(vaults) {
+  if (vaults.length === 1) return vaultSampleSeed(vaults[0]);
+  return createHash("sha256").update(vaults.join("\0")).digest("hex");
+}
+
+function doctorRunSlug(vaults, excluded, sampleSeed) {
+  const slugConfig = vaults.map((root) => ({
+    exclude: [...excluded].sort(),
+    max_files: TASTE.maxFiles,
+    root,
+    sample_seed: sampleSeed,
+  }));
+  const hash = createHash("sha1").update(JSON.stringify(slugConfig)).digest("hex").slice(0, 10);
+  const name = vaults.length === 1 ? path.basename(vaults[0]) : `multisource-${vaults.length}`;
+  return `${name}-${hash}`;
+}
+
+export function checkupPreflight(home, vaultPathOrPaths, options = {}) {
   const {
     userHome = os.homedir(),
     runner = spawnSync,
     excludedDirs = options.excluded_dirs,
     locale,
   } = options;
-  const resolved = validateVaultPath(vaultPath, { userHome, home, locale });
-  const topLevel = topLevelDirs(resolved);
+  const resolved = normalizeVaultPaths(vaultPathOrPaths, { userHome, home, locale });
+  const topLevel = combinedTopLevelDirs(resolved);
   const excluded = normalizeExcludedDirs(excludedDirs, topLevel, locale);
-  const files = countNotes(resolved, 4000, excluded);
+  const sourceFiles = resolved.map((vault) => countNotes(vault, 4000, excluded));
+  const files = sourceFiles.reduce((total, count) => total + count, 0);
+  const sampledFiles = sourceFiles.reduce(
+    (total, count) => total + Math.min(count, TASTE.maxFiles),
+    0,
+  );
   const python = checkCommand("python3", ["--version"], runner);
   const claude = checkClaudeLogin(runner);
   return {
     ok: python && claude.cli_exists && claude.logged_in && files > 0,
-    vault: resolved,
+    vault: resolved[0],
+    vaults: resolved,
     python3: { available: python },
     claude,
     files,
-    sampled_files: Math.min(files, TASTE.maxFiles),
-    estimated_minutes: Math.max(1, Math.ceil(Math.min(files, TASTE.maxFiles) / 30 * 8)),
+    sampled_files: sampledFiles,
+    estimated_minutes: Math.max(1, Math.ceil(sampledFiles / 30 * 8)),
     top_level_dirs: topLevel,
     directories: topLevel,
     excluded_dirs: excluded,
-    sample_seed: vaultSampleSeed(resolved),
+    sample_seed: vaultSetSampleSeed(resolved),
   };
 }
 
-export function startCheckup(home, vaultPath, options = {}) {
+export function startCheckup(home, vaultPathOrPaths, options = {}) {
   const {
     userHome = os.homedir(),
     spawner = spawn,
@@ -247,9 +298,11 @@ export function startCheckup(home, vaultPath, options = {}) {
     locale,
   } = options;
   const t = translator(locale);
-  const resolved = validateVaultPath(vaultPath, { userHome, home, locale });
-  const excluded = normalizeExcludedDirs(excludedDirs, topLevelDirs(resolved), locale);
-  if (countNotes(resolved, 1, excluded) === 0) throw codedError(ERR.E_INVALID_INPUT, t("checkup.no_markdown"));
+  const resolved = normalizeVaultPaths(vaultPathOrPaths, { userHome, home, locale });
+  const excluded = normalizeExcludedDirs(excludedDirs, combinedTopLevelDirs(resolved), locale);
+  if (resolved.every((vault) => countNotes(vault, 1, excluded) === 0)) {
+    throw codedError(ERR.E_INVALID_INPUT, t("checkup.no_markdown"));
+  }
   const existing = readCurrent(home);
   if (existing && existing.state === "running" && pidAlive(existing.pid)) {
     throw codedError(ERR.E_STORE_BUSY, t("checkup.already_running"));
@@ -258,18 +311,16 @@ export function startCheckup(home, vaultPath, options = {}) {
   if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, t("checkup.python_required"));
   const workHome = path.join(checkupHome(home), "doctor");
   fs.mkdirSync(workHome, { recursive: true });
-  const excludeSuffix = excluded.length > 0
-    ? `-x${createHash("sha1").update(excluded.join(",")).digest("hex").slice(0, 6)}`
-    : "";
-  const slug = `${path.basename(resolved)}-${createHash("sha1").update(resolved).digest("hex").slice(0, 6)}-s${TASTE.maxFiles}${excludeSuffix}`;
+  const sampleSeed = vaultSetSampleSeed(resolved);
+  const slug = doctorRunSlug(resolved, excluded, sampleSeed);
   const runDir = path.resolve(workHome, "runs", slug);
   const logPath = path.join(checkupHome(home), "checkup.log");
   const log = fs.openSync(logPath, "a");
   const args = [
-    DOCTOR_SCRIPT, resolved,
+    DOCTOR_SCRIPT, ...resolved,
     "--work-home", workHome,
     "--max-files", String(TASTE.maxFiles),
-    "--sample-seed", vaultSampleSeed(resolved),
+    "--sample-seed", sampleSeed,
     "--junk-sample", String(TASTE.junkSample),
     "--max-judge-pairs", String(TASTE.maxJudgePairs),
   ];
@@ -277,9 +328,9 @@ export function startCheckup(home, vaultPath, options = {}) {
   if (fs.existsSync(runDir)) args.push("--fresh");
   const child = spawner("python3", args, { detached: true, stdio: ["ignore", log, log] });
   const started = {
-    state: "running", vault: resolved, work_home: workHome, run_dir: runDir,
+    state: "running", vault: resolved[0], vaults: resolved, work_home: workHome, run_dir: runDir,
     started_at: new Date().toISOString(), pid: child.pid ?? null, mode: "taste",
-    excluded_dirs: excluded, sample_seed: vaultSampleSeed(resolved),
+    excluded_dirs: excluded, sample_seed: sampleSeed,
   };
   child.on?.("error", (error) => {
     writeCurrent(home, {
@@ -293,7 +344,14 @@ export function startCheckup(home, vaultPath, options = {}) {
   child.unref?.();
   fs.closeSync(log);
   writeCurrent(home, started);
-  return { ok: true, started: true, vault: resolved, pid: child.pid ?? null, excluded_dirs: excluded };
+  return {
+    ok: true,
+    started: true,
+    vault: resolved[0],
+    vaults: resolved,
+    pid: child.pid ?? null,
+    excluded_dirs: excluded,
+  };
 }
 
 function readJson(file) {

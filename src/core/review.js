@@ -10,10 +10,13 @@ const ACTIONS = new Set([
   "defer",
   "newer_wins",
   "older_wins",
+  "a_wins",
+  "b_wins",
   "both_valid",
+  "unknown",
   "other",
 ]);
-const CAPTURE_ACTIONS = new Set(["remember", "dismissed", "deferred"]);
+const CAPTURE_ACTIONS = new Set(["remember", "dismissed", "unknown", "deferred"]);
 
 function codedError(code, message = code, cause) {
   const error = new Error(message, cause ? { cause } : undefined);
@@ -132,7 +135,9 @@ export function applyCard(store, home, pairId, action, extraText) {
     let status = "answered";
     let deferredUntil;
 
-    if (action === "keep_separate" || action === "both_valid") status = "dismissed";
+    if (action === "keep_separate" || action === "both_valid" || action === "unknown") {
+      status = "dismissed";
+    }
     if (action === "defer") {
       status = "deferred";
       const tomorrow = new Date();
@@ -155,6 +160,12 @@ export function applyCard(store, home, pairId, action, extraText) {
     } else if (action === "newer_wins" || action === "older_wins") {
       const loser = action === "newer_wins" ? older : newer;
       const winner = action === "newer_wins" ? newer : older;
+      if (loser.status === STATUS.ACTIVE) {
+        store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon");
+      }
+    } else if (action === "a_wins" || action === "b_wins") {
+      const winner = action === "a_wins" ? a : b;
+      const loser = action === "a_wins" ? b : a;
       if (loser.status === STATUS.ACTIVE) {
         store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon");
       }

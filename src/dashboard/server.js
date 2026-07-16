@@ -914,10 +914,11 @@ export function createDashboardServer(home, options = {}) {
         && url.pathname === "/api/checkup/preflight"
       ) {
         const input = await bodyJson(request);
+        const vaultPathOrPaths = Array.isArray(input.paths) ? input.paths : input.path;
         json(
           response,
           200,
-          checkupPreflight(home, input.path, {
+          checkupPreflight(home, vaultPathOrPaths, {
             userHome,
             runner,
             excludedDirs: input.excluded_dirs,
@@ -956,7 +957,8 @@ export function createDashboardServer(home, options = {}) {
         && url.pathname === "/api/checkup/start"
       ) {
         const input = await bodyJson(request);
-        const preflight = checkupPreflight(home, input.path, {
+        const vaultPathOrPaths = Array.isArray(input.paths) ? input.paths : input.path;
+        const preflight = checkupPreflight(home, vaultPathOrPaths, {
           userHome,
           runner,
           excludedDirs: input.excluded_dirs,
@@ -1009,7 +1011,7 @@ export function createDashboardServer(home, options = {}) {
           200,
           (options.startCheckup ?? startCheckup)(
             home,
-            input.path,
+            vaultPathOrPaths,
             {
               userHome,
               excludedDirs: input.excluded_dirs,

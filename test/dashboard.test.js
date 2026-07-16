@@ -381,7 +381,7 @@ test("dashboard checklist is derived from existing feature states", async (t) =>
   assert.doesNotMatch(page, /title:\"GitHub/);
 });
 
-test("dashboard star nag is recorded once and wired to a successful card action", async (t) => {
+test("dashboard star nag is recorded once and wired to a successful checkup import", async (t) => {
   const target = await dashboard(t);
   const markSeen = () => fetch(`${target.url}/api/star-nag-seen`, {
     method: "POST",
@@ -399,9 +399,11 @@ test("dashboard star nag is recorded once and wired to a successful card action"
   assert.equal(second.star_nag_shown_at, first.star_nag_shown_at);
 
   const page = await (await fetch(target.url)).text();
-  assert.match(page, /첫 카드 처리 완료\. nautli가 쓸만하면 별 하나 주세요/);
+  assert.match(page, /기억 정리를 시작했어요\. nautli가 쓸만하면 별 하나 주세요/);
+  assert.match(page, /Your memories are getting organized\. If nautli earns it, leave us a star/);
   assert.match(page, /post\(\"\/api\/star-nag-seen\"\)/);
-  assert.match(page, /handled\.ok!==true/);
+  assert.match(page, /var checkupImport=.*await loadCheckup\(\);await loadStatus\(\);setTimeout\(function\(\)\{void maybeShowStarNag\(\);\},4000\);/);
+  assert.doesNotMatch(page, /var action=.*maybeShowStarNag/);
   assert.match(page, /https:\/\/github\.com\/Nautli\/nautli/);
   assert.match(page, /data-star-later/);
 });
@@ -422,6 +424,16 @@ test("dashboard onboarding copy keeps the inline hero and privacy contract", asy
 
 test("dashboard served script parses after template-literal unescaping (i18n regression gate)", async () => {
   const { HTML } = await import("../src/dashboard/public.js");
+  assert.match(HTML, /T\("AI 추천"\)/u);
+  assert.match(HTML, /T\("추천대로 처리"\)/u);
+  assert.match(HTML, /"AI 추천":"AI suggests"/u);
+  assert.match(HTML, /"추천대로 처리":"Accept suggestion"/u);
+  assert.match(HTML, /card\.newer==="a"\|\|card\.newer==="b"/u);
+  assert.match(HTML, /recommended==="a"\?"a_wins":recommended==="b"\?"b_wins":null/u);
+  assert.match(
+    HTML,
+    /data-action="remember"[\s\S]*data-action="dismissed"[\s\S]*data-action="unknown"[\s\S]*data-action="deferred"/u,
+  );
   const parts = HTML.split("<script>");
   assert.ok(parts.length >= 2, "expected inline scripts");
   for (let i = 1; i < parts.length; i += 1) {

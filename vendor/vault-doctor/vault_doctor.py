@@ -560,7 +560,7 @@ def stage_junk(ctx, atoms, model, sample_n):
         if stdout is None:
             continue
         results += parse_jsonl_stdout(stdout, ("id", "label"))
-        print(f"  junk 감사 {min(i + JUNK_BATCH, len(sample))}/{len(sample)}", flush=True)
+        print(f"  버려도 되는 조각 확인 {min(i + JUNK_BATCH, len(sample))}/{len(sample)}", flush=True)
     json.dump(results, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     ctx.log(f"junk sample={len(sample)} judged={len(results)}")
     return results
@@ -618,54 +618,56 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     L = []
     report_name = os.path.basename(ctx.vault.rstrip("/")) if len(ctx.vaults) == 1 else f"멀티소스 {len(ctx.vaults)}개"
     vault_display = ctx.vault if len(ctx.vaults) == 1 else ", ".join(ctx.vaults)
-    L.append(f"# {BRAND} 리포트 — {report_name}")
-    L.append(f"\n생성일 {today} · 볼트 `{vault_display}` · 제3자 서버 0 · LLM 판정은 본인 Claude 구독 경유 · 리포트는 로컬 파일\n")
-    L.append(f"## 헬스 점수: **{score}/100**\n")
-    L.append("산정: junk율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(frontmatter·죽은링크) 10점 — 공식은 README.\n")
+    L.append(f"# {BRAND} 리포트, {report_name}")
+    L.append(f"\n생성일 {today} · 볼트 `{vault_display}` · 제3자 서버 0 · AI 판정은 본인 Claude 구독 경유 · 리포트는 로컬 파일\n")
+    L.append(f"## 기억 건강 점수: **{score}/100**\n")
+    L.append("점수 구성: 버려도 되는 조각 비율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(머리말 정보·죽은 링크) 10점. 공식은 README에 있습니다.\n")
     L.append("| 축 | 점수 | 만점 |")
     L.append("|---|---|---|")
-    for k, full in (("junk", 40), ("모순", 30), ("중복", 20), ("구조", 10)):
-        L.append(f"| {k} | {axes[k]} | {full} |")
+    for k, label, full in (("junk", "버려도 되는 조각", 40), ("모순", "모순", 30),
+                           ("중복", "중복", 20), ("구조", "구조", 10)):
+        L.append(f"| {label} | {axes[k]} | {full} |")
     L.append("\n## 볼트 스캔 요약\n")
     L.append(f"- 노트 **{scan['notes']}개** ({scan['bytes'] // 1024}KB), "
-             f"frontmatter 있는 노트 {round(scan['frontmatter_rate'] * 100)}%")
+             f"머리말 정보가 있는 노트 {round(scan['frontmatter_rate'] * 100)}%")
     L.append(f"- 위키링크 {scan['wikilinks']}개 중 **죽은 링크 {scan['dead_links']}개** "
-             f"({round(scan['dead_link_rate'] * 100)}%) — 대상 노트가 없는 `[[링크]]`")
-    L.append(f"- 노트에서 추출한 기억 조각(fact) **{len(atoms):,}건**, 서로 비슷한 후보쌍 {len(pairs):,}건 판정")
+             f"({round(scan['dead_link_rate'] * 100)}%). 대상 노트가 없는 `[[링크]]`입니다.")
+    L.append(f"- 노트에서 추출한 기억 조각 **{len(atoms):,}건**, 서로 비슷한 후보쌍 {len(pairs):,}건 판정")
     samples_str = ", ".join(f"{label} **{count}개**" for label, count in sorted(source_samples.items())) or "없음"
     L.append(f"- 소스별 표본 파일: {samples_str}")
     L.append("\n## 발견 사항\n")
-    L.append(f"- **중복 {len(dups)}쌍** — 같은 얘기가 두 곳 이상에 적혀 있음. "
+    L.append(f"- **중복 {len(dups)}쌍**. 같은 얘기가 두 곳 이상에 적혀 있음. "
              f"그중 {len(dups_hi)}쌍은 확실한 중복(자동 병합 가능 수준), "
              f"{n_dup_cards}쌍은 사람 확인 필요")
-    L.append(f"- **모순 {len(contras)}쌍** — 서로 부딪히는 기록(한쪽이 낡았을 가능성). "
-             f"전부 아래 리뷰 카드 대상")
-    L.append(f"- **교차소스 모순 {cross_source_contradictions}쌍** — 서로 다른 AI 기억 소스 사이에서 발견")
+    L.append(f"- **모순 {len(contras)}쌍**. 서로 부딪히는 기록(한쪽이 낡았을 가능성). "
+             f"전부 아래 질문 대상")
+    L.append(f"- **교차소스 모순 {cross_source_contradictions}쌍**. 서로 다른 AI 기억 소스 사이에서 발견")
     if junk_rate is not None:
         types_str = ", ".join(f"{k} {v}" for k, v in sorted(junk_types.items(), key=lambda x: -x[1])) or "없음"
-        L.append(f"- **junk 추정율 ~{round(junk_rate * 100)}%** (표본 {len(junk_judgments)}건 LLM 감사) — "
-                 f"기억할 가치가 없는 조각(서사·일회성·할일 등) 비율. 유형: {types_str}")
+        L.append(f"- **버려도 되는 조각 비율 약 {round(junk_rate * 100)}%** "
+                 f"(표본 {len(junk_judgments)}건을 AI로 확인). 서사, 일회성 기록, 할 일처럼 "
+                 f"기억할 가치가 낮은 조각의 비율입니다. 유형: {types_str}")
     else:
-        L.append("- junk 추정율: 측정 실패 (run.log 확인)")
+        L.append("- 버려도 되는 조각 비율: 측정 실패 (run.log 확인)")
     if failed_batches:
-        L.append(f"- ⚠️ 추출 실패 배치 **{failed_batches}/{len(man['batches'])}개** (타임아웃/에러) — "
+        L.append(f"- ⚠️ 추출 실패 묶음 **{failed_batches}/{len(man['batches'])}개** (시간 초과/오류). "
                  f"이 몫의 노트는 이번 진단에서 빠짐. 같은 명령을 재실행하면 실패분만 이어서 시도한다")
-    L.append("\n## 리뷰 필요 카드 (상위 " + str(len(cards)) + f"장 / 전체 {n_contra_cards + n_dup_cards}건)\n")
+    L.append("\n## 답할 질문 (상위 " + str(len(cards)) + f"개 / 전체 {n_contra_cards + n_dup_cards}건)\n")
     if cards:
-        L.append("**먼저 할 것**: '낡은 기록' 카드부터 보라 — 에이전트/미래의 내가 실제로 잘못 물어갈 위험은 "
-                 "거기에 있다. 중복은 급하지 않다(정보 손실 없음). 볼트가 크면 중복·모순은 자연 발생하니 "
-                 "점수보다 카드 처리가 실익이다.\n")
+        L.append("**먼저 할 것**: '낡은 기록' 질문부터 보세요. AI와 미래의 내가 실제로 잘못 가져갈 위험은 "
+                 "거기에 있습니다. 중복은 정보가 사라지지 않아 급하지 않습니다. 볼트가 크면 중복과 모순은 "
+                 "자연스럽게 생기므로 점수보다 질문에 답하는 편이 더 유용합니다.\n")
     if not cards:
-        L.append("리뷰가 필요한 항목이 없다. 🎉")
+        L.append("답할 질문이 없습니다. 🎉")
     for i, (kind, j, p) in enumerate(cards, 1):
         # "모순"과 "낡은 기록 갱신"은 유저 체감이 다르다 — newer가 있으면 후자로 표기 (같은 verdict라도)
         if kind == "contradiction" and j.get("newer") in ("a", "b"):
-            label, head = "낡은 기록(갱신 필요)", "한쪽이 낡은 기록으로 보입니다 — 최신 쪽 기준으로 정리하세요."
+            label, head = "낡은 기록(갱신 필요)", "한쪽이 낡은 기록으로 보입니다. 최신 쪽을 기준으로 정리하세요."
         elif kind == "contradiction":
-            label, head = "모순", "이 두 기록이 서로 부딪힙니다 — 어느 쪽이 현재인가요?"
+            label, head = "모순", "이 두 기록이 서로 부딪힙니다. 지금은 어느 쪽이 맞나요?"
         else:
-            label, head = "중복(확인 필요)", "같은 내용으로 보이는데 확실하지 않습니다 — 합쳐도 되나요?"
-        L.append(f"### 카드 {i} · {label} (확신도 {j.get('confidence')})")
+            label, head = "중복(확인 필요)", "같은 내용으로 보이는데 확실하지 않습니다. 하나로 합칠까요?"
+        L.append(f"### 질문 {i} · {label} (판정 확신 {j.get('confidence')})")
         L.append(f"**{head}**")
         L.append(f"- A: {p['claim_a']}  \n  `{p.get('src_a')}` ({p.get('t_a')})")
         L.append(f"- B: {p['claim_b']}  \n  `{p.get('src_b')}` ({p.get('t_b')})")
@@ -676,13 +678,13 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
         L.append("")
     if len(contras) + n_dup_cards > 0:
         L.append("---\n### 이 리포트가 말하는 것\n")
-        L.append("모순·중복은 방치하면 AI 에이전트와 미래의 내가 **낡은 쪽 기록을 물고 온다** — "
-                 "볼트가 클수록 검색은 잘 되는데 답이 틀리기 시작하는 이유. "
-                 "위 카드들을 지금 정리하거나, 주기적으로 이 진단을 다시 돌려라.")
+        L.append("모순과 중복을 그대로 두면 AI와 미래의 내가 낡은 기록을 집어 갑니다. "
+                 "볼트가 클수록 검색은 잘 되는데 답이 틀리기 시작하는 이유가 이것입니다. "
+                 "위 질문들을 지금 정리하거나, 주기적으로 이 진단을 다시 돌리세요.")
         # TODO(브랜드 확정: Nightmerge — 전환 브릿지 문단 추가 가능): 소화 데몬 제품으로의 전환 브릿지 문단 추가 (차용검토 v2 롤플레이 §)
     L.append("---\n### 방법론·한계")
     L.append(f"- 추출·판정은 로컬 claude CLI(구독) 경유, 판정 프롬프트는 nautli PoC 검증본(모순 오탐 반례 3종 포함).")
-    L.append(f"- junk율은 표본 추정치(고정 시드) — 표본이 작으면 구간이 넓다.")
+    L.append("- 버려도 되는 조각 비율은 고정된 표본으로 계산한 추정치입니다. 표본이 작으면 오차 범위가 넓습니다.")
     L.append(f"- 중간 산출물·로그: `{ctx.work}`")
     report_path = ctx.path("report.md")
     open(report_path, "w", encoding="utf-8").write("\n".join(L) + "\n")
@@ -701,16 +703,16 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
 
 # ── main ────────────────────────────────────────────────────────────────────
 def main():
-    ap = argparse.ArgumentParser(prog=BRAND, description=f"{BRAND} — 마크다운 볼트 헬스체크 (전 과정 로컬)")
+    ap = argparse.ArgumentParser(prog=BRAND, description=f"{BRAND}, 마크다운 볼트 건강검진 (전 과정 로컬)")
     ap.add_argument("vault", nargs="+", help="옵시디언/마크다운 볼트 경로 (복수 가능)")
     ap.add_argument("--work-home", default=os.path.expanduser(f"~/.{BRAND}"),
                     help=f"작업/리포트 저장 위치 (기본 ~/.{BRAND})")
     ap.add_argument("--max-files", type=int, default=0, help="스모크 테스트용: 앞에서 N개 파일만")
     ap.add_argument("--sample-seed", help="표본 셔플 시드 (기본: 소스별 canonical 경로 sha1)")
     ap.add_argument("--exclude", action="append", default=[],
-                    help="제외할 폴더/글롭 (반복 가능, 예: --exclude 일기 --exclude '*.excalidraw.md') — 제외분은 LLM에 안 감")
+                    help="제외할 폴더/글롭 (반복 가능, 예: --exclude 일기 --exclude '*.excalidraw.md'). 제외분은 LLM에 안 감")
     ap.add_argument("--max-judge-pairs", type=int, default=1500, help="LLM 판정 쌍 상한 (비용 캡)")
-    ap.add_argument("--junk-sample", type=int, default=40, help="junk 감사 표본 수")
+    ap.add_argument("--junk-sample", type=int, default=40, help="버려도 되는 조각을 확인할 표본 수")
     ap.add_argument("--extract-model", default="haiku")
     ap.add_argument("--judge-model", default="sonnet")
     ap.add_argument("--estimate", action="store_true",
@@ -746,7 +748,7 @@ def main():
     os.makedirs(work, exist_ok=True)
     ctx = Ctx(vaults, work, args.max_files, excludes=args.exclude, sample_seed=args.sample_seed)
 
-    print(f"{BRAND} — {', '.join(vaults)}")
+    print(f"{BRAND}, {', '.join(vaults)}")
     print(f"작업 폴더: {work} (중단해도 재실행하면 이어서 돈다)\n")
     print("[1/6] 정적 스캔...")
     scan = stage_scan(ctx)
@@ -766,8 +768,8 @@ def main():
         n_b = len(man["batches"])
         est_extract = max(1, round(n_b * 0.15))          # 배치당 ~45초, 병렬 5 실측 근사
         est_judge = max(1, round(min(args.max_judge_pairs, 6 * man["files"]) / JUDGE_BATCH / JUDGE_PARALLEL * 1.5))
-        print(f"\n📋 견적 (LLM 호출 0 — 아직 아무것도 전송 안 됨)")
-        print(f"   Claude로 전송될 파일: {man['files']}개 ({total_kb}KB) — 전체 목록: {listing}")
+        print(f"\n📋 견적 (LLM 호출 0, 아직 아무것도 전송 안 됨)")
+        print(f"   Claude로 전송될 파일: {man['files']}개 ({total_kb}KB). 전체 목록: {listing}")
         print(f"   예상 소요: 추출 ~{est_extract}분 + 판정 ~{est_judge}분 (구독 쿼터 사용, 대략치)")
         print(f"   빼고 싶은 폴더가 목록에 있으면 --exclude <폴더> 로 제외하고 다시 확인하라.")
         return
@@ -780,19 +782,19 @@ def main():
     print(f"[5/6] 중복·모순 판정 ({args.judge_model}, 병렬 {JUDGE_PARALLEL})...")
     js = stage_judge(ctx, pairs, args.judge_model)
     print(f"      판정 {len(js):,}건")
-    print(f"[6/6] junk 감사 (표본 {args.junk_sample}) + 리포트...")
+    print(f"[6/6] 버려도 되는 조각 확인 (표본 {args.junk_sample}) + 리포트...")
     junk = stage_junk(ctx, atoms, args.judge_model, args.junk_sample)
     summary = stage_report(ctx, scan, man, atoms, pairs, js, junk)
 
     if _limit_hits["hits"]:
-        print(f"\n⚠️ 사용량 한도/네트워크 장애 감지 {_limit_hits['hits']}회 — 실패분이 있으면 같은 명령 재실행")
+        print(f"\n⚠️ 사용량 한도/네트워크 장애 감지 {_limit_hits['hits']}회. 실패분이 있으면 같은 명령 재실행")
     if summary["failed_extract_batches"]:
-        print(f"\n⚠️ 추출 실패 배치 {summary['failed_extract_batches']}개 — 같은 명령 재실행으로 이어받기 가능")
-    print(f"\n✅ 완료 — 헬스 점수 {summary['score']}/100")
+        print(f"\n⚠️ 추출 실패 배치 {summary['failed_extract_batches']}개. 같은 명령 재실행으로 이어받기 가능")
+    print(f"\n✅ 완료. 기억 건강 점수 {summary['score']}/100")
     junk_str = f"~{round(summary['junk_rate'] * 100)}%" if summary["junk_rate"] is not None else "측정실패"
     print(f"   중복 {summary['duplicates']}쌍 · 모순 {summary['contradictions']}쌍 · "
           f"교차소스 모순 {summary['cross_source_contradictions']}쌍 · "
-          f"junk {junk_str} · 리뷰 카드 {summary['review_cards']}건")
+          f"버려도 되는 조각 {junk_str} · 질문 {summary['review_cards']}건")
     print(f"   리포트: {summary['report']}")
 
 

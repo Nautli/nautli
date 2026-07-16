@@ -9,6 +9,7 @@ import { remember } from "../src/core/gate.js";
 import { STATUS } from "../src/core/schema.js";
 import { runOnce } from "../src/daemon/pipeline.js";
 import { judgePairs } from "../src/daemon/judge.js";
+import { writeReport } from "../src/daemon/report.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
@@ -46,10 +47,16 @@ test("daemon applies confidence gates and is journal-idempotent", async (t) => {
 
   const first = await runOnce(store, home, config, { dry: false });
   assert.equal(first.pairs, 4);
-  assert.deepEqual({ applied: first.applied, queued: first.queued, skipped: first.skipped }, {
+  assert.deepEqual({
+    applied: first.applied,
+    queued: first.queued,
+    skipped: first.skipped,
+    machine_oracle: first.machine_oracle,
+  }, {
     applied: 2,
     queued: 1,
     skipped: 1,
+    machine_oracle: 0,
   });
   assert.equal(store.getFact(duplicateOld.id).status, STATUS.SUPERSEDED);
   assert.equal(store.getFact(duplicateOld.id).superseded_by, duplicateNew.id);
@@ -75,8 +82,61 @@ test("daemon applies confidence gates and is journal-idempotent", async (t) => {
   assert.equal(second.pairs, 0);
   assert.equal(second.applied, 0);
   assert.equal(second.queued, 0);
+  assert.equal(second.machine_oracle, 0);
   assert.equal(fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
     .trim().split("\n").length, 1);
+});
+
+test("report renders approval cards and machine oracle summary", (t) => {
+  const { home, store } = isolatedStore(t);
+  const queueFile = path.join(home, "review", "queue.jsonl");
+  fs.mkdirSync(path.dirname(queueFile), { recursive: true });
+  const claims = {
+    a: "원문 A는 npm 발행 대기 상태다",
+    b: "원문 B는 npm 발행 완료 상태다",
+  };
+  fs.writeFileSync(queueFile, `${[
+    {
+      pair_id: "fa_crux_a:fa_crux_b",
+      verdict: "contradiction",
+      confidence: 0.88,
+      newer: "b",
+      reason: "npm 발행 상태가 서로 다르다.",
+      crux: "npm 발행이 끝났는지가 갈려요.",
+      claims,
+      status: "pending",
+    },
+    {
+      pair_id: "fa_fallback_a:fa_fallback_b",
+      verdict: "duplicate",
+      confidence: 0.72,
+      newer: null,
+      reason: "표현이 비슷한 기술 판정 문장이다.",
+      claims: { a: "fallback 원문 A", b: "fallback 원문 B" },
+      status: "pending",
+    },
+  ].map(JSON.stringify).join("\n")}\n`, "utf8");
+
+  const result = writeReport(store, home, {
+    applied: 0,
+    queued: 2,
+    skipped: 0,
+    machine_oracle: 1,
+  });
+  const report = fs.readFileSync(result.file, "utf8");
+
+  assert.match(report, /요약: 적용 0건, 리뷰 대기 추가 2건, 건너뜀 0건, 기술 기록 보류 1건\./u);
+  assert.match(report, /\(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요\)/u);
+  assert.match(report, /\*\*npm 발행이 끝났는지가 갈려요\.\*\*/u);
+  assert.match(report, /질문: 지금은 어느 쪽이 맞나요\? \(A \/ B \/ 둘 다 \/ 모름\)/u);
+  assert.match(report, /데몬 추천: B가 최신으로 보여요 \(확신 88%\)/u);
+  assert.match(report, /\*\*이 두 기억이 같은 내용 같아요\.\*\*/u);
+  assert.doesNotMatch(report, /\*\*표현이 비슷한 기술 판정 문장이다\.\*\*/u);
+  assert.match(report, /질문: 하나로 합칠까요\? \(O \/ X \/ 모름\)/u);
+  assert.match(report, /참고\(원문\)\n- A: 원문 A는 npm 발행 대기 상태다\n- B: 원문 B는 npm 발행 완료 상태다/u);
+  assert.equal(report.match(/원문 A는 npm 발행 대기 상태다/gu)?.length, 1);
+  assert.ok(report.indexOf("원문 A는 npm 발행 대기 상태다") > report.indexOf("참고(원문)"));
+  assert.match(report, /판정: contradiction 0\.88 · pair: fa_crux_a:fa_crux_b · 이유: npm 발행 상태가 서로 다르다\./u);
 });
 
 test("judge command rejects script and eval forms and gates node behind test env", async (t) => {

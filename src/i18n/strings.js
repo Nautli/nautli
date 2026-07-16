@@ -12,7 +12,7 @@ daemon-run Run nightly digestion once
 rebuild    Rebuild the memory store index
 stats      Show memory store statistics
 doctor     Check installation and store health
-review     Process cards that need review
+review     Answer questions that need your input
 capture    Manage project capture consent and metrics
            View metrics: nautli capture metrics [--json]
 purge      Permanently delete memories
@@ -31,7 +31,7 @@ daemon-run 밤 소화를 한 번 실행해요.
 rebuild    기억 저장소 인덱스를 다시 만들어요.
 stats      기억 저장소 통계를 보여줘요.
 doctor     설치와 저장소 상태를 점검해요.
-review     검토가 필요한 카드를 처리해요.
+review     판단이 필요한 질문에 답해요.
 capture    프로젝트 자동 캡처 동의와 계측을 관리해요.
            지표 보기: nautli capture metrics [--json]
 purge      기억을 완전히 삭제해요.
@@ -63,7 +63,7 @@ mcp        MCP 서버를 실행해요.
   "cli.metrics.recall_refs": { en: "Recall refs per fact  {auto}{explicit}", ko: "fact당 회상 참조      {auto}{explicit}" },
   "cli.metrics.sample": { en: "Sample                candidates {candidates} · decisions {decided}/{minDecided} · recalls {recalls}/{minRecall}", ko: "표본                  후보 {candidates} · 결정 {decided}/{minDecided} · 회상 {recalls}/{minRecall}" },
   "cli.metrics.facts": { en: "Facts                 auto {auto} · direct {explicit} · sessions {sessions}", ko: "fact                  자동 {auto} · 직접 {explicit} · 세션 {sessions}" },
-  "cli.metrics.need_more": { en: "Not enough data yet. Add {decided} card decisions and {recalls} recalls to evaluate", ko: "아직 판정할 수 없어요. 카드 결정 {decided}건·회상 {recalls}건을 더 채우면 판정합니다." },
+  "cli.metrics.need_more": { en: "Not enough data yet. Add {decided} question answers and {recalls} recalls to evaluate", ko: "아직 판정할 수 없어요. 질문 답변 {decided}건과 회상 {recalls}건이 더 필요해요." },
   "cli.metrics.pass_reason": { en: "All auto-capture retention criteria are met", ko: "자동 캡처 유지 기준을 모두 충족했습니다." },
   "cli.metrics.kill_reason": { en: "Some retention criteria were not met. Review candidate extraction and the approval flow", ko: "일부 유지 기준에 미달했습니다. 후보 추출 기준과 승인 전 검토 흐름을 조정하세요." },
   "cli.metrics.raw_reason": { en: "{reason}", ko: "{reason}" },
@@ -72,11 +72,11 @@ mcp        MCP 서버를 실행해요.
   "cli.daemon.not_built": { en: "daemon not built", ko: "데몬이 빌드되지 않았어요." },
   "cli.daemon.skipped_fresh": { en: "Last digestion succeeded within 24 hours ({last}); skipping this run", ko: "최근 24시간 안에 소화가 성공해서({last}) 이번 실행은 건너뛰어요." },
   "cli.setup.unknown_step": { en: "Unknown setup step: {name}", ko: "알 수 없는 설치 단계: {name}" },
-  "cli.review.empty": { en: "No cards to review. The next digestion runs at 3:30 AM", ko: "검토할 카드가 없어요. 다음 소화는 오늘 새벽 3:30." },
+  "cli.review.empty": { en: "No questions to answer. The next digestion runs at 3:30 AM", ko: "답할 질문이 없어요. 다음 소화는 오늘 새벽 3:30이에요." },
   "cli.review.duplicate": { en: "Duplicate", ko: "중복 정리" },
   "cli.review.contradiction": { en: "Contradiction", ko: "모순 발견" },
   "cli.review.duplicate_prompt": { en: "[O] Merge / [X] Keep separate / [L] Review tomorrow: ", ko: "[O] 합치기 / [X] 따로 유지 / [L] 내일 다시 보기: " },
-  "cli.review.contradiction_prompt": { en: "[O] New memory / [X] Old memory / [B] Both / Other correction: ", ko: "[O] 새 기억 / [X] 옛 기억 / [B] 둘 다 / 기타 정정문: " },
+  "cli.review.contradiction_prompt": { en: "[A] A is right / [B] B is right / [O] Both are right / [?] I don't know / Other correction: ", ko: "[A] A가 맞아요 / [B] B가 맞아요 / [O] 둘 다 맞아요 / [?] 몰라요 / 기타 정정문: " },
   "cli.init.next": { en: "Next: npx nautli dashboard (opens setup)", ko: "다음 단계: npx nautli dashboard (설정 화면이 열려요)" },
   "cli.unknown_command": { en: "Unknown command: {command}", ko: "알 수 없는 명령: {command}" },
 

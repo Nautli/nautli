@@ -26,19 +26,41 @@ export function writeReport(store, home, results) {
   const pending = pendingReviews(home).filter((review) => review.type !== "capture");
   const cards = pending.slice(0, 3);
   const deferred = Math.max(0, pending.length - cards.length);
-  const lines = [
-    `요약: 적용 ${results.applied ?? 0}건, 리뷰 대기 추가 ${results.queued ?? 0}건, 건너뜀 ${results.skipped ?? 0}건.`,
-    "",
-  ];
+  const machineOracle = results.machine_oracle ?? 0;
+  const summary = machineOracle > 0
+    ? `요약: 적용 ${results.applied ?? 0}건, 리뷰 대기 추가 ${results.queued ?? 0}건, 건너뜀 ${results.skipped ?? 0}건, 기술 기록 보류 ${machineOracle}건.`
+    : `요약: 적용 ${results.applied ?? 0}건, 리뷰 대기 추가 ${results.queued ?? 0}건, 건너뜀 ${results.skipped ?? 0}건.`;
+  const lines = [summary];
+  if (machineOracle > 0) {
+    lines.push("(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요)");
+  }
+  lines.push("");
 
   cards.forEach((review, index) => {
+    const duplicate = review.verdict === "duplicate";
+    const headline = oneLine(review.crux) || (duplicate
+      ? "이 두 기억이 같은 내용 같아요."
+      : "두 기억이 동시에 맞기 어려워 보여요.");
+    const question = duplicate
+      ? "하나로 합칠까요? (O / X / 모름)"
+      : "지금은 어느 쪽이 맞나요? (A / B / 둘 다 / 모름)";
+    const recommendation = review.newer === "a" || review.newer === "b"
+      ? `데몬 추천: ${review.newer.toUpperCase()}가 최신으로 보여요 (확신 ${Math.round(Number(review.confidence) * 100)}%)`
+      : null;
+    const reason = oneLine(review.reason);
     lines.push(
       `## 리뷰 카드 ${index + 1}`,
-      `- pair_id: ${review.pair_id}`,
-      `- 판정: ${review.verdict} (${review.confidence})`,
+      `**${headline}**`,
+      `질문: ${question}`,
+    );
+    if (recommendation) lines.push(recommendation);
+    lines.push(
+      "응답은 대시보드에서: npx nautli dashboard",
+      "",
+      "참고(원문)",
       `- A: ${oneLine(review.claims?.a)}`,
       `- B: ${oneLine(review.claims?.b)}`,
-      `- 이유: ${oneLine(review.reason)}`,
+      `- 판정: ${review.verdict} ${review.confidence} · pair: ${review.pair_id}${reason ? ` · 이유: ${reason}` : ""}`,
       "",
     );
   });

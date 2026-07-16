@@ -150,7 +150,7 @@ export function captureMetrics(home, { now } = {}) {
     if (event.type === "recall" && event.ev === undefined) recallEvents.push(event);
   }
 
-  const counts = { remember: 0, dismissed: 0, deferred: 0, pending: 0 };
+  const counts = { remember: 0, dismissed: 0, unknown: 0, deferred: 0, pending: 0 };
   const latencies = [];
   const sessionHashes = new Set();
   let firstCaptureTime = null;
@@ -168,7 +168,10 @@ export function captureMetrics(home, { now } = {}) {
 
     const decision = decisions.get(card.pair_id);
     const action = decision?.action ?? card.action;
-    if (action === "remember" || action === "dismissed" || action === "deferred") {
+    if (action === "remember"
+      || action === "dismissed"
+      || action === "unknown"
+      || action === "deferred") {
       counts[action] += 1;
       const latency = decision ? validLatency(decision.latency_ms) : cardLatency(card);
       if (latency !== null) latencies.push(latency);
@@ -199,6 +202,7 @@ export function captureMetrics(home, { now } = {}) {
     candidates: cards.length,
     approved: counts.remember,
     dismissed: counts.dismissed,
+    unknown: counts.unknown,
     deferred: counts.deferred,
     pending: counts.pending,
     approval_rate: ratio(counts.remember, decidedForRates),
@@ -221,7 +225,7 @@ export function captureMetrics(home, { now } = {}) {
       : auto.useful_recall_rate - explicit.useful_recall_rate,
   };
   const sample = {
-    decided_cards: counts.remember + counts.dismissed + counts.deferred,
+    decided_cards: counts.remember + counts.dismissed + counts.unknown + counts.deferred,
     auto_facts: autoFacts.size,
     explicit_facts: explicitFacts.size,
     recall_events: recallEvents.length,

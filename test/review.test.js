@@ -65,6 +65,50 @@ test("contradiction actions invalidate only the losing fact", (t) => {
   assert.equal(store.getFact(newFact.id).status, STATUS.INVALIDATED);
 });
 
+test("a_wins invalidates the second fact in pair_id", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t, "contradiction");
+  applyCard(store, home, pairId, "a_wins");
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(newFact.id).status, STATUS.INVALIDATED);
+  assert.equal(store.getFact(newFact.id).t_invalid, store.getFact(oldFact.id).t_valid);
+});
+
+test("b_wins invalidates the first fact in pair_id", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t, "contradiction");
+  applyCard(store, home, pairId, "b_wins");
+  assert.equal(store.getFact(oldFact.id).status, STATUS.INVALIDATED);
+  assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(oldFact.id).t_invalid, store.getFact(newFact.id).t_valid);
+});
+
+test("unknown dismisses the card without transitioning either fact", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t, "contradiction");
+  let transitions = 0;
+  const transition = store.transition.bind(store);
+  store.transition = (...args) => {
+    transitions += 1;
+    return transition(...args);
+  };
+
+  const result = applyCard(store, home, pairId, "unknown");
+
+  assert.deepEqual(result, {
+    ok: true,
+    status: "dismissed",
+    action: "unknown",
+    remembered: undefined,
+  });
+  assert.equal(transitions, 0);
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+});
+
+test("unknown cards no longer appear in listCards", (t) => {
+  const { home, store, pairId } = fixture(t, "contradiction");
+  applyCard(store, home, pairId, "unknown");
+  assert.equal(listCards(home).length, 0);
+});
+
 test("other answer stores a scoped correction and answers the card", (t) => {
   const { home, store, pairId } = fixture(t, "contradiction");
   const result = applyCard(store, home, pairId, "other", "서비스 포트는 환경별로 다르다");
