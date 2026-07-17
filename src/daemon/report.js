@@ -75,7 +75,8 @@ export function writeReport(store, home, results) {
   });
   if (deferred > 0) lines.push(`이월: ${deferred}건`, "");
 
-  const date = new Date().toISOString().slice(0, 10);
+  // 로컬 날짜 필수 — UTC면 KST 새벽 실행(04:14)이 전날 리포트를 덮어쓴다 (실사고 2026-07-17)
+  const date = new Date().toLocaleDateString("sv-SE");
   const file = path.join(home, "reports", `${date}.md`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${lines.join("\n").trimEnd()}\n`, "utf8");
