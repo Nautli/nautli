@@ -418,13 +418,27 @@ export class Store {
     return this.getFact(complete.id);
   }
 
-  appendRecall({ query = "", scope, hits = [], source = "core", at } = {}) {
+  appendRecall({
+    query = "",
+    scope,
+    hits = [],
+    source = "core",
+    returned_chars,
+    session_id,
+    at,
+  } = {}) {
     return this.appendEvent({
       type: "recall",
       query: typeof query === "string" ? query : "",
       scope: scope ?? null,
       hits: Array.isArray(hits) ? hits.filter((id) => typeof id === "string") : [],
       source: typeof source === "string" && source.trim() !== "" ? source : "core",
+      ...(Number.isFinite(returned_chars) && returned_chars >= 0
+        ? { returned_chars: Math.trunc(returned_chars) }
+        : {}),
+      ...(typeof session_id === "string" && session_id.trim() !== ""
+        ? { session_id: session_id.trim() }
+        : {}),
       ...(typeof at === "string" ? { at } : {}),
     });
   }

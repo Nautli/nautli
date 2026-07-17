@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { recall } from "../core/recall.js";
+import { buildReceipt } from "../core/receipt.js";
 import { remember } from "../core/gate.js";
 import { applyCaptureCard, applyCard, listCards } from "../core/review.js";
 import { ERR } from "../core/schema.js";
@@ -166,6 +167,16 @@ function statsFor(home) {
   const store = new Store(home);
   try {
     return store.stats();
+  } finally {
+    store.close();
+  }
+}
+
+function receiptFor(home) {
+  if (!fs.existsSync(path.join(home, "index.sqlite"))) return buildReceipt(home, null);
+  const store = new Store(home);
+  try {
+    return buildReceipt(home, store);
   } finally {
     store.close();
   }
@@ -756,6 +767,14 @@ export function createDashboardServer(home, options = {}) {
 
         if (!cachedClaude) refreshClaudeStatus();
         if (!cachedCodex) refreshCodexStatus();
+        return;
+      }
+
+      if (
+        request.method === "GET"
+        && url.pathname === "/api/receipt"
+      ) {
+        json(response, 200, receiptFor(home));
         return;
       }
 

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { buildReceipt } from "../core/receipt.js";
 
 function pendingReviews(home) {
   const file = path.join(home, "review", "queue.jsonl");
@@ -22,7 +23,6 @@ function oneLine(value) {
 }
 
 export function writeReport(store, home, results) {
-  void store;
   const pending = pendingReviews(home).filter((review) => review.type !== "capture");
   const cards = pending.slice(0, 3);
   const deferred = Math.max(0, pending.length - cards.length);
@@ -66,6 +66,22 @@ export function writeReport(store, home, results) {
     lines.push("(보류: 확정하기 어려운 자동 발견은 지우지 않고 기록에 남겼어요)");
   }
   lines.push("");
+
+  const receipt = buildReceipt(home, store);
+  const delta = receipt.facts_delta >= 0
+    ? `+${receipt.facts_delta}`
+    : String(receipt.facts_delta);
+  lines.push("## 절감 영수증");
+  if (!receipt.sample_ok) {
+    lines.push("첫 주에는 절감보다 기억이 쌓이는 과정을 보여드려요");
+  }
+  lines.push(
+    `- 대화 ${receipt.conversations}번`,
+    `- 기억 약 ${receipt.tokens_delivered}토큰 골라 건넴`,
+    `- 밤새 정리한 기록 ${receipt.organized}건`,
+    `- 현재 이어지는 사실 ${receipt.facts_active}개, 이번 주 ${delta}`,
+    "",
+  );
 
   const oracleDecisions = Array.isArray(oracle?.decisions) ? oracle.decisions : [];
   if (oracleDecisions.length > 0) {

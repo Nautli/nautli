@@ -8,6 +8,7 @@ import { z } from "zod";
 import { BRAND } from "../brand.js";
 import { remember } from "../core/gate.js";
 import { briefing as buildBriefing, recall } from "../core/recall.js";
+import { buildReceipt } from "../core/receipt.js";
 import { listCards } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
@@ -25,7 +26,19 @@ const DIGEST_STALE_MS = 48 * 60 * 60 * 1000;
 // 유일하게 보장되는 유저 접점(세션 시작 briefing)에 데몬 상태를 실어 나른다 —
 // 리뷰 카드·소화 상태가 대시보드를 열어야만 보이면 유저는 "못 받았다"고 느낀다.
 // 노이즈 방지: 행동이 필요한 상태(카드 대기, 소화 멈춤)만 싣는다.
-export function daemonStatusHeader(home, t) {
+export function receiptHeader(receipt, t) {
+  if (!receipt || receipt.activity === 0) return null;
+  if (receipt.sample_ok) {
+    return t("mcp.briefing.receipt", {
+      days: receipt.days,
+      conversations: receipt.conversations,
+      tokens: receipt.tokens_delivered,
+    });
+  }
+  return t("mcp.briefing.receipt_building", { facts: receipt.facts_active });
+}
+
+export function daemonStatusHeader(home, t, store) {
   const lines = [];
   let pending = 0;
   try {
@@ -38,7 +51,20 @@ export function daemonStatusHeader(home, t) {
   if (freshness.last_success_at && freshness.age_ms > DIGEST_STALE_MS) {
     lines.push(t("mcp.briefing.digest_stale", { last: freshness.last_success_at }));
   }
-  return { lines, pending, last_digest_at: freshness.last_success_at };
+  let receipt;
+  try {
+    receipt = buildReceipt(home, store);
+    const receiptLine = receiptHeader(receipt, t);
+    if (receiptLine) lines.push(receiptLine);
+  } catch {
+    // Receipt measurement must not prevent memory recall.
+  }
+  return {
+    lines,
+    pending,
+    last_digest_at: freshness.last_success_at,
+    ...(receipt ? { receipt } : {}),
+  };
 }
 
 function resolveHome() {
@@ -107,7 +133,7 @@ export function createServer(store, config) {
   }, safe(({ context, scope }) => {
     const result = buildBriefing(store, context, scope, { ...config, source: "mcp" });
     const t = makeT(resolveLocale());
-    const status = daemonStatusHeader(store.home, t);
+    const status = daemonStatusHeader(store.home, t, store);
     if (status.lines.length > 0) {
       result.briefing = [status.lines.join("\n"), result.briefing].filter(Boolean).join("\n\n");
     }

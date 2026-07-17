@@ -1,0 +1,100 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { buildReceipt } from "../src/core/receipt.js";
+import { Store } from "../src/core/store.js";
+import { makeT } from "../src/i18n/strings.js";
+import { receiptHeader } from "../src/mcp/server.js";
+
+const NOW = "2026-07-17T12:00:00.000Z";
+
+function isolatedStore(t) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-receipt-"));
+  const store = new Store(home);
+  t.after(() => {
+    store.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  return { home, store };
+}
+
+test("empty receipt treats the store as having no activity", (t) => {
+  const { home, store } = isolatedStore(t);
+  const receipt = buildReceipt(home, store, { now: NOW });
+
+  assert.equal(receipt.activity, 0);
+  assert.equal(receipt.conversations, 0);
+  assert.equal(receipt.tokens_delivered, 0);
+  assert.equal(receipt.organized, 0);
+  assert.equal(receipt.facts_active, 0);
+  assert.equal(receipt.sample_ok, false);
+});
+
+test("recall events count distinct conversations without counting retries twice", (t) => {
+  const { home, store } = isolatedStore(t);
+  const at = "2026-07-16T10:02:00.000Z";
+  store.appendRecall({ hits: ["fa_a"], session_id: "session-a", returned_chars: 40, at });
+  store.appendRecall({ hits: ["fa_a"], session_id: "session-a", returned_chars: 20, at });
+  store.appendRecall({ hits: ["fa_b"], session_id: "session-b", returned_chars: 12, at });
+  store.appendRecall({ hits: ["fa_c"], scope: "person", returned_chars: 8, at });
+
+  const receipt = buildReceipt(home, store, { now: NOW });
+
+  assert.equal(receipt.conversations, 3);
+  assert.equal(receipt.tokens_delivered, 20);
+  assert.equal(receipt.approx, true);
+  assert.equal(receipt.method, "chars_div4");
+});
+
+test("two conversations do not pass the sample gate", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 4,
+    at: "2026-07-15T10:00:00.000Z",
+  });
+  store.appendRecall({
+    hits: ["fa_b"],
+    session_id: "session-b",
+    returned_chars: 4,
+    at: "2026-07-16T10:00:00.000Z",
+  });
+
+  assert.equal(buildReceipt(home, store, { now: NOW }).sample_ok, false);
+});
+
+test("weekly fact change keeps a negative value", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendEvent({
+    ev: "fact.invalidated",
+    id: "fa_old_a",
+    at: "2026-07-15T10:00:00.000Z",
+  }, { apply: false });
+  store.appendEvent({
+    ev: "fact.superseded",
+    id: "fa_old_b",
+    at: "2026-07-16T10:00:00.000Z",
+  }, { apply: false });
+
+  assert.equal(buildReceipt(home, store, { now: NOW }).facts_delta, -2);
+});
+
+test("receipt wording contains no long dash characters", () => {
+  const receipt = {
+    activity: 3,
+    sample_ok: true,
+    days: 7,
+    conversations: 3,
+    tokens_delivered: 120,
+    facts_active: 4,
+  };
+  const messages = [
+    receiptHeader(receipt, makeT("ko")),
+    receiptHeader(receipt, makeT("en")),
+  ];
+
+  for (const message of messages) assert.doesNotMatch(message, /[—–]/u);
+});

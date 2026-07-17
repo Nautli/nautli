@@ -108,6 +108,8 @@ export function recall(store, task, opts = {}) {
     scope,
     hits: facts.map((fact) => fact.id),
     source,
+    returned_chars: result.briefing.length,
+    session_id: opts.session_id,
   });
   return result;
 }

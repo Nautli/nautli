@@ -311,7 +311,14 @@ export async function triagePendingQueue(store, home, config) {
         if (result?.route === "hold") {
           captureHeld += 1;
           changed = true;
-          return { ...entry, status: "routed", route: "hold", routed_at: routedAt };
+          return {
+            ...entry,
+            status: "routed",
+            route: "hold",
+            routed_at: routedAt,
+            handled_at: routedAt,
+            answered_by: "triage",
+          };
         }
         if (result?.route === "human") {
           const enriched = enrichHumanEntry(entry, result, [
@@ -334,7 +341,14 @@ export async function triagePendingQueue(store, home, config) {
       if (result?.route === "machine" || result?.route === "auto") {
         pairRouted += 1;
         changed = true;
-        return { ...entry, status: "routed", route: result.route, routed_at: routedAt };
+        return {
+          ...entry,
+          status: "routed",
+          route: result.route,
+          routed_at: routedAt,
+          handled_at: routedAt,
+          answered_by: "triage",
+        };
       }
       if (result?.route === "human") {
         const enriched = enrichHumanEntry(entry, result, ["crux_plain"]);

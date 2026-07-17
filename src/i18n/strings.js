@@ -119,8 +119,10 @@ mcp        MCP 서버를 실행해요.
   "checkup.import_missing": { en: "No checkup result to import", ko: "가져올 진단 결과가 없어요." },
   "checkup.memories_missing": { en: "No memories were extracted by the checkup", ko: "진단에서 추출된 기억이 없어요." },
 
-  "mcp.briefing.cards_waiting": { en: "[nautli] {count} review card(s) are waiting for the user's answer — please tell the user and point them to the dashboard (npx nautli dashboard).", ko: "[nautli] 리뷰 카드 {count}건이 사용자 답변을 기다리고 있어요 — 사용자에게 알리고 대시보드(npx nautli dashboard)로 안내해 주세요." },
-  "mcp.briefing.digest_stale": { en: "[nautli] Nightly digestion has not succeeded since {last} — please suggest the user run npx nautli checkup.", ko: "[nautli] 밤 소화가 {last} 이후 성공하지 못했어요 — 사용자에게 npx nautli checkup 점검을 권해 주세요." },
+  "mcp.briefing.cards_waiting": { en: "[nautli] {count} review card(s) are waiting for the user's answer. Please tell the user and point them to the dashboard (npx nautli dashboard).", ko: "[nautli] 리뷰 카드 {count}건이 사용자 답변을 기다리고 있어요. 사용자에게 알리고 대시보드(npx nautli dashboard)로 안내해 주세요." },
+  "mcp.briefing.digest_stale": { en: "[nautli] Nightly digestion has not succeeded since {last}. Please suggest the user run npx nautli checkup.", ko: "[nautli] 밤 소화가 {last} 이후 성공하지 못했어요. 사용자에게 npx nautli checkup 점검을 권해 주세요." },
+  "mcp.briefing.receipt": { en: "In the last {days} days, memory carried across {conversations} conversations and delivered about {tokens} tokens of relevant memory.", ko: "최근 {days}일, 기억으로 이어간 대화 {conversations}번, 필요한 기억 약 {tokens}토큰만 골라 건넸어요." },
+  "mcp.briefing.receipt_building": { en: "Memory is building up. {facts} facts currently carry forward.", ko: "기억이 쌓이는 중이에요. 현재 이어지는 사실 {facts}개." },
 
   "dash.error.invalid_input": { en: "Check your input", ko: "입력 내용을 확인해 주세요." },
   "dash.error.multi_fact": { en: "Add one memory at a time", ko: "한 번에 한 가지 기억만 추가해 주세요." },
