@@ -33,15 +33,19 @@ export const CAPTURE_TRIAGE_PROMPT = `[출력 규칙 최우선] 너의 응답(st
 - hold = 애매하거나 일회성이거나 잡음인 내용이다. 세션에서 실제 확정된 사실인지 불분명하거나 remember와 human 중 하나로 확실히 고를 수 없으면 hold다. 카드는 삭제되지 않고 큐와 리포트 기록에 남는다.
 - 기술 용어가 있다는 이유만으로 remember하지 마라. 실제 확정된 기술·프로젝트·시스템 사실이어야 한다.
 - crux_plain: route=human일 때 필수다. 비개발자가 읽는 쉬운말 한 문장으로 쓰고, 전문용어와 줄표와 호칭을 쓰지 마라.
+- context_plain: route=human일 때 필수다. 언제 나온 말인지 날짜를 자연어로 쓰고, 어떤 작업을 하던 중 나온 내용인지 쉬운말 한 문장으로 설명하라. claim에서 맥락을 유추하고 project 경로는 마지막 폴더 이름 정도만 참고하라. 전문용어와 줄표와 호칭을 쓰지 마라.
+- recommend: route=human일 때 필수다. 기억할 가치가 있으면 remember, 버려도 되면 dismissed, AI도 판단을 유보하면 none으로 출력하라.
+- recommend_reason_plain: route=human일 때 필수다. 왜 그렇게 추천하는지 쉬운말 한 문장으로 설명하고, 전문용어와 줄표와 호칭을 쓰지 마라.
 
-입력: JSONL (pair_id, claim, scope, project, confidence).
+입력: JSONL (pair_id, claim, scope, project, at, confidence).
 
 출력: JSONL만, 줄당 컴팩트 JSON 1개, 여러 줄로 펼치지 말 것.
-{"pair_id":"...","route":"remember|human|hold","why":"한 문장","crux_plain":"route=human일 때 필수"}
+{"pair_id":"...","route":"remember|human|hold","why":"한 문장","crux_plain":"route=human일 때 필수","context_plain":"route=human일 때 필수","recommend":"remember|dismissed|none","recommend_reason_plain":"route=human일 때 필수"}
 `;
 
 const ROUTES = new Set(["human", "machine", "auto"]);
 const CAPTURE_ROUTES = new Set(["remember", "human", "hold"]);
+const CAPTURE_RECOMMENDATIONS = new Set(["remember", "dismissed", "none"]);
 const TIMEOUT_MS = 300_000;
 const BATCH_SIZE = 20;
 
@@ -49,7 +53,13 @@ export function command(config) {
   return buildCommand(config, "triage_cmd", TRIAGE_PROMPT);
 }
 
-function runBatch(batch, invocation, cwd, routes, { requireHumanCrux = false } = {}) {
+function runBatch(
+  batch,
+  invocation,
+  cwd,
+  routes,
+  { requireHumanCrux = false, captureHumanDetails = false } = {},
+) {
   const input = `${batch.map((card) => JSON.stringify(card)).join("\n")}\n`;
 
   return new Promise((resolve, reject) => {
@@ -103,10 +113,26 @@ function runBatch(batch, invocation, cwd, routes, { requireHumanCrux = false } =
               || value.crux_plain.trim() === ""
               || /[—–]/u.test(value.crux_plain)))
           || parsed.has(value.pair_id)) continue;
+        const validPlain = (field) => typeof field === "string"
+          && field.trim() !== ""
+          && !/[—–]/u.test(field);
         parsed.set(value.pair_id, {
           route: value.route,
           why: typeof value.why === "string" ? value.why : "",
           ...(typeof value.crux_plain === "string" ? { crux_plain: value.crux_plain } : {}),
+          ...(captureHumanDetails && value.route === "human"
+            ? {
+              ...(validPlain(value.context_plain)
+                ? { context_plain: value.context_plain }
+                : {}),
+              recommend: CAPTURE_RECOMMENDATIONS.has(value.recommend)
+                ? value.recommend
+                : "none",
+              ...(validPlain(value.recommend_reason_plain)
+                ? { recommend_reason_plain: value.recommend_reason_plain }
+                : {}),
+            }
+            : {}),
         });
       }
       resolve({ parsed, parsedCount: parsed.size, rawStdout: stdout, rawStderr: stderr });
@@ -160,10 +186,12 @@ export async function triageCaptureCards(cards, config, home) {
     claim: card.claim,
     scope: card.scope,
     project: card.project,
+    at: card.at,
     confidence: card.confidence,
   }));
   return triageBatches(inputCards, invocation, home, CAPTURE_ROUTES, "capture", {
     requireHumanCrux: true,
+    captureHumanDetails: true,
   });
 }
 
@@ -262,7 +290,13 @@ export async function triagePendingQueue(store, home, config) {
         }
         if (result?.route === "human") {
           changed = true;
-          return { ...entry, crux_plain: result.crux_plain };
+          return {
+            ...entry,
+            crux_plain: result.crux_plain,
+            context_plain: result.context_plain,
+            recommend: result.recommend,
+            recommend_reason_plain: result.recommend_reason_plain,
+          };
         }
         return entry;
       }

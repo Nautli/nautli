@@ -140,6 +140,10 @@ test("triagePendingQueue routes machine cards and enriches human pair and captur
     scope: "project:capture-human",
     project: "/tmp/capture-human",
     confidence: 0.8,
+    crux_plain: "예전에 만든 질문이에요.",
+    context_plain: "예전에 만든 배경이에요.",
+    recommend: "dismissed",
+    recommend_reason_plain: "예전에 만든 추천 이유예요.",
   };
   const queueFile = path.join(home, "review", "queue.jsonl");
   fs.mkdirSync(path.dirname(queueFile), { recursive: true });
@@ -183,6 +187,9 @@ test("triagePendingQueue routes machine cards and enriches human pair and captur
   assert.deepEqual(queue.find((entry) => entry.type === "capture"), {
     ...capture,
     crux_plain: "앞으로 이 결정을 계속 따를지 확인이 필요해요.",
+    context_plain: "7월 16일에 capture-project 작업을 정리하다가 나온 내용이에요.",
+    recommend: "remember",
+    recommend_reason_plain: "이미 정한 방향이라 기억해 두면 다음 작업에서 다시 확인할 수 있어요.",
   });
 });
 
@@ -254,6 +261,15 @@ test("capture triage remembers confirmed technical facts, holds noise, and keeps
   const human = queue.find((entry) => entry.pair_id === "cap:human");
   assert.equal(human.status, "pending");
   assert.equal(human.crux_plain, "앞으로 이 결정을 계속 따를지 확인이 필요해요.");
+  assert.equal(
+    human.context_plain,
+    "7월 16일에 capture-project 작업을 정리하다가 나온 내용이에요.",
+  );
+  assert.equal(human.recommend, "remember");
+  assert.equal(
+    human.recommend_reason_plain,
+    "이미 정한 방향이라 기억해 두면 다음 작업에서 다시 확인할 수 있어요.",
+  );
 
   const report = writeReport(store, home, {
     applied: 0,
@@ -264,6 +280,41 @@ test("capture triage remembers confirmed technical facts, holds noise, and keeps
   const reportText = fs.readFileSync(report.file, "utf8");
   assert.match(reportText, /AI가 대신 기억함 1건/u);
   assert.match(reportText, /보류 1건/u);
+});
+
+test("capture triage drops a context with a dash but keeps the human card", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const queueFile = path.join(home, "review", "queue.jsonl");
+  fs.mkdirSync(path.dirname(queueFile), { recursive: true });
+  const capture = {
+    pair_id: "cap:invalid-context",
+    type: "capture",
+    status: "pending",
+    claim: "줄표 배경 가격 정책은 창업자가 최종 결정한다",
+    scope: "project:capture",
+    project: "/tmp/capture-project",
+    confidence: 0.84,
+    at: "2026-07-16T09:30:00.000Z",
+  };
+  fs.writeFileSync(queueFile, `${JSON.stringify(capture)}\n`, "utf8");
+
+  const result = await triagePendingQueue(store, home, config);
+  assert.deepEqual(result, {
+    checked: 1,
+    routed: 0,
+    kept: 1,
+    capture_remembered: 0,
+    capture_held: 0,
+  });
+  const queued = JSON.parse(fs.readFileSync(queueFile, "utf8").trim());
+  assert.equal(queued.status, "pending");
+  assert.equal(queued.crux_plain, "앞으로 이 결정을 계속 따를지 확인이 필요해요.");
+  assert.equal(Object.hasOwn(queued, "context_plain"), false);
+  assert.equal(queued.recommend, "remember");
+  assert.equal(
+    queued.recommend_reason_plain,
+    "이미 정한 방향이라 기억해 두면 다음 작업에서 다시 확인할 수 있어요.",
+  );
 });
 
 test("capture triage failure leaves the card pending", async (t) => {

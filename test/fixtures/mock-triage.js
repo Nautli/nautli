@@ -22,6 +22,11 @@ function triage(input) {
       route: "human",
       why: "중요한 사람의 결정이라 직접 확인해야 한다.",
       crux_plain: "앞으로 이 결정을 계속 따를지 확인이 필요해요.",
+      context_plain: input.claim.includes("줄표 배경")
+        ? "7월 16일에 가격 정책을 정리하다가 나온 내용이에요 — 확인이 필요해요."
+        : "7월 16일에 capture-project 작업을 정리하다가 나온 내용이에요.",
+      recommend: "remember",
+      recommend_reason_plain: "이미 정한 방향이라 기억해 두면 다음 작업에서 다시 확인할 수 있어요.",
     };
   }
   const claims = `${input.claim_a ?? ""} ${input.claim_b ?? ""}`;
