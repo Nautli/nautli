@@ -28,6 +28,8 @@ export function writeReport(store, home, results) {
   const deferred = Math.max(0, pending.length - cards.length);
   const machineOracle = results.machine_oracle ?? 0;
   const triageRouted = results.triage_routed ?? 0;
+  const captureRemembered = results.capture_remembered ?? 0;
+  const captureHeld = results.capture_held ?? 0;
   const summaryParts = [
     `적용 ${results.applied ?? 0}건`,
     `리뷰 대기 추가 ${results.queued ?? 0}건`,
@@ -35,6 +37,8 @@ export function writeReport(store, home, results) {
   ];
   if (machineOracle > 0) summaryParts.push(`기술 기록 보류 ${machineOracle}건`);
   if (triageRouted > 0) summaryParts.push(`AI가 대신 맡음 ${triageRouted}건`);
+  if (captureRemembered > 0) summaryParts.push(`AI가 대신 기억함 ${captureRemembered}건`);
+  if (captureHeld > 0) summaryParts.push(`보류 ${captureHeld}건`);
   const summary = `요약: ${summaryParts.join(", ")}.`;
   const lines = [summary];
   const failedPairs = results.failed_pairs ?? 0;
@@ -46,6 +50,9 @@ export function writeReport(store, home, results) {
   }
   if (triageRouted > 0) {
     lines.push("(AI가 대신 맡음: 사람이 답할 필요 없는 질문이라 보류해 뒀어요)");
+  }
+  if (captureHeld > 0) {
+    lines.push("(보류: 확정하기 어려운 자동 발견은 지우지 않고 기록에 남겼어요)");
   }
   lines.push("");
 

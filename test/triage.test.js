@@ -124,7 +124,7 @@ test("missing triage output fails open into the human queue", async (t) => {
   assert.equal(result.triage_routed, 0);
 });
 
-test("triagePendingQueue routes machine cards, enriches human cards, and ignores capture", async (t) => {
+test("triagePendingQueue routes machine cards and enriches human pair and capture cards", async (t) => {
   const { home, store } = isolatedStore(t);
   const machineA = add(store, "기술 기록 자동 실행은 꺼져 있다", "project:machine");
   const machineB = add(store, "기술 기록 자동 실행은 켜져 있다", "project:machine");
@@ -136,7 +136,10 @@ test("triagePendingQueue routes machine cards, enriches human cards, and ignores
     pair_id: "capture_1",
     type: "capture",
     status: "pending",
-    claim: "캡처 제안은 그대로 둔다",
+    claim: "중요한 사업 결정은 창업자가 확인한다",
+    scope: "project:capture-human",
+    project: "/tmp/capture-human",
+    confidence: 0.8,
   };
   const queueFile = path.join(home, "review", "queue.jsonl");
   fs.mkdirSync(path.dirname(queueFile), { recursive: true });
@@ -161,7 +164,13 @@ test("triagePendingQueue routes machine cards, enriches human cards, and ignores
   ].map(JSON.stringify).join("\n")}\n`, "utf8");
 
   const result = await triagePendingQueue(store, home, config);
-  assert.deepEqual(result, { checked: 2, routed: 1, kept: 1 });
+  assert.deepEqual(result, {
+    checked: 3,
+    routed: 1,
+    kept: 2,
+    capture_remembered: 0,
+    capture_held: 0,
+  });
   const queue = fs.readFileSync(queueFile, "utf8").trim().split("\n").map(JSON.parse);
   const routed = queue.find((entry) => entry.pair_id === machinePair);
   const kept = queue.find((entry) => entry.pair_id === humanPair);
@@ -171,7 +180,116 @@ test("triagePendingQueue routes machine cards, enriches human cards, and ignores
   assert.deepEqual(routed.claims, { a: machineA.claim, b: machineB.claim });
   assert.equal(kept.status, "pending");
   assert.equal(kept.crux_plain, "앞으로 어떤 방식을 더 중요하게 생각하는지 확인이 필요해요.");
-  assert.deepEqual(queue.find((entry) => entry.type === "capture"), capture);
+  assert.deepEqual(queue.find((entry) => entry.type === "capture"), {
+    ...capture,
+    crux_plain: "앞으로 이 결정을 계속 따를지 확인이 필요해요.",
+  });
+});
+
+test("capture triage remembers confirmed technical facts, holds noise, and keeps human decisions", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const queueFile = path.join(home, "review", "queue.jsonl");
+  fs.mkdirSync(path.dirname(queueFile), { recursive: true });
+  const captures = [
+    {
+      pair_id: "cap:remember",
+      type: "capture",
+      status: "pending",
+      claim: "기술 기록 자동 캡처가 활성화됐다",
+      scope: "project:capture",
+      project: "/tmp/capture-project",
+      session_id: "capture-session",
+      confidence: 0.92,
+      at: new Date(Date.now() - 1000).toISOString(),
+    },
+    {
+      pair_id: "cap:hold",
+      type: "capture",
+      status: "pending",
+      claim: "일회성 디버그 출력이 잠깐 보였다",
+      scope: "project:capture",
+      project: "/tmp/capture-project",
+      confidence: 0.55,
+    },
+    {
+      pair_id: "cap:human",
+      type: "capture",
+      status: "pending",
+      claim: "가격 정책은 창업자가 최종 결정한다",
+      scope: "project:capture",
+      project: "/tmp/capture-project",
+      confidence: 0.84,
+    },
+  ];
+  fs.writeFileSync(
+    queueFile,
+    `${captures.map(JSON.stringify).join("\n")}\n`,
+    "utf8",
+  );
+
+  const result = await triagePendingQueue(store, home, config);
+  assert.deepEqual(result, {
+    checked: 3,
+    routed: 2,
+    kept: 1,
+    capture_remembered: 1,
+    capture_held: 1,
+  });
+
+  const queue = fs.readFileSync(queueFile, "utf8").trim().split("\n").map(JSON.parse);
+  const remembered = queue.find((entry) => entry.pair_id === "cap:remember");
+  assert.equal(remembered.status, "answered");
+  assert.equal(remembered.action, "remember");
+  assert.equal(remembered.answered_by, "triage");
+  const fact = store.getFact(remembered.fact_id);
+  assert.equal(fact.claim, "기술 기록 자동 캡처가 활성화됐다");
+  assert.equal(fact.provenance.source, "capture");
+  assert.equal(fact.provenance.session_id, "capture-session");
+
+  const held = queue.find((entry) => entry.pair_id === "cap:hold");
+  assert.equal(held.status, "routed");
+  assert.equal(held.route, "hold");
+  assert.match(held.routed_at, /^\d{4}-\d{2}-\d{2}T/u);
+
+  const human = queue.find((entry) => entry.pair_id === "cap:human");
+  assert.equal(human.status, "pending");
+  assert.equal(human.crux_plain, "앞으로 이 결정을 계속 따를지 확인이 필요해요.");
+
+  const report = writeReport(store, home, {
+    applied: 0,
+    queued: 0,
+    skipped: 0,
+    ...result,
+  });
+  const reportText = fs.readFileSync(report.file, "utf8");
+  assert.match(reportText, /AI가 대신 기억함 1건/u);
+  assert.match(reportText, /보류 1건/u);
+});
+
+test("capture triage failure leaves the card pending", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const queueFile = path.join(home, "review", "queue.jsonl");
+  fs.mkdirSync(path.dirname(queueFile), { recursive: true });
+  const capture = {
+    pair_id: "cap:fail-open",
+    type: "capture",
+    status: "pending",
+    claim: "파싱 실패 자동 캡처",
+    scope: "project:capture",
+    project: "/tmp/capture-project",
+    confidence: 0.7,
+  };
+  fs.writeFileSync(queueFile, `${JSON.stringify(capture)}\n`, "utf8");
+
+  const result = await triagePendingQueue(store, home, config);
+  assert.deepEqual(result, {
+    checked: 1,
+    routed: 0,
+    kept: 1,
+    capture_remembered: 0,
+    capture_held: 0,
+  });
+  assert.deepEqual(JSON.parse(fs.readFileSync(queueFile, "utf8").trim()), capture);
 });
 
 test("triage command rejects unapproved executables", async (t) => {

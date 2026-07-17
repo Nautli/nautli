@@ -4,7 +4,7 @@ import { drainOnce } from "../capture/drain.js";
 import { listOptedProjects } from "../capture/consent.js";
 import { findPairs } from "./pair.js";
 import { judgePairs } from "./judge.js";
-import { triageCards } from "./triage.js";
+import { triageCards, triagePendingQueue } from "./triage.js";
 import { applyJudgments } from "./apply.js";
 import { writeReport } from "./report.js";
 import { renderViews } from "./render.js";
@@ -96,21 +96,41 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
   const appliedResults = applyJudgments(store, judgeResult.judgments, config);
   recordStage(home, "apply", appliedResults);
 
-  const report = writeReport(store, home, appliedResults);
-  recordStage(home, "report", { file: report.file, cards: report.cards });
-
-  const views = renderViews(store, home);
-  recordStage(home, "render", { count: views.files.length });
-
   const result = {
     pairs: pairs.length,
     judgments: judgeResult.parsedCount,
     judge_errors: judgeResult.errors,
     ...appliedResults,
-    report,
-    views,
   };
   result.capture = await capture();
   recordStage(home, "capture", result.capture);
+
+  if (config?.triage_cmd !== false) {
+    try {
+      result.capture_triage = await triagePendingQueue(store, home, config);
+    } catch (error) {
+      result.capture_triage = {
+        checked: 0,
+        routed: 0,
+        kept: 0,
+        capture_remembered: 0,
+        capture_held: 0,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  } else {
+    result.capture_triage = { skipped: true, reason: "disabled" };
+  }
+  recordStage(home, "capture_triage", result.capture_triage);
+
+  result.report = writeReport(store, home, {
+    ...appliedResults,
+    ...result.capture_triage,
+  });
+  recordStage(home, "report", { file: result.report.file, cards: result.report.cards });
+
+  result.views = renderViews(store, home);
+  recordStage(home, "render", { count: result.views.files.length });
   return result;
 }

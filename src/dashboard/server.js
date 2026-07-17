@@ -172,7 +172,14 @@ function statsFor(home) {
 }
 
 function cardFacts(store, card) {
-  if (card.type === "capture") return { ...card, facts: null };
+  if (card.type === "capture") {
+    const plain = typeof card.crux_plain === "string" ? card.crux_plain.trim() : "";
+    return {
+      ...card,
+      headline: plain || card.claim,
+      facts: null,
+    };
+  }
   const [aId, bId] = card.pair_id.split(":");
   return {
     ...card,
@@ -189,7 +196,7 @@ function cardsFor(home) {
     cards.length === 0
     || !fs.existsSync(path.join(home, "index.sqlite"))
   ) {
-    return cards;
+    return cards.map((card) => (card.type === "capture" ? cardFacts(null, card) : card));
   }
 
   const store = new Store(home);

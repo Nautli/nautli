@@ -205,7 +205,7 @@ export function applyCard(store, home, pairId, action, extraText) {
   });
 }
 
-export function applyCaptureCard(store, home, pairId, action, config = {}) {
+export function applyCaptureCard(store, home, pairId, action, config = {}, options = {}) {
   if (!CAPTURE_ACTIONS.has(action)) throw codedError(ERR.E_INVALID_INPUT);
   return withReviewLock(home, () => {
     const entries = readQueue(home);
@@ -254,6 +254,9 @@ export function applyCaptureCard(store, home, pairId, action, config = {}) {
       status,
       action,
       handled_at: handledAt,
+      ...(typeof options.actor === "string" && options.actor !== ""
+        ? { answered_by: options.actor }
+        : {}),
       ...(remembered?.id ? { fact_id: remembered.id } : {}),
       ...(deferredUntil ? { deferred_until: deferredUntil } : {}),
     };
@@ -262,6 +265,9 @@ export function applyCaptureCard(store, home, pairId, action, config = {}) {
       ev: "capture.decided",
       pair_id: pairId,
       action,
+      ...(typeof options.actor === "string" && options.actor !== ""
+        ? { answered_by: options.actor }
+        : {}),
       confidence: card.confidence ?? null,
       latency_ms: latency,
       at: handledAt,
