@@ -30,6 +30,16 @@ const TIMEOUT_MS = 300_000;
 const BATCH_SIZE = 20;
 const RAW_LOG_LIMIT = 10 * 1024 * 1024;
 const ALLOWED_JUDGE_COMMANDS = new Set(["claude", "claude-patched"]);
+export const RETRY_DELAY_MS = 15_000;
+
+function retryDelayMs() {
+  const configured = Number(process.env.NAUTLI_JUDGE_RETRY_DELAY_MS);
+  return process.env.NAUTLI_JUDGE_RETRY_DELAY_MS !== undefined
+    && Number.isFinite(configured)
+    && configured >= 0
+    ? configured
+    : RETRY_DELAY_MS;
+}
 
 function pairId(pair) {
   return `${pair.a.id}:${pair.b.id}`;
@@ -132,13 +142,14 @@ export function appendRawLog(file, text) {
   fs.chmodSync(file, 0o600);
 }
 
-function safeJudgment(pair_id, reason = "judge output missing or invalid") {
+function safeJudgment(pair_id, reason = "judge output missing or invalid", { failed = false } = {}) {
   return {
     pair_id,
     verdict: "related",
     confidence: 0,
     newer: null,
     reason,
+    ...(failed ? { failed: true } : {}),
   };
 }
 
@@ -276,8 +287,17 @@ export async function judgePairs(pairs, store, config, home) {
   for (let offset = 0; offset < pairs.length; offset += BATCH_SIZE) {
     const batch = pairs.slice(offset, offset + BATCH_SIZE);
     try {
-      let result = await runBatch(batch, config, sandbox);
-      if (result.parsedCount === 0 && batch.length > 0) {
+      let result;
+      let retried = false;
+      try {
+        result = await runBatch(batch, config, sandbox);
+      } catch (error) {
+        retried = true;
+        if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} RETRY (${error.message})\nstdout:\n${error.rawStdout ?? ""}\nstderr:\n${error.rawStderr ?? ""}\n`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs()));
+        result = await runBatch(batch, config, sandbox);
+      }
+      if (!retried && result.parsedCount === 0 && batch.length > 0) {
         // 전량 파싱 실패 = 모델이 포맷을 무시한 회차 (비결정적) — 1회만 재시도
         if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} RETRY (0 parsed)\nstdout:\n${result.rawStdout}\nstderr:\n${result.rawStderr}\n`);
         result = await runBatch(batch, config, sandbox);
@@ -292,7 +312,11 @@ export async function judgePairs(pairs, store, config, home) {
       // 배치 하나의 실패(스폰 에러·타임아웃)가 밤 전체를 날리지 않게 격리 — 해당 쌍은 안전 no-op
       if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} FAILED: ${error.message}\nstdout:\n${error.rawStdout ?? ""}\nstderr:\n${error.rawStderr ?? ""}\n`);
       errors.push({ offset, count: batch.length, reason: error.message });
-      judgments.push(...batch.map((pair) => safeJudgment(pairId(pair), `batch failed: ${error.message}`)));
+      judgments.push(...batch.map((pair) => safeJudgment(
+        pairId(pair),
+        `batch failed: ${error.message}`,
+        { failed: true },
+      )));
     }
   }
   return { judgments, parsedCount, errors };

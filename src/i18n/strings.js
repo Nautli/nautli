@@ -96,6 +96,7 @@ mcp        MCP 서버를 실행해요.
 
   "daemon.notify.title": { en: "nautli", ko: "nautli" },
   "daemon.notify.done_body": { en: "Night digestion done — {applied} applied, {pending} review card(s) waiting. Open the nautli app to answer.", ko: "밤 소화 완료 — 적용 {applied}건, 리뷰 카드 {pending}건 대기. nautli 앱에서 답해 주세요." },
+  "daemon.notify.partial_body": { en: "Night digestion done — {applied} applied, {pending} review card(s) waiting. Some judgments will be retried during the next digestion. Open the nautli app to answer.", ko: "밤 소화 완료 — 적용 {applied}건, 리뷰 카드 {pending}건 대기. 일부 판정은 다음 소화 때 다시 시도해요. nautli 앱에서 답해 주세요." },
   "daemon.notify.failed_body": { en: "Night digestion failed — run npx nautli checkup to inspect.", ko: "밤 소화에 실패했어요 — npx nautli checkup으로 점검해 주세요." },
 
   "checkup.harness_claude": { en: "Claude harness (~/.claude)", ko: "Claude 하네스 (~/.claude)" },

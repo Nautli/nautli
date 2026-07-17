@@ -37,6 +37,10 @@ export function writeReport(store, home, results) {
   if (triageRouted > 0) summaryParts.push(`AI가 대신 맡음 ${triageRouted}건`);
   const summary = `요약: ${summaryParts.join(", ")}.`;
   const lines = [summary];
+  const failedPairs = results.failed_pairs ?? 0;
+  if (failedPairs > 0) {
+    lines.push(`(판정 ${failedPairs}쌍은 일시 오류로 건너뜀: 다음 소화 때 다시 시도해요)`);
+  }
   if (machineOracle > 0) {
     lines.push("(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요)");
   }

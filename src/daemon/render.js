@@ -4,7 +4,9 @@ import { BRAND } from "../brand.js";
 import { STATUS } from "../core/schema.js";
 
 function scopeSlug(scope) {
-  return scope.replace(/[^a-z0-9-]+/gu, "-").replace(/^-|-$/gu, "");
+  // \p{L}\p{N} 유지 필수 — ASCII만 허용하면 한글 프로젝트명이 전부 증발해
+  // 13개 뷰가 views/project.md 한 파일로 충돌·유실됐다 (실사고 2026-07-17)
+  return scope.toLowerCase().replace(/[^\p{L}\p{N}-]+/gu, "-").replace(/^-+|-+$/gu, "");
 }
 
 function groupBySubject(facts) {

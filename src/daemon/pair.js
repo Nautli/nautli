@@ -11,6 +11,8 @@ function completedPairs(home) {
     if (line.trim() === "") continue;
     try {
       const entry = JSON.parse(line);
+      // judgment_failed(일시 오류로 판정 못 한 쌍)는 다음 소화 때 다시 쌍으로 올라와야 한다
+      if (entry.kind === "judgment_failed") continue;
       if (typeof entry.pair_id === "string") completed.add(entry.pair_id);
     } catch {
       // A partial trailing journal line is not a completed judgment.

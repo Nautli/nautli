@@ -52,6 +52,7 @@ export function applyJudgments(store, judgments, config = {}) {
     const journalFile = path.join(store.home, "daemon", "journal.jsonl");
     const queueFile = path.join(store.home, "review", "queue.jsonl");
     const completed = new Set(readJsonl(journalFile)
+      .filter((entry) => entry?.kind === "judgment")
       .map((entry) => entry.pair_id)
       .filter((value) => typeof value === "string"));
     const queue = readJsonl(queueFile);
@@ -63,11 +64,25 @@ export function applyJudgments(store, judgments, config = {}) {
     let skipped = 0;
     let machineOracle = 0;
     let triageRouted = 0;
+    let failedPairs = 0;
     const journalEntries = [];
 
     for (const judgment of judgments) {
       if (completed.has(judgment?.pair_id)) {
         skipped += 1;
+        continue;
+      }
+
+      if (judgment?.failed === true) {
+        failedPairs += 1;
+        journalEntries.push({
+          kind: "judgment_failed",
+          pair_id: judgment?.pair_id,
+          verdict: judgment?.verdict,
+          confidence: judgment?.confidence,
+          outcome: "failed",
+          at: new Date().toISOString(),
+        });
         continue;
       }
 
@@ -141,12 +156,15 @@ export function applyJudgments(store, judgments, config = {}) {
     if (queued > 0) writeJsonl(queueFile, queue);
     for (const entry of journalEntries) appendJsonl(journalFile, entry);
 
-    return {
+    const results = {
       applied,
       queued,
       skipped,
       machine_oracle: machineOracle,
       triage_routed: triageRouted,
     };
+    if (failedPairs > 0) results.failed_pairs = failedPairs;
+    else Object.defineProperty(results, "failed_pairs", { value: 0, enumerable: false });
+    return results;
   });
 }

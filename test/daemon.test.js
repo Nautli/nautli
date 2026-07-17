@@ -9,11 +9,15 @@ import { remember } from "../src/core/gate.js";
 import { STATUS } from "../src/core/schema.js";
 import { runOnce } from "../src/daemon/pipeline.js";
 import { judgePairs } from "../src/daemon/judge.js";
+import { findPairs } from "../src/daemon/pair.js";
+import { applyJudgments } from "../src/daemon/apply.js";
 import { writeReport } from "../src/daemon/report.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
+const retryJudge = path.join(root, "test", "fixtures", "retry-judge.js");
 process.env.NAUTLI_ALLOW_TEST_JUDGE = "1";
+process.env.NAUTLI_JUDGE_RETRY_DELAY_MS = "1";
 const config = {
   default_scope: "person",
   judge_cmd: [process.execPath, mockJudge],
@@ -88,6 +92,44 @@ test("daemon applies confidence gates and is journal-idempotent", async (t) => {
     .trim().split("\n").length, 1);
 });
 
+test("failed judgments stay observable without completing or applying the pair", (t) => {
+  const { home, store } = isolatedStore(t);
+  const oldFact = add(store, "재시도 중복 메모", "project:failed-apply", "2025-01-01", 0.7);
+  const newFact = add(store, "재시도 중복 메모 최신", "project:failed-apply", "2025-02-01", 0.9);
+  const pair_id = `${oldFact.id}:${newFact.id}`;
+  const judgment = {
+    pair_id,
+    verdict: "duplicate",
+    confidence: 0.95,
+    newer: "b",
+    reason: "같은 사실이다.",
+  };
+
+  const failed = applyJudgments(store, [{ ...judgment, failed: true }], config);
+  assert.equal(failed.failed_pairs, 1);
+  assert.equal(failed.applied, 0);
+  assert.equal(failed.queued, 0);
+  // findPairs의 completed 집계도 judgment_failed를 무시해야 다음 소화에 쌍이 다시 올라온다
+  assert.ok(findPairs(store).some((pair) => `${pair.a.id}:${pair.b.id}` === pair_id));
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+  assert.equal(fs.existsSync(path.join(home, "review", "queue.jsonl")), false);
+
+  const journalFile = path.join(home, "daemon", "journal.jsonl");
+  const firstJournal = fs.readFileSync(journalFile, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(firstJournal.length, 1);
+  assert.equal(firstJournal[0].kind, "judgment_failed");
+  assert.equal(firstJournal[0].outcome, "failed");
+
+  const retried = applyJudgments(store, [judgment], config);
+  assert.equal(retried.failed_pairs, 0);
+  assert.equal(retried.applied, 1);
+  assert.equal(store.getFact(oldFact.id).status, STATUS.SUPERSEDED);
+  assert.equal(store.getFact(oldFact.id).superseded_by, newFact.id);
+  const finalJournal = fs.readFileSync(journalFile, "utf8").trim().split("\n").map(JSON.parse);
+  assert.deepEqual(finalJournal.map((entry) => entry.kind), ["judgment_failed", "judgment"]);
+});
+
 test("report renders approval cards and machine oracle summary", (t) => {
   const { home, store } = isolatedStore(t);
   const queueFile = path.join(home, "review", "queue.jsonl");
@@ -123,10 +165,12 @@ test("report renders approval cards and machine oracle summary", (t) => {
     queued: 2,
     skipped: 0,
     machine_oracle: 1,
+    failed_pairs: 2,
   });
   const report = fs.readFileSync(result.file, "utf8");
 
   assert.match(report, /요약: 적용 0건, 리뷰 대기 추가 2건, 건너뜀 0건, 기술 기록 보류 1건\./u);
+  assert.match(report, /\(판정 2쌍은 일시 오류로 건너뜀: 다음 소화 때 다시 시도해요\)/u);
   assert.match(report, /\(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요\)/u);
   assert.match(report, /\*\*npm 발행이 끝났는지가 갈려요\.\*\*/u);
   assert.match(report, /질문: 지금은 어느 쪽이 맞나요\? \(A \/ B \/ 둘 다 \/ 모름\)/u);
@@ -182,6 +226,31 @@ test("judge raw stdout and stderr are redacted and capped per line", async (t) =
   assert.match(raw, /\[REDACTED\]/);
   assert.doesNotMatch(raw, /abcdefghijklmnopqrstuvwxyz0123456789|bearer-secret-value|sk-abcdefgh12345678/);
   assert.ok(raw.split("\n").every((line) => Buffer.byteLength(line) <= 2048));
+});
+
+test("judge retries once after a non-zero batch exit and keeps the successful result", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const a = add(store, "judge 재시도 왼쪽", "project:judge-retry", "2025-01-01");
+  const b = add(store, "judge 재시도 오른쪽", "project:judge-retry", "2025-02-01");
+  const counterFile = path.join(home, "judge-retry-count");
+  const previousCounter = process.env.NAUTLI_JUDGE_RETRY_COUNTER_FILE;
+  process.env.NAUTLI_JUDGE_RETRY_COUNTER_FILE = counterFile;
+  t.after(() => {
+    if (previousCounter === undefined) delete process.env.NAUTLI_JUDGE_RETRY_COUNTER_FILE;
+    else process.env.NAUTLI_JUDGE_RETRY_COUNTER_FILE = previousCounter;
+  });
+
+  const result = await judgePairs([{ a: store.getFact(a.id), b: store.getFact(b.id) }], store, {
+    judge_cmd: [process.execPath, retryJudge],
+  }, home);
+
+  assert.equal(fs.readFileSync(counterFile, "utf8"), "2");
+  assert.equal(result.parsedCount, 1);
+  assert.equal(result.errors.length, 0);
+  assert.equal(result.judgments.length, 1);
+  assert.equal(result.judgments[0].verdict, "related");
+  assert.equal(result.judgments[0].failed, undefined);
+  assert.match(fs.readFileSync(path.join(home, "daemon", "judge-raw.log"), "utf8"), /RETRY \(Judge exited with 1\)/u);
 });
 
 test("judge_cmd ending with bare -p gets the default prompt injected (config specifies binary/model only)", async () => {

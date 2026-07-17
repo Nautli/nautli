@@ -1047,7 +1047,7 @@ export function notifyDigestResult(result, { runner = defaultRunner, locale, con
   const failed = result.ok === false;
   const body = failed
     ? t("daemon.notify.failed_body")
-    : t("daemon.notify.done_body", {
+    : t(result.partial === true ? "daemon.notify.partial_body" : "daemon.notify.done_body", {
         applied: result.applied ?? 0,
         pending: result.report?.pending ?? 0,
       });
@@ -1107,13 +1107,7 @@ export async function runDigestOnce(home, { dry = false, locale } = {}) {
 
   try {
     const result = await runOnce(store, home, readConfig(home), { dry });
-    const failed = !dry && (
-      (result.pairs > 0 && result.judgments === 0)
-      || (
-        Array.isArray(result.judge_errors)
-        && result.judge_errors.length > 0
-      )
-    );
+    const failed = !dry && result.pairs > 0 && result.judgments === 0;
 
     if (failed) {
       const batchReason = result.judge_errors?.[0]?.reason;
@@ -1131,12 +1125,18 @@ export async function runDigestOnce(home, { dry = false, locale } = {}) {
       return failure;
     }
 
+    const judgeErrors = Array.isArray(result.judge_errors) ? result.judge_errors : [];
+    const success = {
+      ok: true,
+      ...result,
+      ...(judgeErrors.length > 0 ? { partial: true, judge_errors: judgeErrors } : {}),
+    };
     appendHealth(home, {
       at: new Date().toISOString(),
       exit: 0,
-      result,
+      result: success,
     });
-    return { ok: true, ...result };
+    return success;
   } catch (error) {
     appendHealth(home, {
       at: new Date().toISOString(),
