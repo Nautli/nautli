@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>nautli | ディスクに置くAI共通メモリ</title>
-  <meta name="description" content="Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。AIは尋ね、あなたが決める。">
+  <meta name="description" content="Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。トークンを95%削減。説明は一度だけ。">
   <link rel="canonical" href="https://nautli.ai/ja/">
   <link rel="alternate" hreflang="en" href="https://nautli.ai/">
   <link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/">
@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="nautli">
   <meta property="og:title" content="nautli | ディスクに置くAI共通メモリ">
-  <meta property="og:description" content="Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。AIは尋ね、あなたが決める。">
+  <meta property="og:description" content="Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。トークンを95%削減。説明は一度だけ。">
   <meta property="og:url" content="https://nautli.ai/ja/">
   <meta property="og:image" content="/assets/og.png">
   <meta property="og:locale" content="ja_JP">
@@ -21,7 +21,7 @@
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
   <link rel="stylesheet" href="/style.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。AIは尋ね、あなたが決める。","url":"https://nautli.ai/ja/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ja/faq.html"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。トークンを95%削減。説明は一度だけ。","url":"https://nautli.ai/ja/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ja/faq.html"}</script>
   <script src="/main.js" defer></script>
 </head>
 <body class="" data-page="index" data-copy-success="コピーしました" data-copy-failure="コピーできませんでした。コマンドを選択して手動でコピーしてください。" data-copy-prompt="このコマンドを手動でコピーしてください:">
@@ -50,7 +50,7 @@
       <div class="hero-copy">
         <p class="eyebrow">Open source · MIT · Local-first</p>
         <h1>トークンを95%削減。説明は一度だけ。</h1>
-        <p class="hero-subline">ディスクに住むプライベートメモリ。Claude、Codex、Cursorが共有し、毎晩整理されます。</p>
+        <p class="hero-subline">ディスクに置くプライベートメモリ。Claude、Codex、Cursorが共有し、毎晩整理されます。</p>
       </div>
       <div class="command-block hero-commands">
     <div class="command-row">
@@ -93,7 +93,7 @@ nautli checkup ~/notes" aria-describedby="copy-status-all">すべてコピー</b
       <p class="section-label">自分で確かめる</p>
       <h2>目で追える信頼の境界</h2>
       <div class="card-grid trust-grid">
-        <article class="card"><h3>ノートはnautliのサーバーへ送られません</h3><p>ローカルストア、イベントログ、レポートは~/.nautliに残ります。実行中の接続も自分で確認できます。</p><code class="verify-command">lsof -i -n -P | grep -i nautli</code><a class="plain-link" href="https://github.com/Nautli/nautli#data-boundary" rel="noreferrer">データ境界を読む</a></article><article class="card"><h3>ファイルが正本です</h3><p>事実と変更履歴はローカルファイルに残ります。検索インデックスはそのファイルから再構築できます。</p><code class="verify-command">find ~/.nautli -maxdepth 2 -type f | sort</code><a class="plain-link" href="https://github.com/Nautli/nautli#architecture" rel="noreferrer">構造を確認する</a></article><article class="card"><h3>曖昧なら質問になります</h3><p>矛盾はレビューューに入ります。あなたが答えた後で、その判断が現在の事実になります。</p><code class="verify-command">nautli review</code><a class="plain-link" href="https://github.com/Nautli/nautli/tree/main/src/daemon" rel="noreferrer">レビュー経路を確認する</a></article>
+        <article class="card"><h3>ノートはnautliのサーバーへ送られません</h3><p>ローカルストア、イベントログ、レポートは~/.nautliに残ります。実行中の接続も自分で確認できます。</p><code class="verify-command">lsof -i -n -P | grep -i nautli</code><a class="plain-link" href="https://github.com/Nautli/nautli#data-boundary" rel="noreferrer">データ境界を読む</a></article><article class="card"><h3>ファイルが正本です</h3><p>事実と変更履歴はローカルファイルに残ります。検索インデックスはそのファイルから再構築できます。</p><code class="verify-command">find ~/.nautli -maxdepth 2 -type f | sort</code><a class="plain-link" href="https://github.com/Nautli/nautli#architecture" rel="noreferrer">構造を確認する</a></article><article class="card"><h3>曖昧なら質問になります</h3><p>矛盾はレビューキューに入ります。あなたが答えた後で、その判断が現在の事実になります。</p><code class="verify-command">nautli review</code><a class="plain-link" href="https://github.com/Nautli/nautli/tree/main/src/daemon" rel="noreferrer">レビュー経路を確認する</a></article>
       </div>
       <div class="fact-example">
         <p>事実には主張、出典、置き換えた判断が一緒に残ります。</p>

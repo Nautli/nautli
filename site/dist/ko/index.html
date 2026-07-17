@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>nautli | 내 디스크에 사는 AI 공용 기억</title>
-  <meta name="description" content="Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. AI는 묻고, 당신이 정합니다.">
+  <meta name="description" content="Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 토큰은 95% 아끼고, 설명은 한 번만.">
   <link rel="canonical" href="https://nautli.ai/ko/">
   <link rel="alternate" hreflang="en" href="https://nautli.ai/">
   <link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/">
@@ -13,7 +13,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="nautli">
   <meta property="og:title" content="nautli | 내 디스크에 사는 AI 공용 기억">
-  <meta property="og:description" content="Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. AI는 묻고, 당신이 정합니다.">
+  <meta property="og:description" content="Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 토큰은 95% 아끼고, 설명은 한 번만.">
   <meta property="og:url" content="https://nautli.ai/ko/">
   <meta property="og:image" content="/assets/og.png">
   <meta property="og:locale" content="ko_KR">
@@ -21,7 +21,7 @@
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
   <link rel="stylesheet" href="/style.css">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. AI는 묻고, 당신이 정합니다.","url":"https://nautli.ai/ko/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 토큰은 95% 아끼고, 설명은 한 번만.","url":"https://nautli.ai/ko/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
   <script src="/main.js" defer></script>
 </head>
 <body class="" data-page="index" data-copy-success="복사했습니다" data-copy-failure="복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요." data-copy-prompt="이 명령을 직접 복사해 주세요:">
@@ -117,7 +117,7 @@ nautli checkup ~/notes" aria-describedby="copy-status-all">모두 복사</button
       <p class="section-intro">아무것도 가져오기 전에 실제 모순, 시간이 지나 바뀐 결정, 중복을 확인하세요.</p>
       <article class="empty-card"><p>nautli checkup을 실행하면 이 카드가 채워집니다.</p><code>nautli checkup ~/notes</code></article>
       <div class="review-grid">
-        <article class="review-card"><p class="review-type">진짜 모순</p><h3>현재 포트가 두 개</h3><p>한 노트에는 API 포트가 3000, 다른 현재 노트에는 4000이라고 적혀 있습니다.</p><p class="review-note">nautli가 어느 주장이 현재인지 묻습니다. 스스로 어느 쪽도 반영하지 않습니다.</p></article><article class="review-card"><p class="review-type">바뀐 결정</p><h3>PostgreSQL에서 SQLite로</h3><p>나중에 쓴 노트가 이전 데이터베이스 결정을 명시적으로 대체합니다.</p><p class="review-note">오류가 아니라 기록입니다. 새 사실이 이전 사실을 지우지 않고 대체합니다.</p></article><article class="review-card"><p class="review-type">단순 중복</p><h3>같은 재시도 규칙 두 번</h3><p>두 노트가 같은 범위와 의미로 동일한 재시도 횟수를 말합니다.</p><p class="review-note">합치기 전에 리뷰에서 두 출처를 모두 보여줍니다.</p></article>
+        <article class="review-card"><p class="review-type">진짜 모순</p><h3>현재 포트가 두 개</h3><p>한 노트에는 API 포트가 3000, 다른 노트에는 4000이라고 적혀 있습니다.</p><p class="review-note">nautli가 어느 주장이 현재인지 묻습니다. 스스로 어느 쪽도 반영하지 않습니다.</p></article><article class="review-card"><p class="review-type">바뀐 결정</p><h3>PostgreSQL에서 SQLite로</h3><p>나중에 쓴 노트가 이전 데이터베이스 결정을 명시적으로 대체합니다.</p><p class="review-note">오류가 아니라 기록입니다. 새 사실이 이전 사실을 지우지 않고 대체합니다.</p></article><article class="review-card"><p class="review-type">단순 중복</p><h3>같은 재시도 규칙 두 번</h3><p>두 노트가 같은 범위와 의미로 동일한 재시도 횟수를 말합니다.</p><p class="review-note">합치기 전에 리뷰에서 두 출처를 모두 보여줍니다.</p></article>
       </div>
       <a class="formula-link" href="https://github.com/Nautli/nautli/blob/main/docs/checkup-score.md" rel="noreferrer">→ 점수 산식 보기</a>
     </section>

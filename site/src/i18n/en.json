@@ -3,7 +3,7 @@
   "meta": {
     "index": {
       "title": "nautli | Cross-AI memory on your disk",
-      "description": "Local-first memory shared by Claude Code, Codex, Cursor, and other MCP clients. AI asks. You decide."
+      "description": "Local-first memory shared by Claude Code, Codex, and Cursor. Use 95% fewer tokens. Explain it once."
     },
     "manifesto": {
       "title": "Manifesto | nautli",
