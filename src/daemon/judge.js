@@ -104,7 +104,12 @@ export function buildCommand(config, configKey, prompt) {
   }
   return {
     cmd: "claude",
-    args: ["--model", configKey === "triage_cmd" ? "opus" : "sonnet", "-p", prompt],
+    args: [
+      "--model",
+      configKey === "triage_cmd" || configKey === "resolve_cmd" ? "opus" : "sonnet",
+      "-p",
+      prompt,
+    ],
   };
 }
 

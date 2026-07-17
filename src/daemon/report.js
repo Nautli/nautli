@@ -30,6 +30,13 @@ export function writeReport(store, home, results) {
   const triageRouted = results.triage_routed ?? 0;
   const captureRemembered = results.capture_remembered ?? 0;
   const captureHeld = results.capture_held ?? 0;
+  const oracle = results.oracle_resolve;
+  const oracleResolved = Number(oracle?.resolved ?? 0)
+    + Number(oracle?.remembered ?? 0)
+    + Number(oracle?.discarded ?? 0);
+  const oraclePromoted = Number(oracle?.promoted ?? 0);
+  const hasOracleStats = oracle && ["resolved", "remembered", "discarded"]
+    .some((field) => Object.hasOwn(oracle, field));
   const summaryParts = [
     `적용 ${results.applied ?? 0}건`,
     `리뷰 대기 추가 ${results.queued ?? 0}건`,
@@ -39,6 +46,10 @@ export function writeReport(store, home, results) {
   if (triageRouted > 0) summaryParts.push(`AI가 대신 맡음 ${triageRouted}건`);
   if (captureRemembered > 0) summaryParts.push(`AI가 대신 기억함 ${captureRemembered}건`);
   if (captureHeld > 0) summaryParts.push(`보류 ${captureHeld}건`);
+  if (hasOracleStats && Number.isFinite(oracleResolved)) {
+    summaryParts.push(`AI가 조사해 판결 ${oracleResolved}건`);
+  }
+  if (oraclePromoted > 0) summaryParts.push(`사람으로 승격 ${oraclePromoted}건`);
   const summary = `요약: ${summaryParts.join(", ")}.`;
   const lines = [summary];
   const failedPairs = results.failed_pairs ?? 0;
@@ -55,6 +66,17 @@ export function writeReport(store, home, results) {
     lines.push("(보류: 확정하기 어려운 자동 발견은 지우지 않고 기록에 남겼어요)");
   }
   lines.push("");
+
+  const oracleDecisions = Array.isArray(oracle?.decisions) ? oracle.decisions : [];
+  if (oracleDecisions.length > 0) {
+    lines.push("## AI 조사 판결");
+    oracleDecisions.forEach((decision, index) => {
+      lines.push(
+        `${index + 1}. ${oneLine(decision.decision)}: ${oneLine(decision.evidence_summary)}`,
+      );
+    });
+    lines.push("");
+  }
 
   cards.forEach((review, index) => {
     const duplicate = review.verdict === "duplicate";

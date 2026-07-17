@@ -96,7 +96,8 @@ test("failed judgments stay observable without completing or applying the pair",
   const { home, store } = isolatedStore(t);
   const oldFact = add(store, "재시도 중복 메모", "project:failed-apply", "2025-01-01", 0.7);
   const newFact = add(store, "재시도 중복 메모 최신", "project:failed-apply", "2025-02-01", 0.9);
-  const pair_id = `${oldFact.id}:${newFact.id}`;
+  // findPairs는 같은 밀리초에 생성된 무작위 id도 사전순으로 정규화한다.
+  const pair_id = [oldFact.id, newFact.id].sort().join(":");
   const judgment = {
     pair_id,
     verdict: "duplicate",

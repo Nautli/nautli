@@ -5,6 +5,7 @@ import { listOptedProjects } from "../capture/consent.js";
 import { findPairs } from "./pair.js";
 import { judgePairs } from "./judge.js";
 import { triageCards, triagePendingQueue } from "./triage.js";
+import { resolveRoutedQueue } from "./resolve.js";
 import { applyJudgments } from "./apply.js";
 import { writeReport } from "./report.js";
 import { renderViews } from "./render.js";
@@ -124,9 +125,30 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
   }
   recordStage(home, "capture_triage", result.capture_triage);
 
+  if (config?.resolve_cmd !== false) {
+    try {
+      result.oracle_resolve = await resolveRoutedQueue(store, home, config);
+    } catch (error) {
+      result.oracle_resolve = {
+        checked: 0,
+        resolved: 0,
+        remembered: 0,
+        discarded: 0,
+        promoted: 0,
+        unresolved: 0,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  } else {
+    result.oracle_resolve = { skipped: true, reason: "disabled" };
+  }
+  recordStage(home, "oracle_resolve", result.oracle_resolve);
+
   result.report = writeReport(store, home, {
     ...appliedResults,
     ...result.capture_triage,
+    oracle_resolve: result.oracle_resolve,
   });
   recordStage(home, "report", { file: result.report.file, cards: result.report.cards });
 
