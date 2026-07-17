@@ -321,13 +321,19 @@ export async function resolveRoutedQueue(store, home, config, { cap = 40 } = {})
         return entry;
       }
       const decision = result.confidence < 0.8 ? "unresolved" : result.decision;
+      const resolverAt = new Date().toISOString();
+      const resolverMeta = {
+        resolver_decision: decision,
+        resolver_confidence: result.confidence,
+        resolver_at: resolverAt,
+      };
       if (decision === "unresolved") {
         stats.unresolved += 1;
         changed = true;
-        return { ...entry, evidence: result.evidence_summary };
+        return { ...entry, evidence: result.evidence_summary, ...resolverMeta };
       }
 
-      const handledAt = new Date().toISOString();
+      const handledAt = resolverAt;
       try {
         if (entry.type === "capture") {
           if (decision === "remember") {
@@ -359,6 +365,7 @@ export async function resolveRoutedQueue(store, home, config, { cap = 40 } = {})
               evidence: result.evidence_summary,
               handled_at: handledAt,
               fact_id: remembered.id,
+              ...resolverMeta,
             };
           }
           if (decision === "discard") {
@@ -376,6 +383,7 @@ export async function resolveRoutedQueue(store, home, config, { cap = 40 } = {})
               answered_by: "oracle",
               evidence: result.evidence_summary,
               handled_at: handledAt,
+              ...resolverMeta,
             };
           }
         } else if (["a_wins", "b_wins", "both_invalid", "both_valid"].includes(decision)) {
@@ -414,6 +422,7 @@ export async function resolveRoutedQueue(store, home, config, { cap = 40 } = {})
             answered_by: "oracle",
             evidence: result.evidence_summary,
             handled_at: handledAt,
+            ...resolverMeta,
           };
         }
 
@@ -429,6 +438,7 @@ export async function resolveRoutedQueue(store, home, config, { cap = 40 } = {})
             recommend_reason_plain: result.recommend_reason_plain,
             evidence: result.evidence_summary,
             promoted_by: "oracle",
+            ...resolverMeta,
           };
         }
       } catch {

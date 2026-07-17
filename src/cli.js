@@ -27,6 +27,7 @@ import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
 import { Store } from "./core/store.js";
+import { isTelemetryEnabled } from "./daemon/telemetry.js";
 import { makeT, resolveLocale } from "./i18n/strings.js";
 import {
   checkupStatus,
@@ -96,6 +97,19 @@ function readConfig(home) {
   return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(file, "utf8")) };
 }
 
+function writeConfig(home, config) {
+  fs.mkdirSync(home, { recursive: true });
+  const file = path.join(home, "config.json");
+  const temporary = `${file}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    fs.writeFileSync(temporary, `${JSON.stringify(config)}\n`, "utf8");
+    fs.renameSync(temporary, file);
+  } catch (error) {
+    fs.rmSync(temporary, { force: true });
+    throw error;
+  }
+}
+
 function parseCommand(args, options = {}) {
   return parseArgs({ args, options, allowPositionals: true, strict: true });
 }
@@ -132,6 +146,43 @@ function doctorCommand(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 0);
   return doctor(home);
+}
+
+function telemetryCommand(home, args) {
+  const parsed = parseCommand(args);
+  requirePositionals(parsed.positionals, 1);
+  const [action] = parsed.positionals;
+  const config = readConfig(home);
+  const telemetry = config.telemetry && typeof config.telemetry === "object"
+    && !Array.isArray(config.telemetry)
+    ? config.telemetry
+    : {};
+
+  if (action === "on" || action === "off") {
+    writeConfig(home, {
+      ...config,
+      telemetry: { ...telemetry, enabled: action === "on" },
+    });
+    if (action === "on") {
+      process.stdout.write("판정 메타 선택 수집을 켰습니다.\n");
+      process.stdout.write("노트나 기억의 내용은 절대 보내지 않아요. 카드 개수와 판정 결과 통계만 보냅니다.\n");
+      process.stdout.write("함께 보내는 정보는 무작위 설치 식별자, 앱 버전, 운영체제 종류입니다.\n");
+      process.stdout.write("프로젝트 이름과 경로, 신고 내용도 보내지 않습니다.\n");
+    } else {
+      process.stdout.write("판정 메타 선택 수집을 껐습니다. 이제 아무것도 보내지 않습니다.\n");
+    }
+    return;
+  }
+
+  if (action === "status") {
+    process.stdout.write(`판정 메타 선택 수집: ${isTelemetryEnabled(config) ? "켜짐" : "꺼짐"}\n`);
+    process.stdout.write(`마지막 전송 시각: ${typeof telemetry.last_sent_at === "string" ? telemetry.last_sent_at : "없음"}\n`);
+    process.stdout.write("보내는 항목: 무작위 설치 식별자, 앱 버전, 운영체제 종류, 카드 종류별 개수, 라우팅과 판정 결과, 확신도 구간, 사용자 행동 개수, 대기 카드와 기억의 범위별 개수\n");
+    process.stdout.write("보내지 않는 항목: 노트와 기억 내용, 프로젝트 이름과 경로, 신고 내용\n");
+    return;
+  }
+
+  throw codedError(ERR.E_INVALID_INPUT);
 }
 
 async function checkupCommand(home, args) {
@@ -591,6 +642,12 @@ export async function main(argv = process.argv.slice(2)) {
       const result = doctorCommand(home, args);
       writeJson(result.result);
       process.exitCode = result.ok ? 0 : 1;
+      return;
+    }
+
+    if (command === "telemetry") {
+      telemetryCommand(home, args);
+      process.exitCode = 0;
       return;
     }
 

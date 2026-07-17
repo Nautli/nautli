@@ -9,6 +9,11 @@ import { resolveRoutedQueue } from "./resolve.js";
 import { applyJudgments } from "./apply.js";
 import { writeReport } from "./report.js";
 import { renderViews } from "./render.js";
+import {
+  buildTelemetryPayload,
+  isTelemetryEnabled,
+  sendTelemetry,
+} from "./telemetry.js";
 
 function recordStage(home, stage, detail) {
   const file = path.join(home, "daemon", "journal.jsonl");
@@ -154,5 +159,22 @@ export async function runOnce(store, home, config, { dry = false } = {}) {
 
   result.views = renderViews(store, home);
   recordStage(home, "render", { count: result.views.files.length });
+
+  result.telemetry = { sent: false };
+  if (isTelemetryEnabled(config)) {
+    try {
+      const sendConfig = { ...config };
+      Object.defineProperty(sendConfig, "__telemetryHome", { value: home });
+      const payload = buildTelemetryPayload(home, store);
+      result.telemetry.sent = await sendTelemetry(payload, sendConfig);
+    } catch {
+      result.telemetry.sent = false;
+    }
+    try {
+      recordStage(home, "telemetry", result.telemetry);
+    } catch {
+      // 선택 수집의 기록 실패는 소화 결과에 영향을 주지 않는다.
+    }
+  }
   return result;
 }
