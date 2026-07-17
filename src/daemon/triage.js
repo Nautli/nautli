@@ -239,6 +239,19 @@ function cardFromQueueEntry(entry, store) {
   };
 }
 
+function hasHumanTriage(entry) {
+  return typeof entry.crux_plain === "string" && entry.crux_plain.trim() !== "";
+}
+
+function enrichHumanEntry(entry, result, fields) {
+  if (result?.route !== "human") return entry;
+  const enrichment = {};
+  for (const field of fields) {
+    if (Object.hasOwn(result, field)) enrichment[field] = result[field];
+  }
+  return Object.keys(enrichment).length > 0 ? { ...entry, ...enrichment } : entry;
+}
+
 export async function triagePendingQueue(store, home, config) {
   const pending = withReviewLock(home, () => readQueue(home)
     .filter((entry) => entry.status === "pending"));
@@ -256,6 +269,8 @@ export async function triagePendingQueue(store, home, config) {
     : new Map();
   let captureRemembered = 0;
   for (const entry of capturePending) {
+    // 한번 사람 확인 대상으로 판정된 카드는 재트리아지가 자동 저장할 수 없다.
+    if (hasHumanTriage(entry)) continue;
     if (captureTriaged.get(entry.pair_id)?.route !== "remember") continue;
     try {
       const applied = applyCaptureCard(
@@ -283,32 +298,48 @@ export async function triagePendingQueue(store, home, config) {
       if (entry.status !== "pending") return entry;
       if (entry.type === "capture") {
         const result = captureTriaged.get(entry.pair_id);
+        if (hasHumanTriage(entry)) {
+          const enriched = enrichHumanEntry(entry, result, [
+            "crux_plain",
+            "context_plain",
+            "recommend",
+            "recommend_reason_plain",
+          ]);
+          if (enriched !== entry) changed = true;
+          return enriched;
+        }
         if (result?.route === "hold") {
           captureHeld += 1;
           changed = true;
           return { ...entry, status: "routed", route: "hold", routed_at: routedAt };
         }
         if (result?.route === "human") {
-          changed = true;
-          return {
-            ...entry,
-            crux_plain: result.crux_plain,
-            context_plain: result.context_plain,
-            recommend: result.recommend,
-            recommend_reason_plain: result.recommend_reason_plain,
-          };
+          const enriched = enrichHumanEntry(entry, result, [
+            "crux_plain",
+            "context_plain",
+            "recommend",
+            "recommend_reason_plain",
+          ]);
+          if (enriched !== entry) changed = true;
+          return enriched;
         }
         return entry;
       }
       const result = triaged.get(entry.pair_id);
+      if (hasHumanTriage(entry)) {
+        const enriched = enrichHumanEntry(entry, result, ["crux_plain"]);
+        if (enriched !== entry) changed = true;
+        return enriched;
+      }
       if (result?.route === "machine" || result?.route === "auto") {
         pairRouted += 1;
         changed = true;
         return { ...entry, status: "routed", route: result.route, routed_at: routedAt };
       }
-      if (result?.route === "human" && typeof result.crux_plain === "string") {
-        changed = true;
-        return { ...entry, crux_plain: result.crux_plain };
+      if (result?.route === "human") {
+        const enriched = enrichHumanEntry(entry, result, ["crux_plain"]);
+        if (enriched !== entry) changed = true;
+        return enriched;
       }
       return entry;
     });

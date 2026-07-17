@@ -282,6 +282,64 @@ test("capture triage remembers confirmed technical facts, holds noise, and keeps
   assert.match(reportText, /보류 1건/u);
 });
 
+test("triagePendingQueue never downgrades an existing human capture to remember", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const queueFile = path.join(home, "review", "queue.jsonl");
+  fs.mkdirSync(path.dirname(queueFile), { recursive: true });
+  const capture = {
+    pair_id: "cap:existing-human",
+    type: "capture",
+    status: "pending",
+    claim: "기술 기록이지만 이미 사람이 확인하기로 한 결정이다",
+    scope: "project:capture",
+    project: "/tmp/capture-project",
+    confidence: 0.9,
+    crux_plain: "이 결정은 직접 확인이 필요해요.",
+  };
+  fs.writeFileSync(queueFile, `${JSON.stringify(capture)}\n`, "utf8");
+
+  const result = await triagePendingQueue(store, home, config);
+
+  assert.deepEqual(result, {
+    checked: 1,
+    routed: 0,
+    kept: 1,
+    capture_remembered: 0,
+    capture_held: 0,
+  });
+  assert.deepEqual(JSON.parse(fs.readFileSync(queueFile, "utf8").trim()), capture);
+  assert.equal(store.query().length, 0);
+});
+
+test("triagePendingQueue never routes an existing human pair to machine", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const a = add(store, "기술 기록 배포 방식은 자동이다", "project:pair-human");
+  const b = add(store, "기술 기록 배포 방식은 수동이다", "project:pair-human");
+  const pair = {
+    pair_id: `${a.id}:${b.id}`,
+    verdict: "contradiction",
+    crux: "배포 방식이 갈려요.",
+    reason: "서로 다른 방식을 말한다.",
+    claims: { a: a.claim, b: b.claim },
+    status: "pending",
+    crux_plain: "어떤 방식을 따를지 직접 확인이 필요해요.",
+  };
+  const queueFile = path.join(home, "review", "queue.jsonl");
+  fs.mkdirSync(path.dirname(queueFile), { recursive: true });
+  fs.writeFileSync(queueFile, `${JSON.stringify(pair)}\n`, "utf8");
+
+  const result = await triagePendingQueue(store, home, config);
+
+  assert.deepEqual(result, {
+    checked: 1,
+    routed: 0,
+    kept: 1,
+    capture_remembered: 0,
+    capture_held: 0,
+  });
+  assert.deepEqual(JSON.parse(fs.readFileSync(queueFile, "utf8").trim()), pair);
+});
+
 test("capture triage drops a context with a dash but keeps the human card", async (t) => {
   const { home, store } = isolatedStore(t);
   const queueFile = path.join(home, "review", "queue.jsonl");
