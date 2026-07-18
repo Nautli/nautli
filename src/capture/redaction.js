@@ -5,6 +5,7 @@ const KIND_ORDER = Object.freeze([
   "slack-token",
   "bearer",
   "assignment",
+  "env-assignment",
   "high-entropy",
 ]);
 
@@ -88,6 +89,18 @@ function redact(text) {
     (match, prefix, secret) => {
       if (!secret || secret.startsWith("«redacted:")) return match;
       return `${prefix}${mark("assignment")}`;
+    },
+  );
+
+  // .env-style assignments: KEY=value where KEY is all-caps with underscores
+  // and value has moderate entropy (catches DB_PASSWORD=xyz, AWS_SECRET=abc, etc.)
+  output = output.replace(
+    /^([A-Z][A-Z0-9_]{2,})=(["']?)([^\n"']{8,})\2$/gmu,
+    (match, key, quote, value) => {
+      if (value.startsWith("«redacted:")) return match;
+      // Only redact if the value has meaningful entropy (skip booleans, paths, simple words)
+      if (shannonEntropy(value) < 3.5) return match;
+      return `${key}=${quote}${mark("env-assignment")}${quote}`;
     },
   );
 

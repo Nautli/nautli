@@ -17,6 +17,7 @@ import {
 } from "./spool.js";
 import { formatDelta, parseTurns, readDelta, sizeStable } from "./transcript.js";
 import { appendCards, listCards } from "../core/review.js";
+import { isSensitiveFilePath } from "../core/policy.js";
 import { ERR, claimHash, validScope } from "../core/schema.js";
 import { Store } from "../core/store.js";
 
@@ -193,6 +194,10 @@ export async function drainOnce(home, config = {}, {
           if (!isProjectOptedIn(home, candidate.project)) continue;
 
           const transcriptPath = fs.realpathSync(candidate.transcriptPath);
+          if (isSensitiveFilePath(transcriptPath)) {
+            process.stderr.write(`capture drain: sensitive file excluded: ${transcriptPath}\n`);
+            continue;
+          }
           const realProjectsRoot = fs.realpathSync(projectsRoot);
           if (!isInside(transcriptPath, realProjectsRoot)) {
             process.stderr.write(`capture drain: transcript outside Claude projects: ${transcriptPath}\n`);

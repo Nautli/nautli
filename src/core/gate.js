@@ -5,6 +5,7 @@ import {
   newId,
   validScope,
 } from "./schema.js";
+import { isInjectionLike } from "./policy.js";
 
 const FACT_TYPES = new Set(["episodic", "semantic", "procedural"]);
 
@@ -32,6 +33,9 @@ function validOptionalInputs(input) {
 }
 
 function makeFact(input, scope, claim) {
+  // INVARIANT: claim text is DATA — never interpreted as instructions.
+  // Injection-like claims are stored with a provenance flag for audit only.
+  const injectionFlagged = isInjectionLike(claim);
   return {
     id: newId(),
     type: input.type ?? "episodic",
@@ -42,6 +46,7 @@ function makeFact(input, scope, claim) {
     provenance: {
       ...(input.provenance ?? {}),
       ...(input.source === undefined ? {} : { source: input.source }),
+      ...(injectionFlagged ? { injection_flagged: "true" } : {}),
     },
     t_valid: input.t_valid ?? new Date().toISOString().slice(0, 10),
     t_invalid: null,
