@@ -5,7 +5,7 @@
 // to trigger side effects (deletions, config changes, permission escalation).
 // This file defines detection patterns for audit/flagging purposes only.
 
-// Patterns that indicate a claim is actually an instruction/injection attempt.
+// Patterns that indicate a claim is actually an instruction/injection attempt (7 patterns).
 // Matching claims are STILL STORED (data treatment) but flagged in provenance.
 const INJECTION_PATTERNS = [
   // Direct commands targeting the memory system
@@ -13,10 +13,13 @@ const INJECTION_PATTERNS = [
   /\b(?:ignore|disregard|override|bypass|skip|disable)\b.*\b(?:previous|prior|above|earlier|existing|all)\b.*\b(?:instruction|rule|guard|policy|constraint|guideline|system)/iu,
   // "You are now X" identity override
   /\byou\s+are\s+now\b/iu,
-  // System prompt override attempts
-  /\b(?:system\s*prompt|system\s*message|new\s*instruction)\s*[:=]/iu,
+  // System prompt override attempts (singular and plural)
+  /\b(?:system\s*prompt|system\s*message|new\s*instructions?)\s*[:=]/iu,
   // Jailbreak markers
   /\b(?:DAN|do\s+anything\s+now|jailbreak|prompt\s+injection)\b/iu,
+  // Role-playing identity override
+  /\b(?:act|behave)\s+as\b/iu,
+  /\bpretend\s+(?:to\s+be|you\s+are)\b/iu,
 ];
 
 // File path patterns that should be excluded from capture processing by default.

@@ -291,6 +291,43 @@ test("concurrent drainOnce lets only one run proceed", async (t) => {
   assert.equal(running.length, 1, "동시 실행 중 하나는 already_running이어야 한다");
 });
 
+test("drain skips transcripts at sensitive file paths", async (t) => {
+  const item = fixture(t, "nautli-capture-drain-sensitive-");
+  // Create a transcript whose realpath ends in .env (sensitive pattern)
+  const sensitiveDir = path.join(item.base, "user-home", ".claude", "projects", "env-project");
+  fs.mkdirSync(sensitiveDir, { recursive: true });
+  const sensitiveTranscript = path.join(sensitiveDir, ".env");
+  fs.writeFileSync(sensitiveTranscript, [
+    transcriptLine("user", "비밀 정보가 들어있는 파일"),
+    transcriptLine("assistant", "확인."),
+  ].join("\n") + "\n", "utf8");
+
+  // Opt in the project and write a checkpoint pointing at the sensitive transcript
+  const fakeProject = path.join(item.userHome, "work", "env-project");
+  fs.mkdirSync(fakeProject, { recursive: true });
+  setProjectOptIn(item.home, fakeProject, true);
+
+  // Write a spool entry for the sensitive transcript
+  const { writeSpoolEntry } = await import("../src/capture/spool.js");
+  writeSpoolEntry(item.home, {
+    session_id: "sensitive-session",
+    transcript_path: sensitiveTranscript,
+    project: fakeProject,
+  });
+
+  let extractorCalled = false;
+  const result = await drainOnce(item.home, { user_home: item.userHome }, {
+    extractor: async () => {
+      extractorCalled = true;
+      return [];
+    },
+  });
+
+  // The sensitive transcript should have been skipped entirely
+  assert.equal(extractorCalled, false, "extractor must not be called for sensitive paths");
+  assert.equal(result.sessions, 0, "sensitive transcript should not count as a session");
+});
+
 test("capture hook ignores stdin above the size limit and writes no spool entry", (t) => {
   const item = fixture(t, "nautli-capture-drain-oversize-");
   const oversize = "x".repeat(17 * 1024);
