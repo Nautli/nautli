@@ -37,24 +37,30 @@
 }
 
 :root {
-  color-scheme: light;
-  --bg: #F7F7F5;
-  --bg-card: #FFFFFF;
-  --text: #141414;
-  --text-dim: #5c5c58;
-  /* Neon Green ramp, hue ~162 (기존 틸 172에서 8도 이웃이라 파비콘·OG와 안 튄다).
-     네온은 채움색이다: 라이트 배경 위 텍스트로 쓰면 대비 1.5:1로 읽히지 않는다.
-     텍스트/링크는 같은 색상의 깊은 단계를 쓰고, 네온은 항상 잉크 글자를 얹어 채운다. */
+  color-scheme: dark;
+
+  /* 다크 전용이다. obsidian.md처럼 라이트 브랜치를 두지 않는 대신,
+     위계를 색이 아니라 밝기 3단(text / dim / faint)으로만 만든다. */
+  --bg: #141414;
+  --bg-card: #1c1c1a;
+  --text: #F7F7F5;
+  --text-dim: #a3a39e;
+  --text-faint: #87877f;   /* 카드 위 4.72:1 AA */
+  --border: #2a2a27;
+
+  /* Neon Green. 채움색이지 텍스트색이 아니지만, 배경이 항상 #141414라
+     다크에서는 둘 다 된다(11.26:1 AAA). 그래도 채움 위 글자는 잉크다. */
   --neon: #00E6A1;
-  --accent: #007A58;        /* 텍스트·링크. #F7F7F5 위 4.99:1 AA */
-  --accent-fill: #00E6A1;   /* 버튼·칩 채움 */
-  --accent-on-fill: #141414;/* 채움 위 글자. #00E6A1 위 11.26:1 AAA */
-  --accent-soft: #007A5814;
-  --border: #e3e3df;
+  --accent: #00E6A1;
+  --accent-fill: #00E6A1;
+  --accent-on-fill: #141414;
+  --accent-soft: #00E6A114;
+
   --body-font: Inter, Pretendard, "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono-font: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  /* App mock surface: always the dark product chrome, in both site themes.
-     The product is a terminal-side tool; showing it light would be a lie. */
+
+  /* 목업 크롬은 페이지보다 한 단 밝다 — 창이 페이지 위에 떠 있게 보이려면
+     같은 색이면 안 된다. */
   --mock-bg: #1c1c1a;
   --mock-chrome: #232320;
   --mock-border: #33332e;
@@ -62,41 +68,10 @@
   --mock-dim: #8e8e88;
   --mock-faint: #63635e;
   --mock-accent: #00E6A1;
-  --grain-blend: multiply;
-  --grain-opacity: 0.5;
-  --header-height: 64px;
-}
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-    --bg: #141414;
-    --bg-card: #1c1c1a;
-    --text: #F7F7F5;
-    --text-dim: #a3a39e;
-    --accent: #00E6A1;        /* #141414 위 11.26:1 AAA */
-    --accent-fill: #00E6A1;
-    --accent-on-fill: #141414;
-    --accent-soft: #00E6A11f;
-    --border: #2a2a27;
-    --grain-blend: screen;
-    --grain-opacity: 0.35;
-  }
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #141414;
-  --bg-card: #1c1c1a;
-  --text: #F7F7F5;
-  --text-dim: #a3a39e;
-  --accent: #00E6A1;
-  --accent-fill: #00E6A1;
-  --accent-on-fill: #141414;
-  --accent-soft: #00E6A11f;
-  --border: #2a2a27;
   --grain-blend: screen;
   --grain-opacity: 0.35;
+  --header-height: 64px;
 }
 
 *,
@@ -269,8 +244,7 @@ code {
   text-decoration-color: var(--accent);
 }
 
-.icon-link,
-.theme-button {
+.icon-link {
   display: inline-grid;
   width: 44px;
   height: 44px;
@@ -284,7 +258,6 @@ code {
 }
 
 .icon-link:hover,
-.theme-button:hover,
 .icon-text-button:hover {
   background: var(--accent-soft);
 }
@@ -358,7 +331,7 @@ code {
 .eyebrow,
 .section-label {
   margin-bottom: 12px;
-  color: var(--text-dim);
+  color: var(--text-faint);
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -432,7 +405,7 @@ code {
   grid-column: 1 / -1;
   min-height: 0;
   padding-inline: 16px;
-  color: var(--text-dim);
+  color: var(--text-faint);
   font-size: 14px;
 }
 
@@ -693,7 +666,7 @@ tr:last-child > td {
 }
 
 thead th {
-  color: var(--text-dim);
+  color: var(--text-faint);
   font-size: 14px;
 }
 
@@ -771,7 +744,7 @@ tbody th {
 
 .small-note {
   margin-top: 16px;
-  color: var(--text-dim);
+  color: var(--text-faint);
   font-size: 14px;
 }
 

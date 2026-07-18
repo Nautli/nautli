@@ -1,45 +1,5 @@
 (() => {
-  const root = document.documentElement;
   const body = document.body;
-
-  function systemTheme() {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-
-  function storedTheme() {
-    try {
-      const value = localStorage.getItem("nautli-theme");
-      return value === "light" || value === "dark" ? value : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function applyTheme(theme, persist = false) {
-    root.dataset.theme = theme;
-    const button = document.querySelector(".theme-button");
-    if (button) {
-      const nextIsLight = theme === "dark";
-      button.textContent = nextIsLight ? "☀" : "☾";
-      button.setAttribute(
-        "aria-label",
-        nextIsLight ? button.dataset.lightLabel : button.dataset.darkLabel,
-      );
-    }
-    if (persist) {
-      try {
-        localStorage.setItem("nautli-theme", theme);
-      } catch {
-        // The selected theme still applies for this page view.
-      }
-    }
-  }
-
-  applyTheme(storedTheme() ?? systemTheme());
-
-  document.querySelector(".theme-button")?.addEventListener("click", () => {
-    applyTheme(root.dataset.theme === "dark" ? "light" : "dark", true);
-  });
 
   const languageButton = document.querySelector(".language-button");
   const languageMenu = document.querySelector(".language-menu");

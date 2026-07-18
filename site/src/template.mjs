@@ -56,7 +56,6 @@ function nav(locale, page, copy) {
         <a class="icon-link" href="${githubUrl}" aria-label="GitHub" rel="noreferrer">${githubIcon()}</a>
         <a class="icon-link" href="${discordUrl}" aria-label="Discord" rel="noreferrer">${discordIcon()}</a>
         ${languageMenu(locale, page, copy)}
-        <button class="theme-button" type="button" aria-label="${escapeHtml(copy.common.themeToDark)}" data-light-label="${escapeHtml(copy.common.themeToLight)}" data-dark-label="${escapeHtml(copy.common.themeToDark)}">☾</button>
       </nav>
     </div>
   </header>`;
@@ -300,10 +299,12 @@ export function renderPage({ locale, page, copy, baseUrl, assetVersions = {} }) 
   };
   const bodyClass = page === "c" ? "share-body" : "";
   return `<!doctype html>
-<html lang="${locale}">
+<html lang="${locale}" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#141414">
   <title>${escapeHtml(meta.title)}</title>
   <meta name="description" content="${escapeHtml(meta.description)}">
   <link rel="canonical" href="${canonical}">

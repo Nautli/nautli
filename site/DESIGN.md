@@ -1,7 +1,8 @@
-# nautli.ai 랜딩 DESIGN 토큰 v2 (웹사이트 비주얼 SSOT — 토큰 외 색/폰트 발명 금지)
+# nautli.ai 랜딩 DESIGN 토큰 v3 (웹사이트 비주얼 SSOT — 토큰 외 색/폰트 발명 금지)
 
 > v2(2026-07-19): obsidian.md 코드 해부 결과를 이식. 해부 근거·미채택 항목은 `OBSIDIAN-TEARDOWN.md`.
 > v2.1(2026-07-19): 메인 액센트를 Teal에서 **Neon Green**으로 교체(유저 지시). 색상은 172도→162도로 8도만 옮겨 기존 나선 마크와 같은 계열을 유지한다.
+> v3(2026-07-19): **다크 전용**으로 전환(유저 지시, obsidian.md 방식). 라이트 브랜치·테마 토글 삭제.
 
 > 대상: 공개 마케팅/온보딩 웹사이트(nautli.ai). 로컬 대시보드(docs/DESIGN-dashboard.md, 다크 Orca)와 별개 표면 — 단 브랜드 킷은 공유.
 > 브랜드 정본 = `assets/brand/` (원본: ~/Desktop/brand-logos/FINAL/nautli/). ⛔ warm clay-orange/cream 절대 금지.
@@ -9,29 +10,24 @@
 ## 콘셉트
 "기록은 오래 산다" — 앵무조개(수억 년 살아남은 나선)의 정적이고 단단한 느낌. 개발자 대상이므로 과장 없는 문서 같은 랜딩. 화려한 그라데이션·글래스모피즘 금지.
 
-## 컬러 (라이트 우선 + 다크 대응)
-라이트(기본):
-- --bg: #F7F7F5 (Off-white — 순백 금지)
-- --bg-card: #FFFFFF
-- --text: #141414 (Ink)
-- --text-dim: #5c5c58
-- --neon: #00E6A1 (**메인 컬러, Neon Green**)
-- --accent: #007A58 (링크·본문 강조. `#F7F7F5` 위 4.99:1 AA)
-- --accent-fill: #00E6A1 / --accent-on-fill: #141414 (버튼·칩 채움 + 그 위 글자, 11.26:1 AAA)
-- --accent-soft: #007A5814 (배경 틴트)
-- --border: #e3e3df
-다크(prefers-color-scheme):
-- --bg: #141414 / --bg-card: #1c1c1a / --text: #F7F7F5 / --text-dim: #a3a39e
-- --accent: #00E6A1 (다크에선 네온 그대로, `#141414` 위 11.26:1 AAA) / --accent-soft: #00E6A11f / --border: #2a2a27
+## 컬러 (다크 전용)
 
-## 타이포 (3개어)
-- 본문 스택: Inter, Pretendard, "Noto Sans JP", -apple-system, sans-serif
-- **Inter는 실제로 셀프호스트한다**(`src/fonts/Inter-{400,500,600,700}.woff2`, 라틴 서브셋 `unicode-range: U+0000-00FF …`). KO/JA 글리프는 싣지 말고 시스템 스택으로 흘린다 — CJK를 번들하면 수 MB. 외부 CDN 금지
-- 코드/설치 커맨드: ui-monospace, "SF Mono", monospace — **단 한/일 문장은 mono 금지**(한글 글리프 폴백 붕 뜸, 대시보드 검안 2회 적발 교훈)
-- 크기: h1 clamp(38px, 11vw, 60px) 700 / h2 clamp(30px, 4.4vw, 44px) 600 / 본문 16px / 섹션 라벨 14px 대문자 letter-spacing .08em --text-dim
-- **서브헤드는 크게**: 히어로 서브라인 clamp(19px, 2.2vw, 26px), 섹션 인트로 clamp(18px, 2vw, 23px), 둘 다 --text-dim. 제목/서브헤드 2단으로 위계를 끝낸다
-- `text-wrap: pretty`를 루트에, `balance`를 h1/h2에. 히어로 h1은 모바일에서 뷰포트 비례(11vw)로 커진다
-- 신조는 영어 원문이 주, 현지어 번역이 서브 (3개어 공통 규칙)
+라이트 모드는 없다. obsidian.md와 같은 선택 — 테마가 하나면 **모든 표면 조합을 실제로 검증할 수 있다**. 두 테마를 유지하면 검증해야 할 조합이 두 배가 되고, 실제로는 한쪽만 보게 된다.
+
+```
+--bg:         #141414   배경
+--bg-card:    #1c1c1a   카드
+--border:     #2a2a27
+--text:       #F7F7F5   본문·제목        (17.17:1 AAA)
+--text-dim:   #a3a39e   보조 설명        ( 7.27:1 AAA)
+--text-faint: #87877f   메타·라벨·캡션   ( 5.09:1 AA, 카드 위 4.72 AA)
+--neon / --accent / --accent-fill: #00E6A1   (11.26:1 AAA)
+--accent-on-fill: #141414   채움 위 글자
+--accent-soft:    #00E6A114 배경 틴트
+```
+
+**위계는 색이 아니라 밝기 3단으로만 만든다.** 액센트는 하나, 보조 액센트 금지. 새 색을 만들지 말고 text / dim / faint 중에서 골라라.
+`--text-faint`는 "안 읽혀도 되는 층"이 아니다 — 카드 위에서도 AA(4.72)를 지킨다. 이 밑으로 더 흐린 4단째를 만들지 마라.
 
 ### ⛔ 네온은 채움색이다 (불변식)
 `--neon`/`--accent-fill`을 **라이트 배경 위 텍스트 색으로 쓰지 마라** — `#F7F7F5` 위 대비 1.55:1로 안 읽힌다. 규칙:
@@ -39,8 +35,11 @@
 - 채워진 표면(버튼·칩·skip-link) = `--accent-fill` 배경 + `--accent-on-fill` 글자. 흰 글자 금지
 - 액센트는 **하나만**. 보조 액센트 색을 추가하지 마라
 
+### 테마 토글 없음
+`<html data-theme="dark">`로 고정, `<meta name="color-scheme" content="dark">`. 헤더의 토글 버튼과 `main.js`의 테마 로직·localStorage는 제거했다. 다시 넣지 마라 — 고를 게 하나면 컨트롤도 없어야 한다.
+
 ### 브랜드 자산 동기화
-`assets/brand/`(파비콘·OG)는 아직 구 Teal(#087A6B/#12A88F)이다. 색상 계열이 같아 당장 튀지는 않지만 **정본 킷(`~/Desktop/brand-logos/FINAL/nautli/`) 재생성 전까지는 사이트가 앞서 있는 상태**임을 알고 있어라. ⛔ warm clay-orange/cream 금지는 그대로 유효.
+`assets/brand/`(파비콘·OG)는 아직 구 Teal(#087A6B/#12A88F)이다. 색상 계열이 같아 당장 튀지는 않지만 **정본 킷(`~/Desktop/brand-logos/FINAL/nautli/`) 재생성 전까지는 사이트가 앞서 있는 상태**임을 알고 있어라(TASK-064). 재생성 시 **다크 배경 기준**으로 볼 것. ⛔ warm clay-orange/cream 금지는 그대로 유효.
 
 ## 형태
 - radius: 카드 12px, 버튼 8px, 코드블록 8px (제품 대시보드와 통일)
