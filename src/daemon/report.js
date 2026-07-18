@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import { buildHandoffCard, renderHandoffCard } from "../core/handoff-card.js";
-import { buildReceipt } from "../core/receipt.js";
 import { resolveLocale, makeT } from "../i18n/strings.js";
 
 function pendingReviews(home) {
@@ -78,10 +77,6 @@ export function writeReport(store, home, results) {
   } else {
     lines.push(t("report.handoff_empty"), "");
   }
-
-  // Legacy receipt (kept for dashboard/MCP — not rendered in report)
-  const receipt = buildReceipt(home, store);
-  void receipt;
 
   const oracleDecisions = Array.isArray(oracle?.decisions) ? oracle.decisions : [];
   if (oracleDecisions.length > 0) {

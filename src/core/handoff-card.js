@@ -193,7 +193,20 @@ function findFactsDelta(events, store, cutoff, now) {
 }
 
 // ── Block ④: Memory token measurement ─────────────────────────────────
-function measureTokens(events, cutoff, now) {
+
+function baselineTokens(store) {
+  if (!store?.db?.open) return 0;
+  try {
+    const row = store.db.prepare(
+      "SELECT sum(length(claim)) AS total_chars FROM facts WHERE status = 'active'",
+    ).get();
+    return Math.ceil((row?.total_chars ?? 0) / 4);
+  } catch {
+    return 0;
+  }
+}
+
+function measureTokens(events, store, cutoff, now) {
   let injectedChars = 0;
 
   for (const event of events) {
@@ -206,9 +219,12 @@ function measureTokens(events, cutoff, now) {
     }
   }
 
+  const baseline = baselineTokens(store);
+
   return {
     injected_tokens: Math.ceil(injectedChars / 4),
     injected_chars: injectedChars,
+    baseline_tokens: baseline,
   };
 }
 
@@ -238,13 +254,10 @@ export function buildHandoffCard(home, store, { days = 1, now } = {}) {
   const delivered = findDeliveredFact(events, store, cutoff, nowTime);
   const lastActivity = findLastActivity(events, cutoff, nowTime);
   const delta = findFactsDelta(events, store, cutoff, nowTime);
-  const tokens = measureTokens(events, cutoff, nowTime);
+  const tokens = measureTokens(events, store, cutoff, nowTime);
 
-  // Skip card if there is nothing to report:
-  // no deliveries, no new/replaced facts, no activity
   const hasDelivery = delivered !== null;
   const hasDelta = delta.added.length > 0 || delta.replaced.length > 0;
-  const hasActivity = lastActivity !== null;
 
   if (!hasDelivery && !hasDelta) {
     return null;
@@ -304,9 +317,20 @@ export function renderHandoffCard(card, t) {
     }
   }
 
-  // Block ④ — token measurement
+  // Block ④ — token measurement with baseline comparison
   if (card.tokens.injected_tokens > 0) {
-    lines.push(t("report.handoff_tokens", { tokens: card.tokens.injected_tokens }));
+    if (card.tokens.baseline_tokens > 0) {
+      const pct = Math.round(
+        ((card.tokens.baseline_tokens - card.tokens.injected_tokens) / card.tokens.baseline_tokens) * 100,
+      );
+      lines.push(t("report.handoff_tokens_baseline", {
+        tokens: card.tokens.injected_tokens,
+        baseline_tokens: card.tokens.baseline_tokens,
+        pct: Math.max(0, pct),
+      }));
+    } else {
+      lines.push(t("report.handoff_tokens", { tokens: card.tokens.injected_tokens }));
+    }
   }
 
   // Guard: verify no causal language leaked into output

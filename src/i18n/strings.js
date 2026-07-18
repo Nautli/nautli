@@ -155,6 +155,7 @@ mcp        MCP 서버를 실행해요.
   "report.handoff_delta_replaced": { en: "  - {old} -> {new}", ko: "  - {old} -> {new}" },
   "report.handoff_delta_more": { en: "  - ...and {count} more", ko: "  - ...외 {count}건" },
   "report.handoff_tokens": { en: "- Memory injected: {tokens} tokens (on-demand recall, not always-loaded)", ko: "- 기억 주입: {tokens}토큰 (필요할 때만 recall, 상시 로딩 아님)" },
+  "report.handoff_tokens_baseline": { en: "- Memory injected: {tokens} tokens (always-loaded baseline {baseline_tokens} tokens, {pct}% lighter)", ko: "- 기억 주입: {tokens}토큰 (상시 로딩 {baseline_tokens}토큰 대비 {pct}% 경량)" },
   "report.handoff_empty": { en: "No new handoff today.", ko: "오늘은 새 인수인계가 없어요." },
   "report.oracle_heading": { en: "## AI investigation verdicts", ko: "## AI 조사 판결" },
   "report.card_headline_duplicate": { en: "These two memories look like the same thing.", ko: "이 두 기억이 같은 내용 같아요." },

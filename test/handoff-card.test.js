@@ -148,6 +148,80 @@ test("card skips emission when only last_activity exists but no deliveries or de
   assert.equal(card, null);
 });
 
+// ── Baseline token measurement ─────────────────────────────────────────
+
+test("tokens include baseline from active facts for comparison", (t) => {
+  const { home, store } = isolatedStore(t);
+  const at = "2026-07-18T08:00:00.000Z";
+  // Add 3 facts (each ~30 chars claim)
+  for (let i = 0; i < 3; i++) {
+    store.addFact(makeFact({ claim: `fact number ${i} for baseline test` }));
+  }
+  // Recall that delivered 1 fact
+  const factData = makeFact({ claim: "delivered fact for baseline" });
+  store.addFact(factData);
+  store.appendRecall({
+    hits: [factData.id],
+    session_id: "sess-base",
+    returned_chars: 100,
+    at,
+  });
+
+  const card = buildHandoffCard(home, store, { now: NOW, days: 1 });
+  assert.ok(card, "card should exist");
+  assert.ok(card.tokens.baseline_tokens > 0, "baseline should be > 0 with active facts");
+  assert.ok(card.tokens.baseline_tokens > card.tokens.injected_tokens,
+    "baseline should exceed injected (all facts vs subset)");
+});
+
+test("tokens baseline is 0 when store is null", (t) => {
+  const { home } = isolatedStore(t);
+  const at = "2026-07-18T08:00:00.000Z";
+  // Write a recall event manually to the events dir
+  const eventsDir = path.join(home, "events");
+  fs.mkdirSync(eventsDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(eventsDir, "2026-07.jsonl"),
+    JSON.stringify({ type: "recall", hits: ["fa_x"], returned_chars: 40, at }) + "\n",
+  );
+  // Append a fact.added event too for delta
+  fs.appendFileSync(
+    path.join(eventsDir, "2026-07.jsonl"),
+    JSON.stringify({ ev: "fact.added", at, fact: { id: "fa_x", claim: "test", status: "active" } }) + "\n",
+  );
+
+  const card = buildHandoffCard(home, null, { now: NOW, days: 1 });
+  assert.ok(card, "card should exist");
+  assert.equal(card.tokens.baseline_tokens, 0, "baseline 0 when no store");
+});
+
+test("renderHandoffCard includes baseline comparison when baseline > 0", (t) => {
+  const { home, store } = isolatedStore(t);
+  const at = "2026-07-18T08:00:00.000Z";
+  // Add facts for baseline
+  for (let i = 0; i < 5; i++) {
+    store.addFact(makeFact({ claim: `a reasonably long fact claim number ${i} that contributes to baseline` }));
+  }
+  const factData = makeFact({ claim: "delivered for baseline render test" });
+  store.addFact(factData);
+  store.appendRecall({
+    hits: [factData.id],
+    session_id: "sess-baseline-render",
+    returned_chars: 40,
+    at,
+  });
+
+  const card = buildHandoffCard(home, store, { now: NOW, days: 1 });
+  const koText = renderHandoffCard(card, makeT("ko"));
+  const enText = renderHandoffCard(card, makeT("en"));
+
+  // Should contain baseline comparison language
+  assert.ok(koText.includes("대비"), "Korean should include baseline comparison");
+  assert.ok(enText.includes("baseline"), "English should include baseline comparison");
+  assert.ok(koText.includes("경량"), "Korean should show percentage");
+  assert.ok(enText.includes("lighter"), "English should show percentage");
+});
+
 // ── Causal language guard ──────────────────────────────────────────────
 
 test("assertNoCausalLanguage passes for observational text", () => {
@@ -247,16 +321,27 @@ test("renderHandoffCard produces observational text without causal language", (t
 // ── i18n strings safety ────────────────────────────────────────────────
 
 test("all handoff i18n strings pass causal language guard", () => {
+  const vars = {
+    claim: "test", sessions: 1, scope: "test", at: "now",
+    tokens: 100, old: "x", new: "y", count: 1,
+    baseline_tokens: 5000, pct: 95,
+  };
   for (const locale of ["ko", "en"]) {
     const t = makeT(locale);
     const keys = [
       "report.handoff_heading",
-      "report.handoff_empty",
+      "report.handoff_delivered",
+      "report.handoff_last_activity",
       "report.handoff_delta_heading",
+      "report.handoff_delta_added",
+      "report.handoff_delta_replaced",
+      "report.handoff_delta_more",
       "report.handoff_tokens",
+      "report.handoff_tokens_baseline",
+      "report.handoff_empty",
     ];
     for (const key of keys) {
-      const text = t(key, { claim: "test", sessions: 1, scope: "test", at: "now", tokens: 100, old: "x", new: "y", count: 1 });
+      const text = t(key, vars);
       assert.doesNotThrow(
         () => assertNoCausalLanguage(text),
         `i18n key "${key}" (${locale}) should pass causal guard`,
