@@ -166,12 +166,13 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
 
   const installed = installDate(home);
   const memoryAgeDays = installed != null
-    ? Math.max(0, Math.floor((nowTime - installed) / DAY_MS))
+    ? Math.max(1, Math.ceil((nowTime - installed) / DAY_MS))
     : null;
 
   const conversationCount = conversations.size;
   const organized = handledByPair.size;
   const factsActive = activeCount(store);
+  const factsActiveAtStart = Math.max(0, factsActive - factsDelta);
   const activity = conversationCount + organized + factsActive + Math.abs(factsDelta);
   return {
     days: windowDays,
@@ -184,6 +185,7 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
     organized,
     organized_by: organizedBy,
     facts_active: factsActive,
+    facts_active_at_start: factsActiveAtStart,
     facts_delta: factsDelta,
     self_corrected: selfCorrected,
     memory_age_days: memoryAgeDays,
@@ -195,6 +197,14 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
 
 const RECEIPT_WINDOWS = [2, 7, 30];
 
+const CHAMBER_MILESTONES = [
+  { days: 7, ko: "첫 번째 방", en: "First Chamber" },
+  { days: 30, ko: "두 번째 방", en: "Second Chamber" },
+  { days: 100, ko: "세 번째 방", en: "Third Chamber" },
+  { days: 365, ko: "네 번째 방", en: "Fourth Chamber" },
+];
+
+// TODO(perf): 월파일 ≥ 3개 시 summary-cache.json 도입 — 4회 풀 스캔 대신 캐시 집계
 export function buildReceiptMulti(home, store, { now } = {}) {
   const clock = now === undefined ? new Date() : new Date(now);
   const nowTime = clock.getTime();
@@ -211,12 +221,24 @@ export function buildReceiptMulti(home, store, { now } = {}) {
   windows.lifetime.days = lifetimeDays;
   windows.lifetime.is_lifetime = true;
 
+  const memoryAgeDays = installed != null ? lifetimeDays : null;
+  let milestone = null;
+  if (memoryAgeDays != null) {
+    for (let i = CHAMBER_MILESTONES.length - 1; i >= 0; i--) {
+      if (memoryAgeDays >= CHAMBER_MILESTONES[i].days) {
+        milestone = CHAMBER_MILESTONES[i];
+        const nextM = CHAMBER_MILESTONES[i + 1] || null;
+        milestone = { ...milestone, next: nextM };
+        break;
+      }
+    }
+  }
+
   return {
     windows,
     installed_at: installed != null ? new Date(installed).toISOString() : null,
-    memory_age_days: installed != null
-      ? Math.max(0, Math.floor((nowTime - installed) / DAY_MS))
-      : null,
+    memory_age_days: memoryAgeDays,
+    milestone,
     generated_at: clock.toISOString(),
   };
 }
