@@ -121,6 +121,7 @@ mcp        MCP 서버를 실행해요.
 
   "mcp.briefing.cards_waiting": { en: "[nautli] {count} review card(s) are waiting for the user's answer. Please tell the user and point them to the dashboard (npx nautli dashboard).", ko: "[nautli] 리뷰 카드 {count}건이 사용자 답변을 기다리고 있어요. 사용자에게 알리고 대시보드(npx nautli dashboard)로 안내해 주세요." },
   "mcp.briefing.cards_waiting_backlog": { en: "[nautli] {count} review card(s) are waiting for the user's answer ({backlog} more will surface at up to 3 per day). Please tell the user and point them to the dashboard (npx nautli dashboard).", ko: "[nautli] 오늘의 리뷰 카드 {count}건이 답변을 기다리고 있어요. 대기 중인 {backlog}건은 하루 3건씩 순서대로 나와요. 사용자에게 알리고 대시보드(npx nautli dashboard)로 안내해 주세요." },
+  "mcp.briefing.auto_cleanup": { en: "[nautli] {count} memories auto-organized so far ({undone} reversed by user).", ko: "[nautli] 기억 {count}건 자동 정리 완료 (사용자 되돌리기 {undone}건)." },
   "mcp.briefing.digest_stale": { en: "[nautli] Nightly digestion has not succeeded since {last}. Please suggest the user run npx nautli checkup.", ko: "[nautli] 밤 소화가 {last} 이후 성공하지 못했어요. 사용자에게 npx nautli checkup 점검을 권해 주세요." },
   "mcp.briefing.receipt": { en: "In the last {days} days, memory carried across {conversations} conversations and delivered about {tokens} tokens of relevant memory.", ko: "최근 {days}일, 기억으로 이어간 대화 {conversations}번, 필요한 기억 약 {tokens}토큰만 골라 건넸어요." },
   "mcp.briefing.receipt_building": { en: "Memory is building up. {facts} facts currently carry forward.", ko: "기억이 쌓이는 중이에요. 현재 이어지는 사실 {facts}개." },

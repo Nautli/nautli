@@ -48,7 +48,7 @@ test("stale digestion adds an action-needed status line", (t) => {
   assert.match(status.lines[0], /digestion/u);
 });
 
-test("pending review card adds an action-needed status line", (t) => {
+test("zero-touch: pending review cards no longer produce push status lines", (t) => {
   const home = isolatedHome(t);
   const reviewDir = path.join(home, "review");
   fs.mkdirSync(reviewDir, { recursive: true });
@@ -62,6 +62,7 @@ test("pending review card adds an action-needed status line", (t) => {
 
   const status = daemonStatusHeader(home, makeT("en"));
 
-  assert.equal(status.pending, 1);
-  assert.ok(status.lines.some((line) => line.includes("review card")));
+  // Zero-touch: no push nagging about pending cards
+  assert.equal(status.pending, 0);
+  assert.ok(!status.lines.some((line) => line.includes("review card")));
 });

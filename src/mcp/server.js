@@ -9,7 +9,7 @@ import { BRAND } from "../brand.js";
 import { remember } from "../core/gate.js";
 import { briefing as buildBriefing, recall } from "../core/recall.js";
 import { buildReceipt } from "../core/receipt.js";
-import { listCards, listSurfacedCards } from "../core/review.js";
+import { listSurfacedCards, undoStats } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { makeT, resolveLocale } from "../i18n/strings.js";
@@ -40,17 +40,15 @@ export function receiptHeader(receipt, t) {
 
 export function daemonStatusHeader(home, t, store) {
   const lines = [];
-  let surfaced = { cards: [], backlog: 0 };
+  // Zero-touch: no cards_waiting push. Only show efficacy line.
+  let stats = { total: 0, undone: 0, undo_rate: 0 };
   try {
-    surfaced = listSurfacedCards(home);
+    stats = undoStats(home);
   } catch {
-    // 리뷰 큐 파손이 briefing 자체를 막으면 안 된다.
+    // undo ledger read failure must not break briefing
   }
-  const pending = surfaced.cards.length;
-  if (pending > 0) {
-    lines.push(surfaced.backlog > 0
-      ? t("mcp.briefing.cards_waiting_backlog", { count: pending, backlog: surfaced.backlog })
-      : t("mcp.briefing.cards_waiting", { count: pending }));
+  if (stats.total > 0) {
+    lines.push(t("mcp.briefing.auto_cleanup", { count: stats.total, undone: stats.undone }));
   }
   const freshness = digestFreshness(home);
   if (freshness.last_success_at && freshness.age_ms > DIGEST_STALE_MS) {
@@ -66,7 +64,7 @@ export function daemonStatusHeader(home, t, store) {
   }
   return {
     lines,
-    pending,
+    pending: 0,
     last_digest_at: freshness.last_success_at,
     ...(receipt ? { receipt } : {}),
   };

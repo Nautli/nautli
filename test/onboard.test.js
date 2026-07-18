@@ -149,7 +149,7 @@ test("daemon completion is independent from digestion health", (t) => {
   assert.equal(daemon.complete, true);
 });
 
-test("sample facts create one duplicate and one contradiction review card", async (t) => {
+test("sample facts are auto-processed into cleanup history (zero-touch)", async (t) => {
   const { home } = isolatedHome(t);
   initStore(home);
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
@@ -161,11 +161,17 @@ test("sample facts create one duplicate and one contradiction review card", asyn
   const seeded = seedSampleFacts(home);
   assert.equal(seeded.seeded, 4);
   await runDigestOnce(home);
+  // Zero-touch: no cards in review queue, all auto-processed
   const cards = listCards(home);
-  assert.equal(cards.length, 2);
-  assert.deepEqual(new Set(cards.map((card) => card.verdict)), new Set(["duplicate", "contradiction"]));
+  assert.equal(cards.length, 0);
+  // Check undo ledger has entries for both duplicate and contradiction
+  const { listUndoLedger } = await import("../src/core/review.js");
+  const ledger = listUndoLedger(home);
+  assert.ok(ledger.length >= 2, "undo ledger should have entries for auto-processed pairs");
+  const verdicts = new Set(ledger.map((e) => e.verdict).filter(Boolean));
+  assert.ok(verdicts.has("duplicate"), "should have auto-merged duplicate");
+  assert.ok(verdicts.has("contradiction"), "should have shadowed contradiction");
   assert.equal(removeSampleFacts(home).removed, 4);
-  assert.equal(listCards(home).length, 0);
 });
 
 test("daemon plist enables catch-up and stale labels are booted out first", (t) => {

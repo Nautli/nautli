@@ -281,7 +281,22 @@ export async function triagePendingQueue(store, home, config) {
         config,
         { actor: "triage" },
       );
-      if (applied.ok) captureRemembered += 1;
+      if (applied.ok) {
+        captureRemembered += 1;
+        recordAutoApply(home, {
+          pair_id: entry.pair_id,
+          action: "remember",
+          verdict: null,
+          confidence: entry.confidence ?? null,
+          scope: entry.scope ?? null,
+          model: null,
+          before_state: [],
+          fact_ids: [],
+          fact_id: applied.remembered?.id ?? null,
+          claim: entry.claim,
+          type: "capture",
+        });
+      }
     } catch {
       // fail-open: 저장에 실패한 캡처 카드는 pending 상태로 남겨 사람이 확인할 수 있게 한다.
     }

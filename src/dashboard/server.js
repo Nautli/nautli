@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { recall } from "../core/recall.js";
 import { buildReceipt } from "../core/receipt.js";
 import { remember } from "../core/gate.js";
-import { applyCaptureCard, applyCard, listCards, listSurfacedCards } from "../core/review.js";
+import { applyCaptureCard, applyCard, listCards, listSurfacedCards, listUndoLedger, migratePendingToAutoApply, undoAutoApply, undoStats } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { makeT, resolveLocale } from "../i18n/strings.js";
@@ -860,6 +860,43 @@ export function createDashboardServer(home, options = {}) {
         && url.pathname === "/api/cards"
       ) {
         json(response, 200, cardsFor(home));
+        return;
+      }
+
+      if (
+        request.method === "GET"
+        && url.pathname === "/api/cleanup-history"
+      ) {
+        json(response, 200, { entries: listUndoLedger(home), stats: undoStats(home) });
+        return;
+      }
+
+      if (
+        request.method === "POST"
+        && url.pathname === "/api/migrate-pending"
+      ) {
+        const store = new Store(home);
+        try {
+          json(response, 200, migratePendingToAutoApply(store, home));
+        } finally {
+          store.close();
+        }
+        return;
+      }
+
+      if (
+        request.method === "POST"
+        && url.pathname.startsWith("/api/undo/")
+      ) {
+        const undoId = decodeURIComponent(
+          url.pathname.slice("/api/undo/".length),
+        );
+        const store = new Store(home);
+        try {
+          json(response, 200, undoAutoApply(store, home, undoId));
+        } finally {
+          store.close();
+        }
         return;
       }
 

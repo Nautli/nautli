@@ -55,11 +55,13 @@ test("daemon applies confidence gates and is journal-idempotent", async (t) => {
   assert.deepEqual({
     applied: first.applied,
     queued: first.queued,
+    shadowed: first.shadowed,
     skipped: first.skipped,
     machine_oracle: first.machine_oracle,
   }, {
     applied: 2,
-    queued: 1,
+    queued: 0,
+    shadowed: 1,
     skipped: 1,
     machine_oracle: 0,
   });
@@ -73,23 +75,21 @@ test("daemon applies confidence gates and is journal-idempotent", async (t) => {
   assert.equal(store.getFact(unrelatedA.id).status, STATUS.ACTIVE);
   assert.equal(store.getFact(unrelatedB.id).status, STATUS.ACTIVE);
 
-  const queue = fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
-    .trim().split("\n").map(JSON.parse);
-  assert.equal(queue.length, 1);
-  assert.equal(queue[0].status, "pending");
+  // Zero-touch: mid-confidence duplicates are shadowed in undo ledger, not queued
+  const queueExists = fs.existsSync(path.join(home, "review", "queue.jsonl"));
+  if (queueExists) {
+    const queue = fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8").trim();
+    assert.equal(queue, "");
+  }
 
   const reports = fs.readdirSync(path.join(home, "reports"));
   assert.equal(reports.length, 1);
-  const report = fs.readFileSync(path.join(home, "reports", reports[0]), "utf8");
-  assert.ok((report.match(/^## 리뷰 카드/gm) ?? []).length <= 3);
 
   const second = await runOnce(store, home, config, { dry: false });
   assert.equal(second.pairs, 0);
   assert.equal(second.applied, 0);
   assert.equal(second.queued, 0);
   assert.equal(second.machine_oracle, 0);
-  assert.equal(fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
-    .trim().split("\n").length, 1);
 });
 
 test("failed judgments stay observable without completing or applying the pair", (t) => {

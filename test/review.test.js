@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
 import { remember } from "../src/core/gate.js";
-import { applyCard, listCards, listSurfacedCards } from "../src/core/review.js";
+import { applyCard, listCards, listSurfacedCards, listUndoLedger, migratePendingToAutoApply, recordAutoApply, undoAutoApply, undoStats } from "../src/core/review.js";
 import { STATUS } from "../src/core/schema.js";
 import { Store } from "../src/core/store.js";
 
@@ -367,4 +367,137 @@ test("deferred cards lose surfaced_at on restore and respect the cap", (t) => {
   const restoredEntry = readCapQueue(home)
     .find((entry) => entry.pair_id === deferred.pair_id);
   assert.equal(restoredEntry.status, "pending");
+});
+
+// --- Undo ledger tests ---
+
+test("recordAutoApply creates undo ledger entry", (t) => {
+  const home = capHome(t);
+  const entry = recordAutoApply(home, {
+    pair_id: "fa_old:fa_new",
+    action: "merge",
+    verdict: "duplicate",
+    confidence: 0.95,
+    scope: "project:test",
+    before_state: [{ id: "fa_old", status: "active", claim: "old" }],
+    fact_ids: ["fa_old", "fa_new"],
+    claim_a: "old claim",
+    claim_b: "new claim",
+    type: "pair",
+  });
+  assert.ok(entry.undo_id);
+  assert.equal(entry.action, "merge");
+  assert.equal(entry.undone, false);
+
+  const ledger = listUndoLedger(home);
+  assert.equal(ledger.length, 1);
+  assert.equal(ledger[0].undo_id, entry.undo_id);
+});
+
+test("undoAutoApply reverses a merge by restoring superseded fact", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t);
+  // Manually merge
+  applyCard(store, home, pairId, "merge");
+  assert.equal(store.getFact(oldFact.id).status, STATUS.SUPERSEDED);
+
+  // Record the auto-apply
+  const entry = recordAutoApply(home, {
+    pair_id: pairId,
+    action: "merge",
+    verdict: "duplicate",
+    confidence: 0.95,
+    scope: "project:review",
+    before_state: [{ id: oldFact.id, status: "active", claim: "old" }],
+    fact_ids: [oldFact.id, newFact.id],
+    type: "pair",
+  });
+
+  // Undo it
+  const result = undoAutoApply(store, home, entry.undo_id);
+  assert.equal(result.ok, true);
+  assert.equal(result.reversed_action, "merge");
+
+  // Fact should be restored to ACTIVE
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+
+  // Undo is idempotent
+  const result2 = undoAutoApply(store, home, entry.undo_id);
+  assert.equal(result2.ok, false);
+  assert.equal(result2.reason, "already_undone");
+});
+
+test("undoAutoApply reverses a remember by archiving the fact", (t) => {
+  const home = capHome(t);
+  const store = new Store(home);
+  t.after(() => store.close());
+
+  const remembered = remember(store, {
+    claim: "test auto-remembered fact",
+    scope: "project:test",
+  }, { default_scope: "project:test" });
+  assert.equal(store.getFact(remembered.id).status, STATUS.ACTIVE);
+
+  const entry = recordAutoApply(home, {
+    pair_id: "cap:test",
+    action: "remember",
+    fact_id: remembered.id,
+    claim: "test auto-remembered fact",
+    type: "capture",
+  });
+
+  const result = undoAutoApply(store, home, entry.undo_id);
+  assert.equal(result.ok, true);
+  assert.equal(store.getFact(remembered.id).status, STATUS.ARCHIVED);
+});
+
+test("undoStats tracks total and undo counts", (t) => {
+  const home = capHome(t);
+  const store = new Store(home);
+  t.after(() => store.close());
+
+  assert.deepEqual(undoStats(home), { total: 0, undone: 0, undo_rate: 0 });
+
+  const entry1 = recordAutoApply(home, {
+    pair_id: "pair1",
+    action: "merge",
+    type: "pair",
+  });
+  recordAutoApply(home, {
+    pair_id: "pair2",
+    action: "shadow",
+    type: "pair",
+  });
+
+  assert.equal(undoStats(home).total, 2);
+  assert.equal(undoStats(home).undone, 0);
+
+  undoAutoApply(store, home, entry1.undo_id);
+  assert.equal(undoStats(home).undone, 1);
+  assert.equal(undoStats(home).undo_rate, 0.5);
+});
+
+test("migratePendingToAutoApply processes pending cards", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t);
+  // The fixture creates a pending duplicate card with conf 0.8
+  // Since conf < 0.9, it should be shadowed, not merged
+  const result = migratePendingToAutoApply(store, home);
+  assert.equal(result.migrated, 1);
+
+  const ledger = listUndoLedger(home);
+  assert.equal(ledger.length, 1);
+  assert.equal(ledger[0].action, "shadow");
+
+  // Both facts should still be active (shadow doesn't apply)
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+
+  // No more pending cards
+  assert.equal(listCards(home).length, 0);
+});
+
+test("undoAutoApply rejects unknown undo_id", (t) => {
+  const home = capHome(t);
+  const store = new Store(home);
+  t.after(() => store.close());
+  assert.throws(() => undoAutoApply(store, home, "nonexistent"), (error) => error.code === "E_NOT_FOUND");
 });

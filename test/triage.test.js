@@ -94,14 +94,11 @@ test("human triage keeps crux_plain and report uses it as the headline", async (
   }]);
 
   assert.equal(triaged.get(pairId)?.route, "human");
-  assert.equal(result.queued, 1);
-  const queued = JSON.parse(fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8").trim());
-  assert.equal(queued.crux_plain, "앞으로 어떤 방식을 더 중요하게 생각하는지 확인이 필요해요.");
-
-  const report = writeReport(store, home, result);
-  const text = fs.readFileSync(report.file, "utf8");
-  assert.match(text, /\*\*앞으로 어떤 방식을 더 중요하게 생각하는지 확인이 필요해요\.\*\*/u);
-  assert.doesNotMatch(text, /\*\*두 기록의 상태가 갈려요\.\*\*/u);
+  // Zero-touch: contradictions are shadowed, not queued
+  assert.equal(result.shadowed, 1);
+  assert.equal(result.queued, 0);
+  // crux_plain is propagated to the judgment
+  assert.equal(triaged.get(pairId)?.crux_plain, "앞으로 어떤 방식을 더 중요하게 생각하는지 확인이 필요해요.");
 });
 
 test("missing triage output fails open into the human queue", async (t) => {
@@ -120,7 +117,9 @@ test("missing triage output fails open into the human queue", async (t) => {
     reason: "비슷해 보인다.",
     oracle: "user",
   }]);
-  assert.equal(result.queued, 1);
+  // Zero-touch: no human queue, shadowed instead
+  assert.equal(result.shadowed, 1);
+  assert.equal(result.queued, 0);
   assert.equal(result.triage_routed, 0);
 });
 

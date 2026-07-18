@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { remember } from "./gate.js";
@@ -327,4 +328,276 @@ export function applyCaptureCard(store, home, pairId, action, config = {}, optio
     });
     return { ok: true, status, action, remembered };
   });
+}
+
+// --- Undo ledger ---
+
+function undoLedgerFile(home) {
+  return path.join(home, "review", "undo-ledger.jsonl");
+}
+
+function readUndoLedger(home) {
+  const file = undoLedgerFile(home);
+  if (!fs.existsSync(file)) return [];
+  const entries = [];
+  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+    if (line.trim() === "") continue;
+    try {
+      entries.push(JSON.parse(line));
+    } catch {
+      // skip malformed
+    }
+  }
+  return entries;
+}
+
+function appendUndoEntry(home, entry) {
+  const file = undoLedgerFile(home);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, `${JSON.stringify(entry)}\n`, "utf8");
+}
+
+function writeUndoLedger(home, entries) {
+  const file = undoLedgerFile(home);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
+  const data = entries.length === 0 ? "" : `${entries.map((e) => JSON.stringify(e)).join("\n")}\n`;
+  try {
+    fs.writeFileSync(tmp, data, "utf8");
+    fs.renameSync(tmp, file);
+  } catch (error) {
+    fs.rmSync(tmp, { force: true });
+    throw error;
+  }
+}
+
+export function recordAutoApply(home, {
+  undo_id,
+  pair_id,
+  action,
+  verdict,
+  confidence,
+  scope,
+  model,
+  before_state,
+  fact_ids,
+  fact_id,
+  claim_a,
+  claim_b,
+  claim,
+  type,
+}) {
+  const entry = {
+    undo_id: undo_id || randomUUID(),
+    pair_id,
+    action,
+    verdict: verdict ?? null,
+    confidence: confidence ?? null,
+    scope: scope ?? null,
+    model: model ?? null,
+    type: type ?? "pair",
+    before_state: before_state ?? [],
+    fact_ids: fact_ids ?? [],
+    ...(fact_id ? { fact_id } : {}),
+    ...(claim_a ? { claim_a } : {}),
+    ...(claim_b ? { claim_b } : {}),
+    ...(claim ? { claim } : {}),
+    applied_at: new Date().toISOString(),
+    undone: false,
+  };
+  appendUndoEntry(home, entry);
+  return entry;
+}
+
+export function listUndoLedger(home) {
+  return readUndoLedger(home);
+}
+
+export function undoAutoApply(store, home, undoId) {
+  return withReviewLock(home, () => {
+    const ledger = readUndoLedger(home);
+    const index = ledger.findIndex((e) => e.undo_id === undoId);
+    if (index < 0) throw codedError(ERR.E_NOT_FOUND);
+    const entry = ledger[index];
+    if (entry.undone) return { ok: false, reason: "already_undone" };
+
+    // Reverse the action
+    if (entry.action === "merge" || entry.action === "newer_wins"
+      || entry.action === "a_wins" || entry.action === "b_wins") {
+      // Restore facts that were SUPERSEDED or INVALIDATED
+      for (const snap of entry.before_state) {
+        const current = store.getFact(snap.id);
+        if (!current) continue;
+        if (current.status === STATUS.SUPERSEDED || current.status === STATUS.INVALIDATED) {
+          store.transition(snap.id, STATUS.ACTIVE, {}, "undo");
+        }
+      }
+    } else if (entry.action === "remember" && entry.fact_id) {
+      // Delete the auto-remembered fact
+      const fact = store.getFact(entry.fact_id);
+      if (fact && fact.status === STATUS.ACTIVE) {
+        store.transition(entry.fact_id, STATUS.ARCHIVED, {}, "daemon");
+      }
+    }
+
+    ledger[index] = { ...entry, undone: true, undone_at: new Date().toISOString() };
+    writeUndoLedger(home, ledger);
+    store.appendEvent({
+      ev: "undo.applied",
+      undo_id: undoId,
+      pair_id: entry.pair_id,
+      action: entry.action,
+      at: new Date().toISOString(),
+    });
+    return { ok: true, undo_id: undoId, reversed_action: entry.action };
+  });
+}
+
+export function migratePendingToAutoApply(store, home) {
+  return withReviewLock(home, () => {
+    const entries = readQueue(home);
+    let migrated = 0;
+    const updated = entries.map((entry) => {
+      if (entry.status !== "pending") return entry;
+
+      if (entry.type === "capture") {
+        // Capture cards with recommend=remember → auto-apply
+        if (entry.recommend === "remember") {
+          try {
+            const result = remember(store, {
+              claim: entry.claim,
+              scope: entry.scope,
+              confidence: entry.confidence,
+              source: "capture",
+              provenance: {
+                session_id: entry.session_id,
+                project: entry.project,
+              },
+            }, {});
+            if (result.status === "added" || result.status === "duplicate") {
+              recordAutoApply(home, {
+                pair_id: entry.pair_id,
+                action: "remember",
+                verdict: null,
+                confidence: entry.confidence ?? null,
+                scope: entry.scope ?? null,
+                model: null,
+                before_state: [],
+                fact_ids: [],
+                fact_id: result.id ?? null,
+                claim: entry.claim,
+                type: "capture",
+              });
+              migrated += 1;
+              return {
+                ...entry,
+                status: "answered",
+                action: "remember",
+                handled_at: new Date().toISOString(),
+                answered_by: "migration",
+                ...(result.id ? { fact_id: result.id } : {}),
+              };
+            }
+          } catch {
+            // fail-open: leave as pending
+          }
+        }
+        // Other capture cards → shadow
+        recordAutoApply(home, {
+          pair_id: entry.pair_id,
+          action: "shadow",
+          verdict: null,
+          confidence: entry.confidence ?? null,
+          scope: entry.scope ?? null,
+          model: null,
+          before_state: [],
+          fact_ids: [],
+          claim: entry.claim,
+          type: "capture",
+        });
+        migrated += 1;
+        return {
+          ...entry,
+          status: "routed",
+          route: "shadow",
+          handled_at: new Date().toISOString(),
+          answered_by: "migration",
+        };
+      }
+
+      // Pair cards
+      const ids = typeof entry.pair_id === "string" ? entry.pair_id.split(":") : [];
+      const a = ids.length === 2 ? store.getFact(ids[0]) : null;
+      const b = ids.length === 2 ? store.getFact(ids[1]) : null;
+      const confidence = Number(entry.confidence);
+
+      // T1: duplicate, conf≥0.9, scope≠person → auto-merge
+      if (entry.verdict === "duplicate" && confidence >= 0.9
+        && a?.status === STATUS.ACTIVE && b?.status === STATUS.ACTIVE
+        && a?.scope !== "person") {
+        const [older, newer] = a.t_valid <= b.t_valid ? [a, b] : [b, a];
+        const beforeState = [
+          { id: older.id, status: older.status, claim: older.claim },
+          { id: newer.id, status: newer.status, claim: newer.claim },
+        ];
+        store.transition(older.id, STATUS.SUPERSEDED, {
+          superseded_by: newer.id,
+        }, "daemon");
+        recordAutoApply(home, {
+          pair_id: entry.pair_id,
+          action: "merge",
+          verdict: entry.verdict,
+          confidence,
+          scope: a.scope,
+          model: null,
+          before_state: beforeState,
+          fact_ids: [a.id, b.id],
+          claim_a: a.claim,
+          claim_b: b.claim,
+          type: "pair",
+        });
+        migrated += 1;
+        return {
+          ...entry,
+          status: "answered",
+          action: "merge",
+          handled_at: new Date().toISOString(),
+          answered_by: "migration",
+        };
+      }
+
+      // Everything else → shadow
+      recordAutoApply(home, {
+        pair_id: entry.pair_id,
+        action: "shadow",
+        verdict: entry.verdict ?? null,
+        confidence: confidence || null,
+        scope: a?.scope ?? null,
+        model: null,
+        before_state: [],
+        fact_ids: ids,
+        claim_a: entry.claims?.a ?? a?.claim,
+        claim_b: entry.claims?.b ?? b?.claim,
+        type: "pair",
+      });
+      migrated += 1;
+      return {
+        ...entry,
+        status: "routed",
+        route: "shadow",
+        handled_at: new Date().toISOString(),
+        answered_by: "migration",
+      };
+    });
+
+    if (migrated > 0) writeQueue(home, updated);
+    return { migrated, total: entries.filter((e) => e.status === "pending").length };
+  });
+}
+
+export function undoStats(home) {
+  const ledger = readUndoLedger(home);
+  const total = ledger.length;
+  const undone = ledger.filter((e) => e.undone).length;
+  return { total, undone, undo_rate: total > 0 ? undone / total : 0 };
 }

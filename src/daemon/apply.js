@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { recordAutoApply } from "../core/review.js";
 import { withReviewLock } from "../core/review-lock.js";
 import { STATUS } from "../core/schema.js";
 
@@ -64,6 +65,7 @@ export function applyJudgments(store, judgments, config = {}) {
     let skipped = 0;
     let machineOracle = 0;
     let triageRouted = 0;
+    let shadowed = 0;
     let failedPairs = 0;
     const journalEntries = [];
 
@@ -93,33 +95,73 @@ export function applyJudgments(store, judgments, config = {}) {
       let outcome = "skipped";
 
       if (a?.status === STATUS.ACTIVE && b?.status === STATUS.ACTIVE) {
-        if (judgment.verdict === "duplicate" && confidence >= 0.9) {
+        // T1: duplicate, conf≥0.9, scope≠person, no crux_plain → auto-merge + undo ledger
+        const isT1 = judgment.verdict === "duplicate"
+          && confidence >= 0.9
+          && a.scope !== "person"
+          && !judgment.crux_plain;
+
+        if (isT1) {
           const selected = olderDuplicate(a, b);
           if (selected) {
             const [oldFact, newFact] = selected;
+            const beforeState = [
+              { id: oldFact.id, status: oldFact.status, claim: oldFact.claim },
+              { id: newFact.id, status: newFact.status, claim: newFact.claim },
+            ];
             store.transition(oldFact.id, STATUS.SUPERSEDED, {
               superseded_by: newFact.id,
             }, "daemon");
+            recordAutoApply(store.home, {
+              pair_id: judgment.pair_id,
+              action: "merge",
+              verdict: judgment.verdict,
+              confidence,
+              scope: a.scope,
+              model: judgment.model ?? null,
+              before_state: beforeState,
+              fact_ids: [oldFact.id, newFact.id],
+              claim_a: a.claim,
+              claim_b: b.claim,
+              type: "pair",
+            });
             applied += 1;
             outcome = "applied";
           }
         } else if (judgment.verdict === "contradiction"
-          // v0 정책(유저 라벨 실측 2026-07-11): 모순은 기본 자동 적용 금지 — 항상 리뷰카드.
-          // 자동병합(중복) 정밀도는 10/10이었지만 모순 자동무효화는 5장 중 2장이 유저 정정을 받음
-          // (죽은 프로젝트 통째 보관 신호 1, 기록과 다른 현재 의도 1). opt-in: config.contradiction_auto=true
           && config.contradiction_auto === true
           && confidence >= 0.9
           && (judgment.newer === "a" || judgment.newer === "b")) {
+          // Legacy opt-in contradiction auto-apply (kept for backward compat)
           const newFact = judgment.newer === "a" ? a : b;
           const oldFact = judgment.newer === "a" ? b : a;
+          const beforeState = [
+            { id: oldFact.id, status: oldFact.status, claim: oldFact.claim },
+            { id: newFact.id, status: newFact.status, claim: newFact.claim },
+          ];
           store.transition(oldFact.id, STATUS.INVALIDATED, {
             t_invalid: newFact.t_valid,
           }, "daemon");
+          const winAction = judgment.newer === "a" ? "a_wins" : "b_wins";
+          recordAutoApply(store.home, {
+            pair_id: judgment.pair_id,
+            action: winAction,
+            verdict: judgment.verdict,
+            confidence,
+            scope: a.scope,
+            model: judgment.model ?? null,
+            before_state: beforeState,
+            fact_ids: [a.id, b.id],
+            claim_a: a.claim,
+            claim_b: b.claim,
+            type: "pair",
+          });
           applied += 1;
           outcome = "applied";
         } else if ((judgment.verdict === "duplicate" && confidence >= 0.6 && confidence < 0.9)
-          // 모순은 conf ≥0.6이면 전부 리뷰카드행 (자동 적용은 위 opt-in 분기에서만)
-          || (judgment.verdict === "contradiction" && confidence >= 0.6)) {
+          || (judgment.verdict === "contradiction" && confidence >= 0.6)
+          || (judgment.verdict === "duplicate" && confidence >= 0.9 && (a.scope === "person" || judgment.crux_plain))) {
+          // Zero-touch: instead of queuing for human review, record as shadow in undo ledger
           if (judgment.oracle === "machine") {
             machineOracle += 1;
             outcome = "skipped_machine_oracle";
@@ -127,16 +169,22 @@ export function applyJudgments(store, judgments, config = {}) {
             triageRouted += 1;
             outcome = "skipped_triage";
           } else {
-            if (!queuedPairs.has(judgment.pair_id)) {
-              queue.push({
-                ...judgment,
-                claims: { a: a.claim, b: b.claim },
-                status: "pending",
-              });
-              queuedPairs.add(judgment.pair_id);
-              queued += 1;
-            }
-            outcome = "queued";
+            // Shadow: record in undo ledger but don't apply or push to user
+            recordAutoApply(store.home, {
+              pair_id: judgment.pair_id,
+              action: "shadow",
+              verdict: judgment.verdict,
+              confidence,
+              scope: a.scope,
+              model: judgment.model ?? null,
+              before_state: [],
+              fact_ids: [a.id, b.id],
+              claim_a: a.claim,
+              claim_b: b.claim,
+              type: "pair",
+            });
+            shadowed += 1;
+            outcome = "shadowed";
           }
         }
       }
@@ -159,6 +207,7 @@ export function applyJudgments(store, judgments, config = {}) {
     const results = {
       applied,
       queued,
+      shadowed,
       skipped,
       machine_oracle: machineOracle,
       triage_routed: triageRouted,

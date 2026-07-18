@@ -11,7 +11,7 @@ import { runDigestOnce } from "../src/onboard/setup.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
 
-test("a genuinely isolated new user completes setup, digestion, and review over HTTP", async (t) => {
+test("a genuinely isolated new user completes setup, digestion, and zero-touch cleanup over HTTP", async (t) => {
   const userHome = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-newuser-"));
   const home = path.join(userHome, ".nautli");
   const previousAllowance = process.env.NAUTLI_ALLOW_TEST_JUDGE;
@@ -64,28 +64,18 @@ test("a genuinely isolated new user completes setup, digestion, and review over 
   const digest = await postSetup("digest");
   assert.equal(digest.ok, true);
 
-  const cardsResponse = await fetch(`${origin}/api/cards`);
-  assert.equal(cardsResponse.status, 200);
-  const cards = (await cardsResponse.json()).cards;
-  const contradiction = cards.find((card) => card.verdict === "contradiction");
-  assert.ok(contradiction);
+  // Zero-touch: no cards pushed to user. Instead check cleanup history.
+  const historyResponse = await fetch(`${origin}/api/cleanup-history`);
+  assert.equal(historyResponse.status, 200);
+  const history = await historyResponse.json();
+  assert.ok(history.entries.length > 0, "cleanup history should have entries after digest");
+  assert.ok(history.stats.total > 0);
 
-  const applied = await fetch(`${origin}/api/cards/${encodeURIComponent(contradiction.pair_id)}`, {
-    method: "POST",
-    headers: { origin, "content-type": "application/json" },
-    body: JSON.stringify({ action: "newer_wins" }),
-  });
-  assert.equal(applied.status, 200);
-  assert.equal((await applied.json()).ok, true);
-
-  const [aId, bId] = contradiction.pair_id.split(":");
-  const newerId = contradiction.newer === "a" ? aId : bId;
-  const olderId = newerId === aId ? bId : aId;
-  const db = new Database(path.join(home, "index.sqlite"), { readonly: true });
-  try {
-    assert.equal(db.prepare("SELECT status FROM facts WHERE id = ?").get(newerId).status, "active");
-    assert.equal(db.prepare("SELECT status FROM facts WHERE id = ?").get(olderId).status, "invalidated");
-  } finally {
-    db.close();
-  }
+  // Sample facts produce mid-confidence duplicate (0.7) and contradiction (0.95)
+  // Both are shadowed in zero-touch mode (no auto-apply for mid-confidence or contradictions)
+  const shadows = history.entries.filter((entry) => entry.action === "shadow");
+  assert.ok(shadows.length >= 2, "both sample pairs should be shadowed");
+  const verdicts = new Set(shadows.map((e) => e.verdict));
+  assert.ok(verdicts.has("duplicate"), "duplicate pair should be shadowed");
+  assert.ok(verdicts.has("contradiction"), "contradiction pair should be shadowed");
 });

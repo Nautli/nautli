@@ -77,9 +77,11 @@ export function assertTransition(from, to, actor) {
   const allowed = actor === "daemon"
     ? (from === STATUS.ACTIVE && [STATUS.SUPERSEDED, STATUS.INVALIDATED, STATUS.ARCHIVED].includes(to))
       || (from === STATUS.ARCHIVED && to === STATUS.ACTIVE)
-    : actor === "client"
-      && from === STATUS.ACTIVE
-      && to === STATUS.SUPERSEDED;
+    : actor === "undo"
+      ? ((from === STATUS.SUPERSEDED || from === STATUS.INVALIDATED) && to === STATUS.ACTIVE)
+      : actor === "client"
+        && from === STATUS.ACTIVE
+        && to === STATUS.SUPERSEDED;
 
   if (!allowed) {
     throw new Error(`Invalid transition: ${actor}:${from}->${to}`);

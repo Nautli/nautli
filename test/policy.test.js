@@ -6,11 +6,12 @@ import path from "node:path";
 import { Store } from "../src/core/store.js";
 import { remember } from "../src/core/gate.js";
 import { applyJudgments } from "../src/daemon/apply.js";
+import { listUndoLedger } from "../src/core/review.js";
 import { STATUS } from "../src/core/schema.js";
 
-// v0 정책 (유저 라벨 실측 2026-07-11): 모순은 기본 자동 적용 금지 — 고신뢰(0.95)여도 리뷰카드행.
-// 자동 무효화는 config.contradiction_auto=true opt-in에서만.
-test("contradiction defaults to review queue, never auto-invalidates", () => {
+// Zero-touch policy: contradictions are shadowed in undo ledger, never auto-invalidated (unless opt-in).
+// No cards go to human review queue.
+test("contradiction defaults to shadow, never auto-invalidates or queues", () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-policy-"));
   const store = new Store(home);
   const cfg = { default_scope: "person" };
@@ -26,10 +27,12 @@ test("contradiction defaults to review queue, never auto-invalidates", () => {
   }]); // config 미전달 = 제품 기본값
 
   assert.equal(result.applied, 0);
-  assert.equal(result.queued, 1);
+  assert.equal(result.queued, 0);
+  assert.equal(result.shadowed, 1);
   assert.equal(store.getFact(a.id).status, STATUS.ACTIVE); // 무효화 안 됨
-  const queue = fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8");
-  assert.match(queue, /contradiction/);
+  const ledger = listUndoLedger(home);
+  assert.equal(ledger.length, 1);
+  assert.equal(ledger[0].action, "shadow");
   store.close();
 });
 
@@ -53,7 +56,7 @@ test("machine oracle contradiction is journaled without a review card", (t) => {
     oracle: "machine",
   }]);
 
-  assert.deepEqual(result, { applied: 0, queued: 0, skipped: 0, machine_oracle: 1, triage_routed: 0 });
+  assert.deepEqual(result, { applied: 0, queued: 0, shadowed: 0, skipped: 0, machine_oracle: 1, triage_routed: 0 });
   assert.equal(fs.existsSync(path.join(home, "review", "queue.jsonl")), false);
   assert.equal(store.getFact(a.id).status, STATUS.ACTIVE);
   assert.equal(store.getFact(b.id).status, STATUS.ACTIVE);
@@ -62,7 +65,7 @@ test("machine oracle contradiction is journaled without a review card", (t) => {
   assert.equal(journal[0].outcome, "skipped_machine_oracle");
 });
 
-test("user oracle contradiction is added to the review queue", (t) => {
+test("user oracle contradiction is shadowed instead of queued", (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-policy-"));
   const store = new Store(home);
   t.after(() => {
@@ -82,15 +85,15 @@ test("user oracle contradiction is added to the review queue", (t) => {
     oracle: "user",
   }]);
 
-  assert.equal(result.queued, 1);
+  assert.equal(result.queued, 0);
+  assert.equal(result.shadowed, 1);
   assert.equal(result.machine_oracle, 0);
-  const queue = fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
-    .trim().split("\n").map(JSON.parse);
-  assert.equal(queue.length, 1);
-  assert.equal(queue[0].pair_id, `${a.id}:${b.id}`);
+  const ledger = listUndoLedger(home);
+  assert.equal(ledger.length, 1);
+  assert.equal(ledger[0].action, "shadow");
 });
 
-test("missing oracle defaults to user and is added to the review queue", (t) => {
+test("missing oracle defaults to shadow", (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-policy-"));
   const store = new Store(home);
   t.after(() => {
@@ -109,10 +112,9 @@ test("missing oracle defaults to user and is added to the review queue", (t) => 
     reason: "선호 설정이 다르다",
   }]);
 
-  assert.equal(result.queued, 1);
+  assert.equal(result.queued, 0);
+  assert.equal(result.shadowed, 1);
   assert.equal(result.machine_oracle, 0);
-  const queue = fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
-    .trim().split("\n").map(JSON.parse);
-  assert.equal(queue.length, 1);
-  assert.equal(queue[0].pair_id, `${a.id}:${b.id}`);
+  const ledger = listUndoLedger(home);
+  assert.equal(ledger.length, 1);
 });
