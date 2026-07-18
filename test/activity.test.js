@@ -42,6 +42,7 @@ test("remember and recall activity survives rebuild without becoming facts", asy
     scope: null,
     hits: [added.id],
     source: "cli",
+    tool: "recall",
     at: eventsBefore[1].at,
   });
 

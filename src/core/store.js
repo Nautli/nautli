@@ -208,6 +208,8 @@ function activityEvent(event) {
       scope: event.scope ?? null,
       hits: Array.isArray(event.hits) ? event.hits.filter((id) => typeof id === "string") : [],
       source: typeof event.source === "string" ? event.source : "core",
+      ...(typeof event.tool === "string" && event.tool ? { tool: event.tool } : {}),
+      ...(typeof event.session_id === "string" && event.session_id ? { session_id: event.session_id } : {}),
       at: event.at,
     };
   }
