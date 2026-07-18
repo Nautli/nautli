@@ -22,9 +22,10 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css?v=9a639260">
+  <link rel="stylesheet" href="/style.css?v=6655af81">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 메모리 토큰은 95% 아끼고, 설명은 한 번만.","url":"https://nautli.ai/ko/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
   <script src="/main.js?v=2033b876" defer></script>
+  
 </head>
 <body class="" data-page="index" data-copy-success="복사했습니다" data-copy-failure="복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요." data-copy-prompt="이 명령을 직접 복사해 주세요:">
   <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
@@ -32,6 +33,7 @@
     <div class="site-header-inner">
       <a class="wordmark" href="/ko/" aria-label="nautli 홈">nautli</a>
       <nav class="primary-links" aria-label="주요 메뉴">
+        <a class="text-nav" href="/ko/diagnose.html">진단</a>
         <a class="text-nav" href="/ko/manifesto.html">신조</a>
         <a class="text-nav" href="/ko/install.html">설치</a>
         <a class="icon-link" href="https://github.com/Nautli/nautli" aria-label="GitHub" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.82a9.5 9.5 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg></a>
@@ -54,28 +56,20 @@
         <p class="hero-subline">디스크에 사는 프라이빗 메모리. Claude, Codex, Cursor가 함께 읽고, 매일 밤 정리됩니다.</p>
       </div>
       <div class="hero-actions">
-        <div class="command-block hero-commands">
-    <div class="command-row">
-      <code id="command-home-0">npm i -g nautli</code>
-      <button class="copy-button" type="button" data-copy="npm i -g nautli" aria-describedby="copy-status-home-0">복사</button>
-      <span class="copy-status" id="copy-status-home-0" role="status" aria-live="polite"></span>
-    </div><div class="command-row">
-      <code id="command-home-1">nautli init</code>
-      <button class="copy-button" type="button" data-copy="nautli init" aria-describedby="copy-status-home-1">복사</button>
-      <span class="copy-status" id="copy-status-home-1" role="status" aria-live="polite"></span>
-    </div><div class="command-row">
-      <code id="command-home-2">nautli checkup ~/notes</code>
-      <button class="copy-button" type="button" data-copy="nautli checkup ~/notes" aria-describedby="copy-status-home-2">복사</button>
-      <span class="copy-status" id="copy-status-home-2" role="status" aria-live="polite"></span>
-    </div>
-    <div class="copy-all-row"><button class="secondary-button copy-button" type="button" data-copy="npm i -g nautli
-nautli init
-nautli checkup ~/notes" aria-describedby="copy-status-all">모두 복사</button><span class="copy-status" id="copy-status-all" role="status" aria-live="polite"></span></div>
-  </div>
         <ul class="stats-strip"><li><strong>95%</strong><span>세션당 메모리 토큰 절감</span></li><li><strong>11% → 0.3%</strong><span>메모리가 차지하던 컨텍스트 창</span></li></ul>
       </div>
       <p class="trust-line">🔒 당신의 노트는 nautli 서버에 닿지 않습니다 · 몰래 고치지 않음 · MIT · macOS</p>
     </section>
+
+    <section class="diagnose-band">
+    <div class="shell wide-shell diagnose-band-inner">
+      <p class="eyebrow">무료 · 브라우저에서 바로 실행</p>
+      <h2>당신의 AI가 읽고 있는 기억을 진단한다</h2>
+      <p class="diagnose-band-intro">옵시디언 볼트, 노트 폴더, 또는 어시스턴트가 매 세션 통째로 읽는 CLAUDE.md·AGENTS.md를 지정하면 된다. 브라우저 안에서 읽어서 무엇이 반복되고, 무엇이 지나치게 크고, 무엇이 남겨져 있는지 보여준다. 아무것도 업로드하지 않는다.</p>
+      <a class="primary-button" href="/ko/diagnose.html">폴더 스캔하기</a>
+      <p class="diagnose-band-note">설치도 계정도 업로드도 없다. 파일은 당신 기기에 그대로 있다.</p>
+    </div>
+  </section>
 
     <div class="hero-mock-band"><div class="mock-overflow" aria-hidden="true" data-nosnippet>
     <div class="app-window">

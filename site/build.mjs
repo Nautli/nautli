@@ -9,7 +9,7 @@ const srcDir = path.join(siteDir, "src");
 const distDir = path.join(siteDir, "dist");
 const brandDir = path.join(rootDir, "assets", "brand");
 const locales = ["en", "ko", "ja"];
-const pages = ["index", "manifesto", "install", "faq", "c"];
+const pages = ["index", "diagnose", "manifesto", "install", "faq", "c"];
 const baseUrl = "https://nautli.ai";
 
 const assetHash = async (file) =>
@@ -17,6 +17,7 @@ const assetHash = async (file) =>
 const assetVersions = {
   style: await assetHash("style.css"),
   script: await assetHash("main.js"),
+  diagnose: await assetHash("diagnose.js"),
 };
 
 const { renderPage, pagePath } = await import(
@@ -70,6 +71,7 @@ for (const locale of locales) {
 
 await copyFile(path.join(srcDir, "style.css"), path.join(distDir, "style.css"));
 await copyFile(path.join(srcDir, "main.js"), path.join(distDir, "main.js"));
+await copyFile(path.join(srcDir, "diagnose.js"), path.join(distDir, "diagnose.js"));
 
 const fontsOut = path.join(distDir, "fonts");
 await mkdir(fontsOut, { recursive: true });

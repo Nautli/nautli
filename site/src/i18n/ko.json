@@ -20,6 +20,10 @@
     "c": {
       "title": "기억 건강검진 | nautli",
       "description": "노트 내용 없이 숫자만 담아 로컬에서 만든 nautli 기억 건강검진 결과입니다."
+    },
+    "diagnose": {
+      "title": "무료 기억 진단 | nautli",
+      "description": "노트와 에이전트 지침 파일을 브라우저에서 스캔한다. 반복 문단, 비대해진 상시 로드 파일, 잔해를 보여준다. 업로드 없음."
     }
   },
   "common": {
@@ -35,7 +39,8 @@
     "copySuccess": "복사했습니다",
     "copyFailure": "복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요.",
     "copyPrompt": "이 명령을 직접 복사해 주세요:",
-    "skip": "본문으로 건너뛰기"
+    "skip": "본문으로 건너뛰기",
+    "diagnose": "진단"
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
@@ -424,5 +429,61 @@
       "nautli init",
       "nautli checkup ~/notes"
     ]
+  },
+  "diagnose": {
+    "eyebrow": "무료 · 브라우저에서 바로 실행",
+    "title": "당신의 AI가 읽고 있는 기억을 진단한다",
+    "intro": "옵시디언 볼트, 노트 폴더, 또는 어시스턴트가 매 세션 통째로 읽는 CLAUDE.md·AGENTS.md를 지정하면 된다. 브라우저 안에서 읽어서 무엇이 반복되고, 무엇이 지나치게 크고, 무엇이 남겨져 있는지 보여준다. 아무것도 업로드하지 않는다.",
+    "button": "폴더 스캔하기",
+    "note": "설치도 계정도 업로드도 없다. 파일은 당신 기기에 그대로 있다.",
+    "metaTitle": "무료 기억 진단 | nautli",
+    "metaDescription": "노트와 에이전트 지침 파일을 브라우저에서 스캔한다. 반복 문단, 비대해진 상시 로드 파일, 잔해를 보여준다. 업로드 없음.",
+    "pageTitle": "당신의 AI는 실제로 무엇을 읽고 있나",
+    "pageIntro": "어시스턴트가 읽는 폴더를 고르면 된다. 전부 이 탭 안에서 처리된다. 파일도 파일명도 본문 조각도 기기를 떠나지 않는다.",
+    "pickLabel": "폴더 고르기",
+    "fallbackHint": "크롬·엣지는 폴더 선택창이 열린다. 사파리·파이어폭스는 폴더 업로드 컨트롤을 쓰는데, 이것도 읽기는 로컬에서 한다.",
+    "unsupported": "이 브라우저는 로컬 폴더를 읽지 못한다. 크롬·엣지·사파리로 열거나, 설치 후 커맨드라인으로 진행해라.",
+    "scanningTitle": "로컬에서 읽는 중",
+    "scanningProgress": "{total}개 중 {done}개",
+    "errorTitle": "스캔을 끝내지 못했다",
+    "errorGeneric": "폴더를 읽지 못했다.",
+    "errorNoMarkdown": "그 폴더에서 마크다운이나 텍스트 파일을 찾지 못했다.",
+    "retry": "다른 폴더 고르기",
+    "folderFallbackLabel": "선택한 폴더",
+    "resultEyebrow": "{folder} 표면 스캔",
+    "resultSignals": "개의 검토할 신호, {scanned}개 파일 중 {affected}개에 걸쳐 있다",
+    "resultMeta": "텍스트 파일 {scanned}개 읽음 · {size} · 텍스트 아닌 파일 {skipped}개 건너뜀",
+    "resultPartial": "이 스캔은 상한에 걸려 일부만 봤다. 부분 스캔에는 표면 점수를 내지 않는다.",
+    "resultClean": "확도 높은 표면 신호는 찾지 못했다. 내용끼리 서로 맞는다는 뜻은 아니다.",
+    "scoreLabel": "표면 정리 상태",
+    "scoreNote": "실측된 신호만 반영한다. 오래됐다는 이유로는 깎지 않는다.",
+    "evidenceToggle": "근거 보기 ({count})",
+    "evidenceMore": "외 {count}개",
+    "restToggle": "발견 항목 전체 ({count}개 더)",
+    "boundaryTitle": "브라우저는 여기까지다",
+    "boundaryBody": "위의 것들은 전부 표면 신호다. 크기, 반복되는 문자열, 수정 시각. 두 노트가 같은 결정을 말하는지, 그중 어느 쪽이 현재인지는 이 페이지가 판단할 수 없다.",
+    "ctaTitle": "이 중 뭐가 진짜인지 확인하기",
+    "ctaTitleClean": "브라우저가 못 보는 층을 확인하기",
+    "ctaBody": "nautli checkup은 같은 폴더를 Claude Code에 태워, 후보들이 중복인지 대체된 결정인지 진짜 모순인지 묻는다. 보고만 하고, 노트를 스스로 고쳐 쓰지 않는다.",
+    "ctaButton": "설치 방법 보기",
+    "ctaNote": "macOS · Node 20+ · Claude Code CLI 설치·로그인 필요 · MIT",
+    "findAlwaysLoadedTitle": "{name}이 매 세션 통째로 올라간다",
+    "findAlwaysLoadedMeasure": "약 {tokens} 토큰 · {size}",
+    "findAlwaysLoadedWhy": "이런 지침 파일은 대화마다 전문이 읽히므로 그 용량을 매번 다시 지불한다. 항상 필요한 규칙과 참고 자료를 분리하는 게 보통 가장 싼 개선이다.",
+    "findRepeatedTitle": "같은 문단이 {count}개 파일에 있다",
+    "findRepeatedMeasure": "{chars}자, 반복됨",
+    "findRepeatedWhy": "의도한 템플릿일 수도 있다. 브라우저는 어느 사본이 기준인지 모르고, 텍스트가 일치한다는 것만 안다.",
+    "findLargeTitle": "{name}이 가장 큰 단일 파일이다",
+    "findLargeMeasure": "{size} · 약 {tokens} 토큰",
+    "findLargeWhy": "큰 단일 파일은 필요한 부분만 정확히 꺼내기 어렵다. 오류가 아니라 구조 후보다.",
+    "findEmptyTitle": "사실상 빈 파일이 {count}개 있다",
+    "findEmptyMeasure": "본문 20자 미만",
+    "findEmptyWhy": "빈 노트는 대개 템플릿이나 중단된 기록의 잔해다.",
+    "findTodoTitle": "TODO·FIXME 표시가 {count}개 남아 있다",
+    "findTodoMeasure": "파일 {files}개에 걸쳐",
+    "findTodoWhy": "어시스턴트가 읽는 노트에 남은 표시는 결정처럼 집어갈 수 있다.",
+    "findStaleTitle": "1년 넘게 안 바뀐 파일이 {count}개다",
+    "findStaleMeasure": "파일 수정 시각 기준 {count}개",
+    "findStaleWhy": "오래됐다는 것 자체는 문제가 아니라서 점수에 넣지 않는다. 대체된 결정이 숨어 있기 쉬운 자리라 목록에만 올린다."
   }
 }

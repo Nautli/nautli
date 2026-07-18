@@ -20,6 +20,10 @@
     "c": {
       "title": "記憶診断 | nautli",
       "description": "ノート本文を含まず、数値だけを載せたローカル生成のnautli記憶診断結果です。"
+    },
+    "diagnose": {
+      "title": "無料の記憶診断 | nautli",
+      "description": "ノートとエージェント指示ファイルをブラウザでスキャンする。重複ブロック、肥大化した常時読み込みファイル、残骸を表示。アップロードなし。"
     }
   },
   "common": {
@@ -35,7 +39,8 @@
     "copySuccess": "コピーしました",
     "copyFailure": "コピーできませんでした。コマンドを選択して手動でコピーしてください。",
     "copyPrompt": "このコマンドを手動でコピーしてください:",
-    "skip": "本文へ移動"
+    "skip": "本文へ移動",
+    "diagnose": "診断"
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
@@ -424,5 +429,61 @@
       "nautli init",
       "nautli checkup ~/notes"
     ]
+  },
+  "diagnose": {
+    "eyebrow": "無料 · ブラウザ内で実行",
+    "title": "AIが読んでいる記憶を診断する",
+    "intro": "Obsidianのvault、ノートのフォルダ、あるいはアシスタントが毎セッション読み込むCLAUDE.mdやAGENTS.mdを指定する。ブラウザ内で読み取り、何が重複し、何が大きすぎ、何が residue として残っているかを示す。アップロードは一切しない。",
+    "button": "フォルダをスキャン",
+    "note": "インストールもアカウントもアップロードも不要。ファイルは手元に残る。",
+    "metaTitle": "無料の記憶診断 | nautli",
+    "metaDescription": "ノートとエージェント指示ファイルをブラウザでスキャンする。重複ブロック、肥大化した常時読み込みファイル、残骸を表示。アップロードなし。",
+    "pageTitle": "あなたのAIは実際に何を読んでいるか",
+    "pageIntro": "アシスタントが読むフォルダを選ぶ。すべてこのタブ内で処理される。ファイルもファイル名も本文の断片も端末を離れない。",
+    "pickLabel": "フォルダを選ぶ",
+    "fallbackHint": "ChromeとEdgeはフォルダ選択ダイアログが開く。SafariとFirefoxはフォルダアップロードのコントロールを使うが、読み取りはローカルで行う。",
+    "unsupported": "このブラウザはローカルフォルダを読めない。Chrome・Edge・Safariで開くか、インストール後にコマンドラインで進めてほしい。",
+    "scanningTitle": "ローカルで読み取り中",
+    "scanningProgress": "{total}件中{done}件",
+    "errorTitle": "スキャンを完了できなかった",
+    "errorGeneric": "フォルダを読めなかった。",
+    "errorNoMarkdown": "そのフォルダにMarkdownやテキストファイルが見つからなかった。",
+    "retry": "別のフォルダを選ぶ",
+    "folderFallbackLabel": "選択したフォルダ",
+    "resultEyebrow": "{folder} の表層スキャン",
+    "resultSignals": "件の確認すべきシグナル。{scanned}件中{affected}件のファイルに集中している",
+    "resultMeta": "テキストファイル{scanned}件を読み取り · {size} · テキスト以外{skipped}件をスキップ",
+    "resultPartial": "このスキャンは上限に達したため部分的だ。部分スキャンでは表層スコアを出さない。",
+    "resultClean": "確度の高い表層シグナルは見つからなかった。内容同士が整合しているという意味ではない。",
+    "scoreLabel": "表層の整理状態",
+    "scoreNote": "実測したシグナルのみを反映する。古さだけでは減点しない。",
+    "evidenceToggle": "根拠を表示（{count}）",
+    "evidenceMore": "ほか{count}件",
+    "restToggle": "すべての検出項目（あと{count}件）",
+    "boundaryTitle": "ブラウザで見えるのはここまで",
+    "boundaryBody": "上のものはすべて表層シグナルだ。サイズ、繰り返される文字列、更新時刻。2つのノートが同じ判断を指しているのか、どちらが現在なのかは、このページには判定できない。",
+    "ctaTitle": "どれが本物かを確かめる",
+    "ctaTitleClean": "ブラウザに見えない層を確かめる",
+    "ctaBody": "nautli checkupは同じフォルダをClaude Codeに通し、候補が重複なのか、置き換えられた判断なのか、本当の矛盾なのかを尋ねる。報告するだけで、ノートを勝手に書き換えない。",
+    "ctaButton": "インストール手順を見る",
+    "ctaNote": "macOS · Node 20+ · Claude Code CLIのインストールとサインインが必要 · MIT",
+    "findAlwaysLoadedTitle": "{name} が毎セッション丸ごと読み込まれている",
+    "findAlwaysLoadedMeasure": "約{tokens}トークン · {size}",
+    "findAlwaysLoadedWhy": "この種の指示ファイルは会話のたびに全文が読まれるため、その容量を毎回払い直すことになる。常に必要な規則と参考資料を分けるのが通常もっとも安上がりだ。",
+    "findRepeatedTitle": "同じブロックが{count}件のファイルにある",
+    "findRepeatedMeasure": "{chars}文字、繰り返し",
+    "findRepeatedWhy": "意図したテンプレートかもしれない。ブラウザはどの複製が基準かを知らず、テキストが一致することだけを知る。",
+    "findLargeTitle": "{name} が最大の単一ファイルだ",
+    "findLargeMeasure": "{size} · 約{tokens}トークン",
+    "findLargeWhy": "大きな単一ファイルは必要な箇所だけを正確に取り出しにくい。エラーではなく構造の候補だ。",
+    "findEmptyTitle": "実質的に空のファイルが{count}件ある",
+    "findEmptyMeasure": "本文20文字未満",
+    "findEmptyWhy": "空のノートはたいていテンプレートや中断した記録の残骸だ。",
+    "findTodoTitle": "TODO・FIXMEの印が{count}件残っている",
+    "findTodoMeasure": "{files}件のファイルにわたって",
+    "findTodoWhy": "アシスタントが読むノートに残った印は、判断として拾われることがある。",
+    "findStaleTitle": "1年以上変更されていないファイルが{count}件ある",
+    "findStaleMeasure": "ファイル更新時刻で{count}件",
+    "findStaleWhy": "古いこと自体は問題ではないのでスコアには入れない。置き換えられた判断が隠れやすい場所なので一覧にだけ載せる。"
   }
 }

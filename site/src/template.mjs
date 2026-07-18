@@ -4,6 +4,7 @@ const formulaUrl = `${githubUrl}/blob/main/docs/checkup-score.md`;
 
 const pageFiles = {
   index: "",
+  diagnose: "diagnose.html",
   manifesto: "manifesto.html",
   install: "install.html",
   faq: "faq.html",
@@ -51,6 +52,7 @@ function nav(locale, page, copy) {
     <div class="site-header-inner">
       <a class="wordmark" href="${pagePath(locale, "index")}" aria-label="nautli ${escapeHtml(copy.common.home)}">nautli</a>
       <nav class="primary-links" aria-label="${escapeHtml(copy.common.primaryNav)}">
+        <a class="text-nav" href="${pagePath(locale, "diagnose")}"${page === "diagnose" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.diagnose)}</a>
         <a class="text-nav" href="${pagePath(locale, "manifesto")}"${page === "manifesto" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.manifesto)}</a>
         <a class="text-nav" href="${pagePath(locale, "install")}"${page === "install" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.install)}</a>
         <a class="icon-link" href="${githubUrl}" aria-label="GitHub" rel="noreferrer">${githubIcon()}</a>
@@ -143,9 +145,68 @@ function appMock(copy) {
   </div>`;
 }
 
+// 랜딩 최상단 전환 지점. 큰 설명 하나 + 버튼 하나. 이 섹션에는 다른 링크를 두지 않는다.
+function diagnoseBand(locale, copy) {
+  const d = copy.diagnose;
+  return `<section class="diagnose-band">
+    <div class="shell wide-shell diagnose-band-inner">
+      <p class="eyebrow">${escapeHtml(d.eyebrow)}</p>
+      <h2>${escapeHtml(d.title)}</h2>
+      <p class="diagnose-band-intro">${escapeHtml(d.intro)}</p>
+      <a class="primary-button" href="${pagePath(locale, "diagnose")}">${escapeHtml(d.button)}</a>
+      <p class="diagnose-band-note">${escapeHtml(d.note)}</p>
+    </div>
+  </section>`;
+}
+
+// 스캔은 전부 클라이언트에서 돈다. 서버로 가는 경로 자체가 없다.
+function diagnosePage(locale, copy) {
+  const d = copy.diagnose;
+  const runtimeKeys = [
+    "scanningProgress", "errorGeneric", "errorNoMarkdown", "folderFallbackLabel",
+    "resultEyebrow", "resultSignals", "resultMeta", "resultPartial", "resultClean",
+    "scoreLabel", "scoreNote", "evidenceToggle", "evidenceMore", "restToggle",
+    "boundaryTitle", "boundaryBody", "ctaTitle", "ctaTitleClean", "ctaBody",
+    "ctaButton", "ctaNote",
+    "findAlwaysLoadedTitle", "findAlwaysLoadedMeasure", "findAlwaysLoadedWhy",
+    "findRepeatedTitle", "findRepeatedMeasure", "findRepeatedWhy",
+    "findLargeTitle", "findLargeMeasure", "findLargeWhy",
+    "findEmptyTitle", "findEmptyMeasure", "findEmptyWhy",
+    "findTodoTitle", "findTodoMeasure", "findTodoWhy",
+    "findStaleTitle", "findStaleMeasure", "findStaleWhy",
+  ];
+  const runtimeCopy = Object.fromEntries(runtimeKeys.map((key) => [key, d[key]]));
+  return `<main class="subpage shell wide-shell diagnose-page" data-diagnose data-install-href="${pagePath(locale, "install")}">
+    <script type="application/json" id="diagnose-copy">${JSON.stringify(runtimeCopy).replaceAll("<", "\\u003c")}</script>
+
+    <section data-pane="idle">
+      <p class="eyebrow">${escapeHtml(d.eyebrow)}</p>
+      <h1>${escapeHtml(d.pageTitle)}</h1>
+      <p class="section-intro">${escapeHtml(d.pageIntro)}</p>
+      <button class="primary-button" type="button" data-action="pick">${escapeHtml(d.pickLabel)}</button>
+      <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
+      <p class="small-note">${escapeHtml(d.fallbackHint)}</p>
+      <p class="small-note" data-unsupported hidden>${escapeHtml(d.unsupported)}</p>
+      <p class="trust-line">🔒 ${escapeHtml(d.note)}</p>
+    </section>
+
+    <section data-pane="scanning" hidden>
+      <h1>${escapeHtml(d.scanningTitle)}</h1>
+      <p class="section-intro" data-progress></p>
+    </section>
+
+    <section class="diagnose-result" data-pane="result" hidden></section>
+
+    <section data-pane="error" hidden>
+      <h1>${escapeHtml(d.errorTitle)}</h1>
+      <p class="section-intro" data-error-message></p>
+      <button class="secondary-button" type="button" data-action="reset">${escapeHtml(d.retry)}</button>
+    </section>
+  </main>`;
+}
+
 function homePage(locale, copy) {
   const h = copy.home;
-  const commands = h.commands.map((text, index) => ({ text, id: `home-${index}` }));
   return `<main>
     <section class="hero shell wide-shell grain-surface">
       <svg class="spiral" viewBox="0 0 300 300" aria-hidden="true"><path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -155,11 +216,12 @@ function homePage(locale, copy) {
         <p class="hero-subline">${escapeHtml(h.subline)}</p>
       </div>
       <div class="hero-actions">
-        ${commandBlock(commands, copy, "hero-commands")}
         ${Array.isArray(h.stats) && h.stats.length ? `<ul class="stats-strip">${h.stats.map((st) => `<li><strong>${escapeHtml(st[0])}</strong><span>${escapeHtml(st[1])}</span></li>`).join("")}</ul>` : ""}
       </div>
       <p class="trust-line">🔒 ${escapeHtml(h.trustLine)}</p>
     </section>
+
+    ${diagnoseBand(locale, copy)}
 
     <div class="hero-mock-band">${appMock(copy)}</div>
 
@@ -273,6 +335,7 @@ function sharePage(copy) {
 
 function pageContent(locale, page, copy) {
   if (page === "index") return homePage(locale, copy);
+  if (page === "diagnose") return diagnosePage(locale, copy);
   if (page === "manifesto") return manifestoPage(copy);
   if (page === "install") return installPage(copy);
   if (page === "faq") return faqPage(copy);
@@ -322,6 +385,7 @@ export function renderPage({ locale, page, copy, baseUrl, assetVersions = {} }) 
   <link rel="stylesheet" href="/style.css${assetVersions.style ? `?v=${assetVersions.style}` : ""}">
   <script type="application/ld+json">${JSON.stringify(schema).replaceAll("<", "\\u003c")}</script>
   <script src="/main.js${assetVersions.script ? `?v=${assetVersions.script}` : ""}" defer></script>
+  ${page === "diagnose" ? `<script src="/diagnose.js${assetVersions.diagnose ? `?v=${assetVersions.diagnose}` : ""}" defer></script>` : ""}
 </head>
 <body class="${bodyClass}" data-page="${page}" data-copy-success="${escapeHtml(copy.common.copySuccess)}" data-copy-failure="${escapeHtml(copy.common.copyFailure)}" data-copy-prompt="${escapeHtml(copy.common.copyPrompt)}">
   <a class="skip-link" href="#main-content">${escapeHtml(copy.common.skip)}</a>

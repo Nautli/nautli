@@ -20,6 +20,10 @@
     "c": {
       "title": "Memory checkup | nautli",
       "description": "A locally generated nautli memory checkup result with numbers only and no note content."
+    },
+    "diagnose": {
+      "title": "Free memory diagnosis | nautli",
+      "description": "Scan your notes and agent instruction files in the browser. See repeated blocks, oversized always-loaded files, and leftovers. Nothing is uploaded."
     }
   },
   "common": {
@@ -35,7 +39,8 @@
     "copySuccess": "Copied",
     "copyFailure": "Copy failed. Select the command and copy it manually.",
     "copyPrompt": "Copy this command manually:",
-    "skip": "Skip to content"
+    "skip": "Skip to content",
+    "diagnose": "Diagnose"
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
@@ -424,5 +429,61 @@
       "nautli init",
       "nautli checkup ~/notes"
     ]
+  },
+  "diagnose": {
+    "eyebrow": "Free · Runs in your browser",
+    "title": "Diagnose the memory your AI reads",
+    "intro": "Point nautli at your Obsidian vault, your notes folder, or the CLAUDE.md and AGENTS.md files your assistants load every session. It reads them in your browser and shows you what is repeated, oversized, or left behind. Nothing is uploaded.",
+    "button": "Scan a folder",
+    "note": "No install, no account, no upload. Your files stay on your machine.",
+    "metaTitle": "Free memory diagnosis | nautli",
+    "metaDescription": "Scan your notes and agent instruction files in the browser. See repeated blocks, oversized always-loaded files, and leftovers. Nothing is uploaded.",
+    "pageTitle": "What is your AI actually reading?",
+    "pageIntro": "Choose the folder your assistants read from. Everything is parsed in this tab. No file, name, or snippet leaves your machine.",
+    "pickLabel": "Choose folder",
+    "fallbackHint": "Chrome and Edge open a folder picker. Safari and Firefox use the folder upload control, which still reads locally.",
+    "unsupported": "This browser cannot read a local folder. Open the page in Chrome, Edge, or Safari, or run the install steps and use the command line instead.",
+    "scanningTitle": "Reading locally",
+    "scanningProgress": "{done} of {total} files",
+    "errorTitle": "Could not finish the scan",
+    "errorGeneric": "The folder could not be read.",
+    "errorNoMarkdown": "No markdown or text files were found in that folder.",
+    "retry": "Choose another folder",
+    "folderFallbackLabel": "selected folder",
+    "resultEyebrow": "Surface scan of {folder}",
+    "resultSignals": "signals to review, across {affected} of {scanned} files",
+    "resultMeta": "{scanned} text files read · {size} · {skipped} non-text files skipped",
+    "resultPartial": "This scan was capped, so it is partial. No surface score is produced for a partial scan.",
+    "resultClean": "No high-confidence surface signals were found. That is not the same as saying the contents agree with each other.",
+    "scoreLabel": "Surface tidiness",
+    "scoreNote": "Counts measured signals only. Age alone is not penalised.",
+    "evidenceToggle": "Show evidence ({count})",
+    "evidenceMore": "and {count} more",
+    "restToggle": "All findings ({count} more)",
+    "boundaryTitle": "This is where the browser stops",
+    "boundaryBody": "Everything above is a surface signal: sizes, repeated strings, timestamps. Whether two notes describe the same decision, and which one is current, is a judgment this page cannot make.",
+    "ctaTitle": "Find out which of these are real",
+    "ctaTitleClean": "Check the part a browser cannot see",
+    "ctaBody": "nautli checkup runs the same folder through Claude Code and asks whether the candidates are duplicates, superseded decisions, or genuine contradictions. It reports; it never rewrites your notes on its own.",
+    "ctaButton": "See the install steps",
+    "ctaNote": "macOS · Node 20+ · needs the Claude Code CLI installed and signed in · MIT",
+    "findAlwaysLoadedTitle": "{name} is loaded into every session",
+    "findAlwaysLoadedMeasure": "~{tokens} tokens · {size}",
+    "findAlwaysLoadedWhy": "Instruction files like this one are read in full on every conversation, so their size is paid again each time. Splitting always-needed rules from reference material is usually the cheapest win.",
+    "findRepeatedTitle": "The same block appears in {count} files",
+    "findRepeatedMeasure": "{chars} characters, repeated",
+    "findRepeatedWhy": "This may be an intentional template. The browser cannot tell which copy is authoritative, only that the text matches.",
+    "findLargeTitle": "{name} is the largest single file",
+    "findLargeMeasure": "{size} · ~{tokens} tokens",
+    "findLargeWhy": "Large single files are harder to retrieve from precisely. This is a structure candidate, not an error.",
+    "findEmptyTitle": "{count} files are effectively empty",
+    "findEmptyMeasure": "under 20 characters of content",
+    "findEmptyWhy": "Empty notes are usually leftovers from a template or an aborted capture.",
+    "findTodoTitle": "{count} TODO or FIXME markers remain",
+    "findTodoMeasure": "across {files} files",
+    "findTodoWhy": "Markers left in notes an assistant reads can be picked up as if they were decisions.",
+    "findStaleTitle": "{count} files have not changed in over a year",
+    "findStaleMeasure": "{count} files, by file modified time",
+    "findStaleWhy": "Age alone is not a problem, so this is not counted in the score. It is listed because old notes are where superseded decisions tend to hide."
   }
 }

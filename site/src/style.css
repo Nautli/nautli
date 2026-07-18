@@ -1489,3 +1489,310 @@ tbody th {
     opacity: 0.09;
   }
 }
+
+/* --- 무료 진단 퍼널 --------------------------------------------------------
+   히어로 바로 아래, 랜딩의 유일한 1차 전환 지점. 링크를 더 두지 않는다. */
+
+.primary-button {
+  display: inline-block;
+  min-height: 52px;
+  padding: 14px 28px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font-size: 18px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .primary-button:hover {
+    transform: scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primary-button {
+    transition: none;
+  }
+  .primary-button:hover {
+    transform: none;
+  }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.diagnose-band {
+  border-block: 1px solid var(--border);
+  background: var(--accent-soft);
+}
+
+.diagnose-band-inner {
+  padding-block: 72px;
+}
+
+.diagnose-band-inner h2 {
+  max-width: 20ch;
+}
+
+.diagnose-band-intro {
+  max-width: 56ch;
+  margin-bottom: 32px;
+  color: var(--text-dim);
+  font-size: clamp(18px, 2vw, 23px);
+  line-height: 1.45;
+}
+
+.diagnose-band-note {
+  margin: 16px 0 0;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.diagnose-page [data-pane] {
+  padding-block: 8px 24px;
+}
+
+.diagnose-page .small-note {
+  max-width: 60ch;
+}
+
+.diagnose-page .primary-button {
+  margin-top: 8px;
+}
+
+/* 결과: 맨 위는 점수가 아니라 신호 수다. */
+.dg-eyebrow {
+  margin-bottom: 8px;
+  color: var(--text-faint);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dg-lede {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-bottom: 12px;
+}
+
+.dg-lede strong {
+  color: var(--accent);
+  font-size: clamp(48px, 9vw, 88px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-lede span {
+  max-width: 24ch;
+  color: var(--text);
+  font-size: clamp(18px, 2vw, 22px);
+}
+
+.dg-meta,
+.dg-warn,
+.dg-clean {
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.dg-warn,
+.dg-clean {
+  max-width: 60ch;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+.dg-findings {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.dg-finding {
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
+.dg-finding h3 {
+  margin-bottom: 8px;
+  font-size: 20px;
+}
+
+.dg-finding-measure {
+  margin-bottom: 6px;
+  color: var(--accent);
+  font-family: var(--mono-font);
+  font-size: 13px;
+}
+
+.dg-finding-why {
+  max-width: 68ch;
+  margin-bottom: 0;
+  color: var(--text-dim);
+}
+
+.dg-evidence {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.dg-evidence summary {
+  min-height: 32px;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dg-file-list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--text-dim);
+  font-family: var(--mono-font);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.dg-file-list .dg-more {
+  list-style: none;
+  margin-left: -18px;
+  color: var(--text-faint);
+}
+
+.dg-snippet {
+  max-height: 220px;
+  margin: 12px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.dg-rest {
+  margin-top: 24px;
+}
+
+.dg-rest summary {
+  min-height: 44px;
+  padding-block: 10px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.dg-score {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 32px;
+  padding: 20px 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.dg-score strong {
+  color: var(--accent);
+  font-size: 40px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-score-label {
+  color: var(--text-dim);
+}
+
+.dg-score-note {
+  flex-basis: 100%;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+
+/* 경계 고지 → 그 다음에 설치 제안. 순서가 뒤집히면 과장이 된다. */
+.dg-boundary {
+  max-width: 68ch;
+  margin-top: 40px;
+  padding-left: 20px;
+  border-left: 2px solid var(--accent);
+}
+
+.dg-boundary h3 {
+  margin-bottom: 8px;
+  font-size: 20px;
+}
+
+.dg-boundary p {
+  margin-bottom: 0;
+  color: var(--text-dim);
+}
+
+.dg-cta {
+  margin-top: 32px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
+.dg-cta h3 {
+  font-size: clamp(22px, 3vw, 30px);
+}
+
+.dg-cta p {
+  max-width: 66ch;
+  color: var(--text-dim);
+}
+
+.dg-cta-button {
+  display: inline-block;
+  min-height: 48px;
+  margin-top: 8px;
+  padding: 13px 24px;
+  border-radius: 8px;
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.dg-cta-note {
+  margin: 16px 0 0 !important;
+  color: var(--text-faint) !important;
+  font-size: 13px;
+}
+
+@media (max-width: 680px) {
+  .diagnose-band-inner {
+    padding-block: 48px;
+  }
+
+  .dg-finding {
+    padding: 16px;
+  }
+
+  .dg-cta {
+    padding: 20px;
+  }
+}

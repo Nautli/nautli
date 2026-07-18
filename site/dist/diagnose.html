@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#141414">
+  <title>Free memory diagnosis | nautli</title>
+  <meta name="description" content="Scan your notes and agent instruction files in the browser. See repeated blocks, oversized always-loaded files, and leftovers. Nothing is uploaded.">
+  <link rel="canonical" href="https://nautli.ai/diagnose.html">
+  <link rel="alternate" hreflang="en" href="https://nautli.ai/diagnose.html">
+  <link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/diagnose.html">
+  <link rel="alternate" hreflang="ja" href="https://nautli.ai/ja/diagnose.html">
+  <link rel="alternate" hreflang="x-default" href="https://nautli.ai/diagnose.html">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="nautli">
+  <meta property="og:title" content="Free memory diagnosis | nautli">
+  <meta property="og:description" content="Scan your notes and agent instruction files in the browser. See repeated blocks, oversized always-loaded files, and leftovers. Nothing is uploaded.">
+  <meta property="og:url" content="https://nautli.ai/diagnose.html">
+  <meta property="og:image" content="/assets/og.png">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="alternate icon" href="/assets/favicon.ico">
+  <link rel="stylesheet" href="/style.css?v=6655af81">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Scan your notes and agent instruction files in the browser. See repeated blocks, oversized always-loaded files, and leftovers. Nothing is uploaded.","url":"https://nautli.ai/diagnose.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/faq.html"}</script>
+  <script src="/main.js?v=2033b876" defer></script>
+  <script src="/diagnose.js?v=af845c20" defer></script>
+</head>
+<body class="" data-page="diagnose" data-copy-success="Copied" data-copy-failure="Copy failed. Select the command and copy it manually." data-copy-prompt="Copy this command manually:">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a class="wordmark" href="/" aria-label="nautli home">nautli</a>
+      <nav class="primary-links" aria-label="Primary navigation">
+        <a class="text-nav" href="/diagnose.html" aria-current="page">Diagnose</a>
+        <a class="text-nav" href="/manifesto.html">Manifesto</a>
+        <a class="text-nav" href="/install.html">Install</a>
+        <a class="icon-link" href="https://github.com/Nautli/nautli" aria-label="GitHub" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.82a9.5 9.5 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg></a>
+        <a class="icon-link" href="https://discord.gg/nautli" aria-label="Discord" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19.5 5.34A17.2 17.2 0 0 0 15.44 4l-.5 1.02a15.9 15.9 0 0 0-5.86 0L8.56 4A17.3 17.3 0 0 0 4.5 5.35C1.93 9.16 1.23 12.88 1.58 16.54a17.1 17.1 0 0 0 4.98 2.52l1.2-1.64a11.1 11.1 0 0 1-1.9-.91l.47-.37a12.3 12.3 0 0 0 11.34 0l.47.37c-.6.36-1.24.66-1.9.9l1.2 1.65a17 17 0 0 0 4.98-2.52c.41-4.24-.7-7.93-2.92-11.2ZM8.5 14.3c-1.1 0-2-1.02-2-2.27 0-1.25.88-2.28 2-2.28s2.02 1.03 2 2.28c0 1.25-.88 2.27-2 2.27Zm7 0c-1.1 0-2-1.02-2-2.27 0-1.25.88-2.28 2-2.28s2.02 1.03 2 2.28c0 1.25-.88 2.27-2 2.27Z"/></svg></a>
+        <div class="language-picker">
+    <button class="icon-text-button language-button" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="language-menu">🌐 English</button>
+    <div class="language-menu" id="language-menu" role="menu" hidden>
+      <a role="menuitem" lang="en" hreflang="en" href="/diagnose.html" aria-current="page">English</a><a role="menuitem" lang="ko" hreflang="ko" href="/ko/diagnose.html">한국어</a><a role="menuitem" lang="ja" hreflang="ja" href="/ja/diagnose.html">日本語</a>
+    </div>
+  </div>
+      </nav>
+    </div>
+  </header>
+  <div id="main-content"><main class="subpage shell wide-shell diagnose-page" data-diagnose data-install-href="/install.html">
+    <script type="application/json" id="diagnose-copy">{"scanningProgress":"{done} of {total} files","errorGeneric":"The folder could not be read.","errorNoMarkdown":"No markdown or text files were found in that folder.","folderFallbackLabel":"selected folder","resultEyebrow":"Surface scan of {folder}","resultSignals":"signals to review, across {affected} of {scanned} files","resultMeta":"{scanned} text files read · {size} · {skipped} non-text files skipped","resultPartial":"This scan was capped, so it is partial. No surface score is produced for a partial scan.","resultClean":"No high-confidence surface signals were found. That is not the same as saying the contents agree with each other.","scoreLabel":"Surface tidiness","scoreNote":"Counts measured signals only. Age alone is not penalised.","evidenceToggle":"Show evidence ({count})","evidenceMore":"and {count} more","restToggle":"All findings ({count} more)","boundaryTitle":"This is where the browser stops","boundaryBody":"Everything above is a surface signal: sizes, repeated strings, timestamps. Whether two notes describe the same decision, and which one is current, is a judgment this page cannot make.","ctaTitle":"Find out which of these are real","ctaTitleClean":"Check the part a browser cannot see","ctaBody":"nautli checkup runs the same folder through Claude Code and asks whether the candidates are duplicates, superseded decisions, or genuine contradictions. It reports; it never rewrites your notes on its own.","ctaButton":"See the install steps","ctaNote":"macOS · Node 20+ · needs the Claude Code CLI installed and signed in · MIT","findAlwaysLoadedTitle":"{name} is loaded into every session","findAlwaysLoadedMeasure":"~{tokens} tokens · {size}","findAlwaysLoadedWhy":"Instruction files like this one are read in full on every conversation, so their size is paid again each time. Splitting always-needed rules from reference material is usually the cheapest win.","findRepeatedTitle":"The same block appears in {count} files","findRepeatedMeasure":"{chars} characters, repeated","findRepeatedWhy":"This may be an intentional template. The browser cannot tell which copy is authoritative, only that the text matches.","findLargeTitle":"{name} is the largest single file","findLargeMeasure":"{size} · ~{tokens} tokens","findLargeWhy":"Large single files are harder to retrieve from precisely. This is a structure candidate, not an error.","findEmptyTitle":"{count} files are effectively empty","findEmptyMeasure":"under 20 characters of content","findEmptyWhy":"Empty notes are usually leftovers from a template or an aborted capture.","findTodoTitle":"{count} TODO or FIXME markers remain","findTodoMeasure":"across {files} files","findTodoWhy":"Markers left in notes an assistant reads can be picked up as if they were decisions.","findStaleTitle":"{count} files have not changed in over a year","findStaleMeasure":"{count} files, by file modified time","findStaleWhy":"Age alone is not a problem, so this is not counted in the score. It is listed because old notes are where superseded decisions tend to hide."}</script>
+
+    <section data-pane="idle">
+      <p class="eyebrow">Free · Runs in your browser</p>
+      <h1>What is your AI actually reading?</h1>
+      <p class="section-intro">Choose the folder your assistants read from. Everything is parsed in this tab. No file, name, or snippet leaves your machine.</p>
+      <button class="primary-button" type="button" data-action="pick">Choose folder</button>
+      <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
+      <p class="small-note">Chrome and Edge open a folder picker. Safari and Firefox use the folder upload control, which still reads locally.</p>
+      <p class="small-note" data-unsupported hidden>This browser cannot read a local folder. Open the page in Chrome, Edge, or Safari, or run the install steps and use the command line instead.</p>
+      <p class="trust-line">🔒 No install, no account, no upload. Your files stay on your machine.</p>
+    </section>
+
+    <section data-pane="scanning" hidden>
+      <h1>Reading locally</h1>
+      <p class="section-intro" data-progress></p>
+    </section>
+
+    <section class="diagnose-result" data-pane="result" hidden></section>
+
+    <section data-pane="error" hidden>
+      <h1>Could not finish the scan</h1>
+      <p class="section-intro" data-error-message></p>
+      <button class="secondary-button" type="button" data-action="reset">Choose another folder</button>
+    </section>
+  </main></div>
+  <footer class="site-footer shell">
+    <div><a class="wordmark" href="/">nautli</a><span>Open source under the MIT License</span></div>
+    <nav aria-label="Footer navigation">
+      <a href="https://github.com/Nautli/nautli" rel="noreferrer">GitHub</a>
+      <a href="https://discord.gg/nautli" rel="noreferrer">Discord</a>
+      <a href="/faq.html">FAQ</a>
+      <span>EN · KO · JA</span>
+    </nav>
+  </footer>
+</body>
+</html>
