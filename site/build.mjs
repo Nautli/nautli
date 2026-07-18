@@ -1,4 +1,4 @@
-import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -23,8 +23,24 @@ const { renderPage, pagePath } = await import(
   pathToFileURL(path.join(srcDir, "template.mjs")).href
 );
 
+// Vercel 링크(.vercel)는 dist 안에 산다 — 이 프로젝트는 site/dist를 루트로
+// CLI 배포한다. 아래 wipe가 매 빌드 그걸 지워서 배포 링크가 계속 사라졌다.
+// 지우기 전에 빼놨다가 되돌린다.
+const vercelDir = path.join(distDir, ".vercel");
+const vercelStash = path.join(siteDir, ".vercel-link-stash");
+const hadVercelLink = await stat(vercelDir).then(() => true, () => false);
+if (hadVercelLink) {
+  await rm(vercelStash, { recursive: true, force: true });
+  await cp(vercelDir, vercelStash, { recursive: true });
+}
+
 await rm(distDir, { recursive: true, force: true });
 await mkdir(distDir, { recursive: true });
+
+if (hadVercelLink) {
+  await cp(vercelStash, vercelDir, { recursive: true });
+  await rm(vercelStash, { recursive: true, force: true });
+}
 
 // dist/ is committed, and the wipe above removes this tracked file every build.
 // Recreate it so a build never silently drops the deploy ignores.
