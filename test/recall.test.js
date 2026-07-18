@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { Store } from "../src/core/store.js";
 import { remember } from "../src/core/gate.js";
-import { recall } from "../src/core/recall.js";
+import { recall, briefing } from "../src/core/recall.js";
 import { ERR } from "../src/core/schema.js";
 
 const config = { default_scope: "person", judge_cmd: null };
@@ -97,4 +97,107 @@ test("an unrelated task with no scoped recent candidates returns W_EMPTY", (t) =
     tokens_used: 0,
     warning: ERR.W_EMPTY,
   });
+});
+
+// TASK-056 regression tests — precision
+
+test("TASK-056: cross-scope noise suppressed (신상 query must not surface nautli facts)", (t) => {
+  const store = isolatedStore(t);
+  const today = new Date().toISOString().slice(0, 10);
+  remember(store, {
+    claim: "nautli recall precision 개선 완료",
+    scope: "project:nautli",
+    t_valid: today,
+    confidence: 0.97,
+  }, config);
+  remember(store, {
+    claim: "nautli 소화 데몬 정상 가동 중",
+    scope: "project:nautli",
+    t_valid: today,
+    confidence: 0.95,
+  }, config);
+  remember(store, {
+    claim: "신상속보 수집기 정상 가동",
+    scope: "project:shinsang",
+    t_valid: today,
+    confidence: 0.9,
+  }, config);
+
+  const result = recall(store, "신상 올릴거없냐", { scope: "project:shinsang" });
+  // nautli facts must NOT appear
+  for (const fact of result.facts) {
+    assert.ok(!fact.scope.includes("nautli"), `unexpected nautli fact: ${fact.claim}`);
+  }
+});
+
+test("TASK-056: scope-matched fact surfaces in top-k (pawcha query finds pawcha)", (t) => {
+  const store = isolatedStore(t);
+  const today = new Date().toISOString().slice(0, 10);
+  // Add many unrelated facts
+  for (let i = 0; i < 20; i++) {
+    remember(store, {
+      claim: `무관 사실 ${i} 오늘 날씨 좋다`,
+      scope: "project:misc",
+      t_valid: today,
+      confidence: 0.8,
+    }, config);
+  }
+  remember(store, {
+    claim: "pawcha 앱스토어 심사거부 상태",
+    scope: "project:pawcha",
+    t_valid: today,
+    confidence: 0.9,
+  }, config);
+
+  const result = recall(store, "pawcha 상태", { scope: "project:pawcha" });
+  assert.ok(result.facts.length >= 1, "should find at least 1 pawcha fact");
+  assert.ok(result.facts.some((f) => f.claim.includes("pawcha")), "pawcha fact must be in results");
+});
+
+test("TASK-056: novel topic with no matches returns low noise (abstain-like)", (t) => {
+  const store = isolatedStore(t);
+  const today = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < 15; i++) {
+    remember(store, {
+      claim: `프로젝트 ${i} 개발 진행 중`,
+      scope: "project:dev",
+      t_valid: today,
+      confidence: 0.9,
+    }, config);
+  }
+  const result = recall(store, "오목 게임 규칙");
+  // Should return very few or zero results — no FTS match for 오목
+  assert.ok(result.facts.length <= 2, `expected ≤2 noise facts, got ${result.facts.length}`);
+});
+
+test("TASK-056: default budget is 700 (not 2000)", (t) => {
+  const store = isolatedStore(t);
+  const today = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < 30; i++) {
+    remember(store, {
+      claim: `기본 예산 검증 사실 ${i} ${"x".repeat(60)}`,
+      scope: "project:budget",
+      t_valid: today,
+    }, config);
+  }
+  const result = recall(store, "예산 검증", { scope: "project:budget" });
+  // top-k 8 cap means at most 8 facts even if budget allows more
+  assert.ok(result.facts.length <= 8, `top-k cap: expected ≤8, got ${result.facts.length}`);
+  assert.ok(result.tokens_used <= 700, `default budget: expected ≤700, got ${result.tokens_used}`);
+});
+
+test("TASK-056: briefing uses separate budget (2000) and includes recents", (t) => {
+  const store = isolatedStore(t);
+  const today = new Date().toISOString().slice(0, 10);
+  for (let i = 0; i < 25; i++) {
+    remember(store, {
+      claim: `브리핑 사실 ${i} 오늘 기록`,
+      scope: "project:brief",
+      t_valid: today,
+    }, config);
+  }
+  const result = briefing(store, "", "project:brief");
+  // briefing has top_k=20 and _include_recents, so can return more than recall's 8
+  assert.ok(result.facts.length > 8, `briefing should return >8 facts, got ${result.facts.length}`);
+  assert.ok(result.facts.length <= 20, "briefing top-k should cap at 20");
 });

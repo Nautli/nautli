@@ -3,6 +3,11 @@ import { computeFreshness, decayedConfidence } from "./validity.js";
 
 const DAY_MS = 86_400_000;
 
+// Precision defaults — TASK-056
+const DEFAULT_BUDGET = 700;
+const DEFAULT_TOP_K = 8;
+const MIN_SCORE = 0;
+
 const FRESHNESS_MARKER = Object.freeze({
   fresh: "",
   stale: " ⚠️stale",
@@ -61,8 +66,18 @@ function projection(fact, freshnessInfo) {
   return base;
 }
 
+/**
+ * Normalize bm25 rank (negative, lower=better) to 0..1 score.
+ * bm25() in SQLite returns negative values; a perfect match might be -20,
+ * a weak match near 0. We negate and apply 1/(1+exp(-x/5)) sigmoid.
+ */
+function normalizeFtsRank(rank) {
+  const x = -rank; // flip: higher = more relevant
+  return 1 / (1 + Math.exp(-x / 5));
+}
+
 export function recall(store, task, opts = {}) {
-  const budget = opts.budget_tokens ?? 2000;
+  const budget = opts.budget_tokens ?? DEFAULT_BUDGET;
   if (budget < 200) {
     const error = new Error(ERR.E_BUDGET_TOO_SMALL);
     error.code = ERR.E_BUDGET_TOO_SMALL;
@@ -75,6 +90,8 @@ export function recall(store, task, opts = {}) {
   const includeArchived = opts.include_archived ?? false;
   const source = opts.source ?? "core";
   const ttlConfig = opts.ttl_days;
+  const topK = opts.top_k ?? DEFAULT_TOP_K;
+  const minScore = opts.min_score ?? MIN_SCORE;
   const candidates = new Map();
   const ranks = new Map();
 
@@ -86,7 +103,13 @@ export function recall(store, task, opts = {}) {
     }
   }
 
-  if (scope || asOf || includeArchived || queryText.trim() === "") {
+  // TASK-056: scope-filler removed for normal recall — only FTS candidates.
+  // Exceptions: (1) as_of needs superseded facts (FTS only returns active),
+  // (2) briefing needs recents for empty queries via _include_recents.
+  if (asOf || includeArchived) {
+    const recent = store.query({ scope, limit: 30 });
+    for (const fact of recent) candidates.set(fact.id, fact);
+  } else if (opts._include_recents && (scope || queryText.trim() === "")) {
     const recent = store.query({ scope, limit: 30 });
     for (const fact of recent) candidates.set(fact.id, fact);
   }
@@ -98,7 +121,8 @@ export function recall(store, task, opts = {}) {
     const weight = scopeWeight(fact.scope, scope);
     if (weight === 0) continue;
     const rank = ranks.get(fact.id);
-    const ftsNorm = rank === undefined ? 0.3 : 1 / (1 + Math.max(0, rank));
+    // Non-FTS candidates (from _include_recents) get low base relevance
+    const ftsNorm = rank === undefined ? 0.1 : normalizeFtsRank(rank);
     const freshnessInfo = computeFreshness(fact, referenceTime, ttlConfig);
     const effectiveConfidence = decayedConfidence(fact, freshnessInfo);
     const score = ftsNorm * recency(fact, referenceTime) * effectiveConfidence * weight;
@@ -109,10 +133,15 @@ export function recall(store, task, opts = {}) {
     || String(right.fact.t_valid).localeCompare(String(left.fact.t_valid))
     || left.fact.id.localeCompare(right.fact.id));
 
+  // TASK-056: top-k cap + minimum score cutoff (abstain when nothing relevant)
+  const filtered = scored
+    .filter(({ score }) => score >= minScore)
+    .slice(0, topK);
+
   const facts = [];
   const lines = [];
   let tokensUsed = 0;
-  for (const { fact, freshnessInfo } of scored) {
+  for (const { fact, freshnessInfo } of filtered) {
     const line = renderFact(fact, freshnessInfo);
     const tokens = Math.ceil(line.length / 3);
     if (tokensUsed + tokens > budget) continue;
@@ -144,5 +173,8 @@ export function briefing(store, context = "", scope, config = {}) {
     ttl_days: config.ttl_days,
     tool: "briefing",
     session_id: config.session_id,
+    _include_recents: true,
+    top_k: 20,
+    min_score: 0.01,
   });
 }
