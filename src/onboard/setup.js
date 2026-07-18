@@ -816,6 +816,8 @@ export function installDaemon(
 ) {
   const t = translator(locale);
   initStore(home);
+  // WatchPaths 대상이 로드 시점에 없으면 launchd가 감시를 armed하지 못할 수 있다 — 미리 만든다.
+  fs.mkdirSync(path.join(home, "daemon", "spool"), { recursive: true });
   const file = userPaths(userHome).plist;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, daemonPlist(home), "utf8");
