@@ -1,0 +1,317 @@
+/**
+ * Handoff Card v2 — "오늘의 인수인계 카드"
+ *
+ * Replaces the v1 savings receipt (activity counts only) with an observation-based
+ * card that shows: ① a representative delivered fact, ② where work stopped,
+ * ③ new/replaced fact delta, ④ memory token measurement.
+ *
+ * Design constraints (sol 2R 2026-07-18):
+ * - No causal language ("아꼈다/면했다/절감했다") — only observational ("건넸다/전달됐다")
+ * - No overall savings percentage until experiment sample flag is true
+ * - Skip card when there is no delta (no new facts, no deliveries)
+ */
+
+import fs from "node:fs";
+import path from "node:path";
+
+const DAY_MS = 86_400_000;
+
+// ── Causal language guard ──────────────────────────────────────────────
+// These patterns must never appear in user-facing handoff card copy.
+// Only observational phrasing is allowed.
+export const CAUSAL_BANNED_PATTERNS = [
+  /아꼈/u,
+  /면했/u,
+  /절감했/u,
+  /절감률/u,
+  /절약했/u,
+  /saved/iu,
+  /savings/iu,
+  /avoided/iu,
+  /reduced/iu,
+];
+
+export function assertNoCausalLanguage(text) {
+  for (const pattern of CAUSAL_BANNED_PATTERNS) {
+    if (pattern.test(text)) {
+      throw new Error(`Causal language detected in handoff card: "${text}" matches ${pattern}`);
+    }
+  }
+}
+
+// ── Savings percentage gate ────────────────────────────────────────────
+// Overall savings % is banned until an experiment sample is available.
+export function savingsPercentage(numerator, denominator, { experimentSampleReady = false } = {}) {
+  if (!experimentSampleReady) {
+    throw new Error(
+      "Savings percentage is blocked: experiment sample is not ready. "
+      + "Set experimentSampleReady=true only after controlled experiment data is collected.",
+    );
+  }
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) {
+    return null;
+  }
+  return Math.round((numerator / denominator) * 100);
+}
+
+// ── Internal helpers ───────────────────────────────────────────────────
+
+function readJsonLines(file) {
+  if (!fs.existsSync(file)) return [];
+  const values = [];
+  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+    if (line.trim() === "") continue;
+    try {
+      const value = JSON.parse(line);
+      if (value && typeof value === "object" && !Array.isArray(value)) values.push(value);
+    } catch {
+      // skip damaged lines
+    }
+  }
+  return values;
+}
+
+function eventsInWindow(home, cutoff, now) {
+  const directory = path.join(home, "events");
+  if (!fs.existsSync(directory)) return [];
+  const firstMonth = new Date(cutoff).toISOString().slice(0, 7);
+  const lastMonth = new Date(now).toISOString().slice(0, 7);
+  return fs.readdirSync(directory)
+    .filter((name) => /^\d{4}-\d{2}\.jsonl$/u.test(name))
+    .filter((name) => name.slice(0, 7) >= firstMonth && name.slice(0, 7) <= lastMonth)
+    .sort()
+    .flatMap((name) => readJsonLines(path.join(directory, name)));
+}
+
+function inWindow(value, cutoff, now) {
+  const time = Date.parse(value);
+  return Number.isFinite(time) && time >= cutoff && time <= now;
+}
+
+// ── Block ①: Representative delivered fact ─────────────────────────────
+// A fact is "전달됨" if it appears in `hits` of a recall event in the window.
+function findDeliveredFact(events, store, cutoff, now) {
+  const deliveredIds = new Map(); // factId -> count of sessions
+  const sessions = new Set();
+
+  for (const event of events) {
+    if (event.type !== "recall"
+      || event.ev !== undefined
+      || !Array.isArray(event.hits)
+      || event.hits.length === 0
+      || !inWindow(event.at, cutoff, now)) continue;
+
+    const sessionKey = event.session_id || `bucket:${Math.floor(Date.parse(event.at) / 600000)}`;
+    sessions.add(sessionKey);
+
+    for (const factId of event.hits) {
+      if (typeof factId !== "string") continue;
+      deliveredIds.set(factId, (deliveredIds.get(factId) || 0) + 1);
+    }
+  }
+
+  if (deliveredIds.size === 0) return null;
+
+  // Pick the most-delivered fact
+  let bestId = null;
+  let bestCount = 0;
+  for (const [id, count] of deliveredIds) {
+    if (count > bestCount) {
+      bestId = id;
+      bestCount = count;
+    }
+  }
+
+  const fact = store?.getFact?.(bestId);
+  const claim = fact?.claim ?? null;
+
+  return {
+    fact_id: bestId,
+    claim,
+    delivery_count: bestCount,
+    session_count: sessions.size,
+  };
+}
+
+// ── Block ②: Where work stopped ───────────────────────────────────────
+function findLastActivity(events, cutoff, now) {
+  let latest = null;
+  let latestTime = 0;
+
+  for (const event of events) {
+    if (!inWindow(event.at, cutoff, now)) continue;
+    const time = Date.parse(event.at);
+    if (time > latestTime) {
+      latestTime = time;
+      latest = event;
+    }
+  }
+
+  if (!latest) return null;
+
+  // Extract project/scope from the most recent event
+  const scope = latest.scope
+    ?? latest.fact?.scope
+    ?? null;
+
+  return {
+    scope,
+    at: latest.at,
+    type: latest.type ?? latest.ev ?? null,
+  };
+}
+
+// ── Block ③: New/replaced fact delta ──────────────────────────────────
+function findFactsDelta(events, store, cutoff, now) {
+  const added = [];
+  const replaced = [];
+
+  for (const event of events) {
+    if (!inWindow(event.at, cutoff, now)) continue;
+
+    if (event.ev === "fact.added"
+      && (event.fact?.status === undefined || event.fact?.status === "active")) {
+      added.push({
+        id: event.fact?.id,
+        claim: event.fact?.claim,
+        scope: event.fact?.scope,
+      });
+    } else if (event.ev === "fact.superseded" && event.id) {
+      const oldFact = store?.getFact?.(event.id);
+      const newId = oldFact?.superseded_by;
+      const newFact = newId ? store?.getFact?.(newId) : null;
+      replaced.push({
+        old_id: event.id,
+        old_claim: oldFact?.claim ?? null,
+        new_id: newId ?? null,
+        new_claim: newFact?.claim ?? null,
+      });
+    }
+  }
+
+  return { added, replaced };
+}
+
+// ── Block ④: Memory token measurement ─────────────────────────────────
+function measureTokens(events, cutoff, now) {
+  let injectedChars = 0;
+
+  for (const event of events) {
+    if (event.type !== "recall"
+      || event.ev !== undefined
+      || !inWindow(event.at, cutoff, now)) continue;
+
+    if (Number.isFinite(event.returned_chars) && event.returned_chars >= 0) {
+      injectedChars += event.returned_chars;
+    }
+  }
+
+  return {
+    injected_tokens: Math.ceil(injectedChars / 4),
+    injected_chars: injectedChars,
+  };
+}
+
+// ── Main builder ───────────────────────────────────────────────────────
+
+/**
+ * Build the handoff card for the daily report.
+ *
+ * @param {string} home - nautli home directory
+ * @param {object} store - Store instance (for getFact)
+ * @param {object} [options]
+ * @param {number} [options.days=1] - window in days (default: yesterday only)
+ * @param {string|Date} [options.now] - reference time
+ * @returns {object|null} - card data or null if nothing to report
+ */
+export function buildHandoffCard(home, store, { days = 1, now } = {}) {
+  const windowDays = Number.isFinite(Number(days)) && Number(days) > 0
+    ? Number(days)
+    : 1;
+  const clock = now === undefined ? new Date() : new Date(now);
+  if (!Number.isFinite(clock.getTime())) throw new TypeError("Invalid handoff card clock");
+  const nowTime = clock.getTime();
+  const cutoff = nowTime - windowDays * DAY_MS;
+
+  const events = eventsInWindow(home, cutoff, nowTime);
+
+  const delivered = findDeliveredFact(events, store, cutoff, nowTime);
+  const lastActivity = findLastActivity(events, cutoff, nowTime);
+  const delta = findFactsDelta(events, store, cutoff, nowTime);
+  const tokens = measureTokens(events, cutoff, nowTime);
+
+  // Skip card if there is nothing to report:
+  // no deliveries, no new/replaced facts, no activity
+  const hasDelivery = delivered !== null;
+  const hasDelta = delta.added.length > 0 || delta.replaced.length > 0;
+  const hasActivity = lastActivity !== null;
+
+  if (!hasDelivery && !hasDelta) {
+    return null;
+  }
+
+  return {
+    window_days: windowDays,
+    since_at: new Date(cutoff).toISOString(),
+    generated_at: clock.toISOString(),
+    delivered,
+    last_activity: lastActivity,
+    delta,
+    tokens,
+    has_content: hasDelivery || hasDelta,
+  };
+}
+
+// ── Markdown renderer for daemon report ────────────────────────────────
+
+export function renderHandoffCard(card, t) {
+  if (!card) return null;
+
+  const lines = [];
+  lines.push(t("report.handoff_heading"));
+
+  // Block ① — delivered fact
+  if (card.delivered) {
+    const claim = card.delivered.claim
+      ? `"${card.delivered.claim}"`
+      : card.delivered.fact_id;
+    lines.push(t("report.handoff_delivered", {
+      claim,
+      sessions: card.delivered.session_count,
+    }));
+  }
+
+  // Block ② — where work stopped
+  if (card.last_activity) {
+    const scope = card.last_activity.scope ?? "-";
+    lines.push(t("report.handoff_last_activity", { scope, at: card.last_activity.at }));
+  }
+
+  // Block ③ — fact delta
+  if (card.delta.added.length > 0 || card.delta.replaced.length > 0) {
+    lines.push(t("report.handoff_delta_heading"));
+    for (const added of card.delta.added.slice(0, 5)) {
+      lines.push(t("report.handoff_delta_added", { claim: added.claim ?? added.id }));
+    }
+    for (const replaced of card.delta.replaced.slice(0, 5)) {
+      const oldText = replaced.old_claim ?? replaced.old_id ?? "?";
+      const newText = replaced.new_claim ?? replaced.new_id ?? "?";
+      lines.push(t("report.handoff_delta_replaced", { old: oldText, new: newText }));
+    }
+    if (card.delta.added.length + card.delta.replaced.length > 10) {
+      const remaining = card.delta.added.length + card.delta.replaced.length - 10;
+      lines.push(t("report.handoff_delta_more", { count: remaining }));
+    }
+  }
+
+  // Block ④ — token measurement
+  if (card.tokens.injected_tokens > 0) {
+    lines.push(t("report.handoff_tokens", { tokens: card.tokens.injected_tokens }));
+  }
+
+  // Guard: verify no causal language leaked into output
+  const output = lines.join("\n");
+  assertNoCausalLanguage(output);
+
+  return output;
+}

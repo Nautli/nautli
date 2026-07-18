@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { buildHandoffCard, renderHandoffCard } from "../core/handoff-card.js";
 import { buildReceipt } from "../core/receipt.js";
 import { resolveLocale, makeT } from "../i18n/strings.js";
 
@@ -69,21 +70,18 @@ export function writeReport(store, home, results) {
   }
   lines.push("");
 
-  const receipt = buildReceipt(home, store);
-  const delta = receipt.facts_delta >= 0
-    ? `+${receipt.facts_delta}`
-    : String(receipt.facts_delta);
-  lines.push(t("report.receipt_heading"));
-  if (!receipt.sample_ok) {
-    lines.push(t("report.receipt_first_week"));
+  // Handoff card v2 (replaces v1 receipt in report body)
+  const handoffCard = buildHandoffCard(home, store, { days: 1 });
+  if (handoffCard && handoffCard.has_content) {
+    const cardText = renderHandoffCard(handoffCard, t);
+    if (cardText) lines.push(cardText, "");
+  } else {
+    lines.push(t("report.handoff_empty"), "");
   }
-  lines.push(
-    t("report.receipt_conversations", { count: receipt.conversations }),
-    t("report.receipt_tokens", { count: receipt.tokens_delivered }),
-    t("report.receipt_organized", { count: receipt.organized }),
-    t("report.receipt_facts", { active: receipt.facts_active, delta }),
-    "",
-  );
+
+  // Legacy receipt (kept for dashboard/MCP — not rendered in report)
+  const receipt = buildReceipt(home, store);
+  void receipt;
 
   const oracleDecisions = Array.isArray(oracle?.decisions) ? oracle.decisions : [];
   if (oracleDecisions.length > 0) {

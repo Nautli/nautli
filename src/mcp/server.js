@@ -28,6 +28,7 @@ const DIGEST_STALE_MS = 48 * 60 * 60 * 1000;
 // 노이즈 방지: 행동이 필요한 상태(카드 대기, 소화 멈춤)만 싣는다.
 export function receiptHeader(receipt, t) {
   if (!receipt || receipt.activity === 0) return null;
+  // Observational phrasing only — no savings claims
   if (receipt.sample_ok) {
     return t("mcp.briefing.receipt", {
       days: receipt.days,
