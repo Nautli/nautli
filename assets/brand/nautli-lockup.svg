@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="800" height="300" viewBox="0 0 800 300" role="img" aria-labelledby="title desc">
   <title id="title">Nautli lockup</title>
-  <desc id="desc">The Nautli spiral mark beside a heavy lowercase wordmark with a teal i-tittle.</desc>
+  <desc id="desc">The Nautli spiral mark beside a heavy lowercase wordmark with a neon green i-tittle.</desc>
   <rect width="800" height="300" fill="#F7F7F5"/>
   <g transform="translate(20 20) scale(.8666667)">
     <path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="#141414" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="150" cy="150" r="10.5" fill="#087A6B"/>
+    <circle cx="150" cy="150" r="10.5" fill="#007A58"/>
   </g>
   <text x="306" y="193" fill="#141414" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="132" font-weight="700" letter-spacing="-5">nautl</text>
   <rect x="602" y="125" width="19" height="68" rx="2" fill="#141414"/>
-  <circle cx="611.5" cy="104.5" r="9.5" fill="#087A6B"/>
+  <circle cx="611.5" cy="104.5" r="9.5" fill="#007A58"/>
 </svg>

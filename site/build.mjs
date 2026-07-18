@@ -64,28 +64,25 @@ for (const name of await readdir(path.join(srcDir, "fonts"))) {
 
 const assetsOut = path.join(distDir, "assets");
 await mkdir(assetsOut, { recursive: true });
+// 페이지가 참조하는 자산은 없으면 빌드를 세운다.
+// ENOENT를 삼키면 og:image가 404인 채로 몇 주가 지나간다(2026-07-19에 실제로 발견).
 for (const [source, destination] of [
   ["nautli-favicon.svg", "favicon.svg"],
   ["nautli-favicon.ico", "favicon.ico"],
 ]) {
-  try {
-    await copyFile(path.join(brandDir, source), path.join(assetsOut, destination));
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
+  await copyFile(path.join(brandDir, source), path.join(assetsOut, destination));
 }
 
-try {
-  const brandFiles = await readdir(brandDir);
-  const ogSource = brandFiles
-    .filter((name) => /^nautli-og-1200x630.*\.png$/i.test(name))
-    .sort()[0];
-  if (ogSource) {
-    await copyFile(path.join(brandDir, ogSource), path.join(assetsOut, "og.png"));
-  }
-} catch (error) {
-  if (error.code !== "ENOENT") throw error;
+const brandFiles = await readdir(brandDir);
+const ogSource = brandFiles
+  .filter((name) => /^nautli-og-1200x630.*\.png$/i.test(name))
+  .sort()[0];
+if (!ogSource) {
+  throw new Error(
+    `og:image가 /assets/og.png를 참조하는데 ${brandDir}에 nautli-og-1200x630*.png가 없다`,
+  );
 }
+await copyFile(path.join(brandDir, ogSource), path.join(assetsOut, "og.png"));
 
 const sitemapEntries = [];
 for (const page of pages) {

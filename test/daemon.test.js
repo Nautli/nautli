@@ -261,6 +261,24 @@ test("judge retries once after a non-zero batch exit and keeps the successful re
   assert.match(fs.readFileSync(path.join(home, "daemon", "judge-raw.log"), "utf8"), /RETRY \(Judge exited with 1\)/u);
 });
 
+test("judge batch failure includes stderr in errors array for health.log diagnostics", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const alwaysFailJudge = path.join(root, "test", "fixtures", "always-fail-judge.js");
+  const a = add(store, "stderr 전파 검증 왼쪽", "project:stderr-test", "2025-01-01");
+  const b = add(store, "stderr 전파 검증 오른쪽", "project:stderr-test", "2025-02-01");
+
+  const result = await judgePairs([{ a: store.getFact(a.id), b: store.getFact(b.id) }], store, {
+    judge_cmd: [process.execPath, alwaysFailJudge],
+  }, home);
+
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0].reason, /Judge exited with 1/u);
+  assert.ok(result.errors[0].stderr, "stderr field should be present in error");
+  assert.match(result.errors[0].stderr, /rate limit exceeded/u);
+  assert.equal(result.judgments.length, 1);
+  assert.equal(result.judgments[0].failed, true);
+});
+
 test("judge_cmd ending with bare -p gets the default prompt injected (config specifies binary/model only)", async () => {
   const { command, JUDGE_PROMPT } = await import("../src/daemon/judge.js");
   const resolved = command({ judge_cmd: ["claude-patched", "--model", "sonnet", "-p"] });

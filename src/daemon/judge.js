@@ -310,13 +310,23 @@ export async function judgePairs(pairs, store, config, home) {
       if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset}\nstdout:\n${result.rawStdout}\nstderr:\n${result.rawStderr}\n`);
       parsedCount += result.parsedCount;
       if (result.parsedCount === 0 && batch.length > 0) {
-        errors.push({ offset, count: batch.length, reason: "judge 응답을 해석하지 못했습니다." });
+        errors.push({
+        offset,
+        count: batch.length,
+        reason: "judge 응답을 해석하지 못했습니다.",
+        ...(result.rawStderr ? { stderr: result.rawStderr.slice(0, 500) } : {}),
+      });
       }
       judgments.push(...result.judgments);
     } catch (error) {
       // 배치 하나의 실패(스폰 에러·타임아웃)가 밤 전체를 날리지 않게 격리 — 해당 쌍은 안전 no-op
       if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} FAILED: ${error.message}\nstdout:\n${error.rawStdout ?? ""}\nstderr:\n${error.rawStderr ?? ""}\n`);
-      errors.push({ offset, count: batch.length, reason: error.message });
+      errors.push({
+        offset,
+        count: batch.length,
+        reason: error.message,
+        ...(error.rawStderr ? { stderr: error.rawStderr.slice(0, 500) } : {}),
+      });
       judgments.push(...batch.map((pair) => safeJudgment(
         pairId(pair),
         `batch failed: ${error.message}`,
