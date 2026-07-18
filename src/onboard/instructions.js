@@ -15,7 +15,7 @@ ${INSTRUCTIONS_END}`;
 export const AI_INSTRUCTIONS_KO = `${INSTRUCTIONS_START}
 ## nautli 기억 사용 규칙
 
-- 대화를 시작하거나 작업 맥락이 필요할 때 \`briefing\` 또는 \`recall\`로 관련 기억을 먼저 확인한다. briefing에 [nautli] 상태 줄(리뷰 카드 대기·소화 멈춤)이 있으면 사용자에게 전달한다.
+- 대화를 시작하거나 작업 맥락이 필요할 때 \`briefing\` 또는 \`recall\`로 관련 기억을 먼저 확인한다. briefing에 [nautli] 상태 줄(예: 소화 멈춤)이 있으면 사용자에게 전달한다.
 - 사용자가 명시적으로 기억해 달라고 했거나, 앞으로 다시 쓰일 의미 있는 결정·검증된 교훈·상태 변화가 생겼을 때만 \`remember\`로 한 사실씩 저장한다.
 - 잡담, 추측, 일회성 정보, 아직 검증되지 않은 내용, 작업의 중간 과정은 저장하지 않는다.
 - 개인의 지속적인 선호·정보는 \`person\`, 여러 프로젝트에 공통인 절차는 \`procedure\`, 특정 프로젝트의 사실은 \`project:<프로젝트명>\` scope를 사용한다.

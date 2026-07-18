@@ -48,16 +48,23 @@ test("notifyDigestResult posts a macOS notification via argv (no injection)", ()
   const calls = [];
   const runner = (command, args) => { calls.push([command, args]); return ""; };
   const ok = notifyDigestResult(
-    { ok: true, applied: 3, report: { pending: 5 } },
+    { ok: true, applied: 3, shadowed: 2 },
     { runner, locale: "ko", config: {} },
   );
   assert.equal(ok.notified, true);
   const [command, args] = calls[0];
   assert.equal(command, "osascript");
   const body = args[args.length - 2];
-  assert.ok(body.includes("3") && body.includes("5"));
+  // 순찰 공식: 잡은 건수 + 지켜보는 건수. 답변 CTA·리뷰 카드 문구는 금지.
+  assert.ok(body.includes("3") && body.includes("2"));
+  assert.ok(body.includes("잡았어요") && body.includes("지켜보는 중"));
+  assert.ok(!body.includes("리뷰 카드") && !body.includes("답해"));
   // 본문은 argv로만 전달 — -e 스크립트 문자열에 보간되지 않는다
   assert.ok(!args.filter((a, i) => args[i - 1] === "-e").some((s) => s.includes(body)));
+
+  const clear = notifyDigestResult({ ok: true, applied: 0, shadowed: 0 }, { runner, locale: "ko", config: {} });
+  assert.equal(clear.notified, true);
+  assert.ok(calls[1][1][calls[1][1].length - 2].includes("지켰어요"));
 
   assert.equal(notifyDigestResult({ ok: true, skipped_run: true }, { runner }).notified, false);
   assert.equal(notifyDigestResult({ ok: true }, { runner, config: { notifications: false } }).notified, false);
