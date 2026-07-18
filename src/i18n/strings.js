@@ -96,9 +96,12 @@ mcp        MCP 서버를 실행해요.
   "setup.digest_already_running": { en: "Another digestion is already running; skipping this run", ko: "다른 소화가 이미 실행 중이라 이번 실행은 건너뛰어요." },
 
   "daemon.notify.title": { en: "nautli", ko: "nautli" },
-  "daemon.notify.done_body": { en: "Night digestion done — {applied} applied, {pending} review card(s) waiting. Open the nautli app to answer.", ko: "밤 소화 완료 — 적용 {applied}건, 리뷰 카드 {pending}건 대기. nautli 앱에서 답해 주세요." },
-  "daemon.notify.partial_body": { en: "Night digestion done — {applied} applied, {pending} review card(s) waiting. Some judgments will be retried during the next digestion. Open the nautli app to answer.", ko: "밤 소화 완료 — 적용 {applied}건, 리뷰 카드 {pending}건 대기. 일부 판정은 다음 소화 때 다시 시도해요. nautli 앱에서 답해 주세요." },
-  "daemon.notify.failed_body": { en: "Night digestion failed — run npx nautli checkup to inspect.", ko: "밤 소화에 실패했어요 — npx nautli checkup으로 점검해 주세요." },
+  "daemon.notify.caught_body": { en: "Your nautli caught {applied} duplicate {mem}. No more tokens wasted on repeats.", ko: "nautli가 중복 기억 {applied}건을 잡았어요. 같은 내용이 두 번 로드되는 토큰 낭비를 막았어요." },
+  "daemon.notify.caught_held_body": { en: "Your nautli caught {applied} duplicate {mem} and is keeping an eye on {held} more.", ko: "nautli가 중복 기억 {applied}건을 잡았어요. 애매한 {held}건은 지켜보는 중이에요." },
+  "daemon.notify.held_body": { en: "Your nautli held back {held} uncertain {chg} to recheck on the next patrol.", ko: "nautli가 애매한 변경 {held}건을 막아뒀어요. 다음 순찰에서 다시 확인할게요." },
+  "daemon.notify.clear_body": { en: "Your nautli kept watch. Nothing found that could disrupt your next session.", ko: "nautli가 기억을 지켰어요. 다음 세션을 방해할 문제는 없었어요." },
+  "daemon.notify.partial_body": { en: "Patrol finished. Some judgments will be retried on the next patrol.", ko: "nautli 순찰이 끝났어요. 일부 판정은 다음 순찰에서 다시 시도할게요." },
+  "daemon.notify.failed_body": { en: "Patrol was interrupted. Run npx nautli checkup to inspect.", ko: "순찰이 중단됐어요. npx nautli checkup으로 점검해 주세요." },
 
   "checkup.harness_claude": { en: "Claude harness (~/.claude)", ko: "Claude 하네스 (~/.claude)" },
   "checkup.harness_codex": { en: "Codex harness (~/.codex)", ko: "Codex 하네스 (~/.codex)" },
@@ -120,8 +123,6 @@ mcp        MCP 서버를 실행해요.
   "checkup.import_missing": { en: "No checkup result to import", ko: "가져올 진단 결과가 없어요." },
   "checkup.memories_missing": { en: "No memories were extracted by the checkup", ko: "진단에서 추출된 기억이 없어요." },
 
-  "mcp.briefing.cards_waiting": { en: "[nautli] {count} review card(s) are waiting for the user's answer. Please tell the user and point them to the dashboard (npx nautli dashboard).", ko: "[nautli] 리뷰 카드 {count}건이 사용자 답변을 기다리고 있어요. 사용자에게 알리고 대시보드(npx nautli dashboard)로 안내해 주세요." },
-  "mcp.briefing.cards_waiting_backlog": { en: "[nautli] {count} review card(s) are waiting for the user's answer ({backlog} more will surface at up to 3 per day). Please tell the user and point them to the dashboard (npx nautli dashboard).", ko: "[nautli] 오늘의 리뷰 카드 {count}건이 답변을 기다리고 있어요. 대기 중인 {backlog}건은 하루 3건씩 순서대로 나와요. 사용자에게 알리고 대시보드(npx nautli dashboard)로 안내해 주세요." },
   "mcp.briefing.auto_cleanup": { en: "[nautli] {count} memories auto-organized so far ({undone} reversed by user).", ko: "[nautli] 기억 {count}건 자동 정리 완료 (사용자 되돌리기 {undone}건)." },
   "mcp.briefing.digest_stale": { en: "[nautli] Nightly digestion has not succeeded since {last}. Please suggest the user run npx nautli checkup.", ko: "[nautli] 밤 소화가 {last} 이후 성공하지 못했어요. 사용자에게 npx nautli checkup 점검을 권해 주세요." },
   "mcp.briefing.receipt": { en: "In the last {days} days, memory carried across {conversations} conversations and delivered about {tokens} tokens of relevant memory.", ko: "최근 {days}일, 기억으로 이어간 대화 {conversations}번, 필요한 기억 약 {tokens}토큰만 골라 건넸어요." },

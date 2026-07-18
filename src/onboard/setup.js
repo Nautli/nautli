@@ -1052,12 +1052,21 @@ export function notifyDigestResult(result, { runner = defaultRunner, locale, con
   if (!result || result.skipped_run) return { notified: false, reason: "skipped_run" };
   const t = translator(locale);
   const failed = result.ok === false;
-  const body = failed
-    ? t("daemon.notify.failed_body")
-    : t(result.partial === true ? "daemon.notify.partial_body" : "daemon.notify.done_body", {
-        applied: result.applied ?? 0,
-        pending: result.report?.pending ?? 0,
-      });
+  const applied = result.applied ?? 0;
+  const held = result.shadowed ?? 0;
+  // 카피 선택: 순찰 공식(잡았다→막았다). 질문 큐 폐지 후라 pending/answer CTA는 없다.
+  let body;
+  if (failed) body = t("daemon.notify.failed_body");
+  else if (result.partial === true) body = t("daemon.notify.partial_body");
+  else if (applied > 0 && held > 0) {
+    body = t("daemon.notify.caught_held_body", { applied, held, mem: applied === 1 ? "memory" : "memories" });
+  } else if (applied > 0) {
+    body = t("daemon.notify.caught_body", { applied, mem: applied === 1 ? "memory" : "memories" });
+  } else if (held > 0) {
+    body = t("daemon.notify.held_body", { held, chg: held === 1 ? "change" : "changes" });
+  } else {
+    body = t("daemon.notify.clear_body");
+  }
   const title = t("daemon.notify.title");
   try {
     runnerText(runner, "osascript", [

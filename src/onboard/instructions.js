@@ -4,7 +4,7 @@ export const INSTRUCTIONS_END = "<!-- /nautli:instructions -->";
 export const AI_INSTRUCTIONS = `${INSTRUCTIONS_START}
 ## nautli memory rules
 
-- At the start of a conversation or when context is needed, check relevant memories with \`briefing\` or \`recall\` first. If the briefing includes a [nautli] status line (pending review cards or stalled digestion), relay it to the user.
+- At the start of a conversation or when context is needed, check relevant memories with \`briefing\` or \`recall\` first. If the briefing includes a [nautli] status line (e.g. a stalled digestion), relay it to the user.
 - Use \`remember\` to save one fact at a time only when the user explicitly asks you to remember it, or when a meaningful decision, verified lesson, or state change will be useful again.
 - Do not save small talk, speculation, one-off information, unverified content, or intermediate work.
 - Use the \`person\` scope for persistent personal preferences and information, \`procedure\` for workflows shared across projects, and \`project:<project-name>\` for facts specific to one project.
