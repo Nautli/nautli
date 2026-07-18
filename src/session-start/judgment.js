@@ -92,8 +92,10 @@ export function computeJudgment(home, { since } = {}) {
         const hits = Array.isArray(recall.hits) ? recall.hits : [];
         if (hits.length > 0) {
           nonEmptyRecalls += 1;
-          // A recall with hits in the session's scope is considered useful consumption
-          usefulConsumptions += 1;
+          // Useful consumption: recall with hits AND scope matches session (proxy — correction unavailable)
+          if (!recall.scope || recall.scope === session.scope) {
+            usefulConsumptions += 1;
+          }
         }
         // Wrong scope: recall scope doesn't match session scope (includes person — HOLD rule)
         if (recall.scope && session.scope && recall.scope !== session.scope) {
@@ -114,6 +116,7 @@ export function computeJudgment(home, { since } = {}) {
       wrong_scope_rate: totalRecalls > 0 ? wrongScopeRecalls / totalRecalls : null,
       useful_consumptions: usefulConsumptions,
       useful_consumption_rate: eligible > 0 ? usefulConsumptions / eligible : null,
+      // For control arm: potential tokens (not actually injected into context)
       total_tokens_injected: totalTokensInjected,
     };
   }

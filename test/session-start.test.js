@@ -319,6 +319,49 @@ test("computeJudgment triggers HOLD on person-scope recall in treatment", (t) =>
   assert.equal(result.decision, "HOLD");
 });
 
+test("computeJudgment does NOT trigger HOLD on wrong-scope in control arm", (t) => {
+  const home = isolatedHome(t);
+  const eventsDir = path.join(home, "events");
+  fs.mkdirSync(eventsDir, { recursive: true });
+
+  const events = [
+    // control arm session with wrong-scope recall
+    { ev: "session_start.index", session_id: "c1", cwd: "/tmp/proj", scope: "project:proj", experiment_arm: 0, fact_count: 3, tokens: 20, at: "2026-07-18T10:00:00.000Z" },
+    { type: "recall", tool: "recall", query: "other project", scope: "project:other", hits: ["f1"], session_id: "c1", at: "2026-07-18T10:01:00.000Z" },
+  ];
+  fs.writeFileSync(
+    path.join(eventsDir, "2026-07.jsonl"),
+    events.map((e) => JSON.stringify(e)).join("\n") + "\n",
+    "utf8",
+  );
+
+  const result = computeJudgment(home);
+  assert.equal(result.control.wrong_scope_recalls, 1);
+  // HOLD only checks treatment arm
+  assert.equal(result.decision, "CONTINUE");
+});
+
+test("computeJudgment excludes wrong-scope recall from useful_consumptions", (t) => {
+  const home = isolatedHome(t);
+  const eventsDir = path.join(home, "events");
+  fs.mkdirSync(eventsDir, { recursive: true });
+
+  const events = [
+    { ev: "session_start.index", session_id: "t1", cwd: "/tmp/proj", scope: "project:proj", experiment_arm: 1, fact_count: 3, tokens: 20, at: "2026-07-18T10:00:00.000Z" },
+    // wrong-scope recall with hits — should NOT count as useful consumption
+    { type: "recall", tool: "recall", query: "leak", scope: "person", hits: ["f1"], session_id: "t1", at: "2026-07-18T10:01:00.000Z" },
+  ];
+  fs.writeFileSync(
+    path.join(eventsDir, "2026-07.jsonl"),
+    events.map((e) => JSON.stringify(e)).join("\n") + "\n",
+    "utf8",
+  );
+
+  const result = computeJudgment(home);
+  assert.equal(result.treatment.useful_consumptions, 0);
+  assert.equal(result.treatment.non_empty_recalls, 1);
+});
+
 // --- CLI integration ---
 test("session-start-hook CLI outputs nothing for excluded session", (t) => {
   const home = isolatedHome(t);
