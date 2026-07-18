@@ -63,8 +63,9 @@ test("notifyDigestResult posts a macOS notification via argv (no injection)", ()
   assert.ok(!args.filter((a, i) => args[i - 1] === "-e").some((s) => s.includes(body)));
 
   const clear = notifyDigestResult({ ok: true, applied: 0, shadowed: 0 }, { runner, locale: "ko", config: {} });
-  assert.equal(clear.notified, true);
-  assert.ok(calls[1][1][calls[1][1].length - 2].includes("지켰어요"));
+  assert.equal(clear.notified, false);
+  assert.equal(clear.reason, "no_changes");
+  assert.equal(calls.length, 1);
 
   assert.equal(notifyDigestResult({ ok: true, skipped_run: true }, { runner }).notified, false);
   assert.equal(notifyDigestResult({ ok: true }, { runner, config: { notifications: false } }).notified, false);
@@ -196,6 +197,8 @@ test("daemon plist enables catch-up and stale labels are booted out first", (t) 
   const plist = fs.readFileSync(result.plist, "utf8");
   assert.match(plist, /RunAtLoad/);
   assert.match(plist, /StartCalendarInterval/);
+  assert.match(plist, /WatchPaths/);
+  assert.match(plist, /<key>ThrottleInterval<\/key><integer>60<\/integer>/);
   const launchctl = calls.filter((call) => call[0] === "launchctl");
   assert.deepEqual(launchctl[0].slice(1), ["bootout", "gui/501/com.nautli.daemon"]);
   assert.equal(launchctl[1][1], "bootstrap");

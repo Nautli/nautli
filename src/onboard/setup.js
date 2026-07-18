@@ -1110,8 +1110,9 @@ export function notifyDigestResult(result, {
   config = {},
   home,
   now = new Date(),
+  platform = process.platform,
 } = {}) {
-  if (process.platform !== "darwin") return { notified: false, reason: "platform" };
+  if (platform !== "darwin") return { notified: false, reason: "platform" };
   if (config.notifications === false) return { notified: false, reason: "disabled" };
   if (!result || result.skipped_run) return { notified: false, reason: "skipped_run" };
   const t = translator(locale);
