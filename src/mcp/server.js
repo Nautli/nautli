@@ -13,6 +13,7 @@ import { undoStats } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { makeT, resolveLocale } from "../i18n/strings.js";
+import { runOnce } from "../daemon/pipeline.js";
 import { digestFreshness } from "../onboard/setup.js";
 
 const DEFAULT_CONFIG = Object.freeze({
@@ -22,6 +23,39 @@ const DEFAULT_CONFIG = Object.freeze({
 
 const ERROR_CODES = new Set(Object.values(ERR));
 const DIGEST_STALE_MS = 48 * 60 * 60 * 1000;
+const DIGEST_LOCK_STALE_MS = 3 * 60 * 60 * 1000;
+const MAX_ON_DEMAND_PAIRS = 20;
+
+function acquireDigestLock(file) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      fs.writeFileSync(file, `${process.pid}\n`, { flag: "wx" });
+      return true;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      let age = 0;
+      try {
+        age = Date.now() - fs.statSync(file).mtimeMs;
+      } catch {
+        continue;
+      }
+      if (age < DIGEST_LOCK_STALE_MS) return false;
+      fs.rmSync(file, { force: true });
+    }
+  }
+  return false;
+}
+
+function recordConsolidateJournal(home, detail) {
+  const file = path.join(home, "daemon", "journal.jsonl");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, `${JSON.stringify({
+    kind: "consolidate_mcp",
+    at: new Date().toISOString(),
+    ...detail,
+  })}\n`, "utf8");
+}
 
 // 유일하게 보장되는 유저 접점(세션 시작 briefing)에 데몬 상태를 실어 나른다 —
 // 리뷰 카드·소화 상태가 대시보드를 열어야만 보이면 유저는 "못 받았다"고 느낀다.
@@ -148,6 +182,95 @@ export function createServer(store, config) {
     if (status.last_digest_at) result.last_digest_at = status.last_digest_at;
     return result;
   }));
+
+  server.registerTool("consolidate", {
+    description: "Run on-demand memory consolidation (deduplication and contradiction resolution). By default runs in dry_run mode, returning candidate pairs and expected changes without modifying anything. Pass apply=true with a scope to execute. Only call when the user explicitly asks to consolidate or clean up memories now, not routinely.",
+    inputSchema: {
+      apply: z.boolean().optional(),
+      scope: z.string().optional(),
+      subject: z.string().optional(),
+      max_pairs: z.number().int().optional(),
+    },
+  }, async (input) => {
+    try {
+      const dry = !input.apply;
+      const lockFile = path.join(store.home, "daemon", "run.lock");
+
+      if (!dry && !input.scope) {
+        return jsonContent({
+          error: "E_INVALID_INPUT",
+          message: "apply=true requires a scope to limit blast radius. Use scope (e.g. 'person', 'project:nautli').",
+        });
+      }
+
+      if (!acquireDigestLock(lockFile)) {
+        return jsonContent({
+          error: ERR.E_STORE_BUSY,
+          message: "Digest is already running (daemon or another consolidate call). Try again later.",
+        });
+      }
+
+      try {
+        const pipelineOpts = { dry, scope: input.scope, subject: input.subject };
+        const result = await runOnce(store, store.home, config, pipelineOpts);
+
+        const maxPairs = Math.min(input.max_pairs ?? MAX_ON_DEMAND_PAIRS, MAX_ON_DEMAND_PAIRS);
+        if (dry) {
+          const { findPairs } = await import("../daemon/pair.js");
+          const pairOpts = {};
+          if (input.scope) pairOpts.scope = input.scope;
+          if (input.subject) pairOpts.subject = input.subject;
+          const pairs = findPairs(store, pairOpts).slice(0, maxPairs);
+          const candidates = pairs.map(({ a, b, sim }) => ({
+            pair_id: `${a.id}:${b.id}`,
+            claim_a: a.claim,
+            claim_b: b.claim,
+            scope: a.scope,
+            subject_a: a.subject,
+            subject_b: b.subject,
+            similarity: Math.round(sim * 100) / 100,
+          }));
+
+          recordConsolidateJournal(store.home, {
+            mode: "dry_run",
+            scope: input.scope ?? null,
+            subject: input.subject ?? null,
+            candidates: candidates.length,
+          });
+
+          return jsonContent({
+            dry_run: true,
+            candidates,
+            total_pairs: result.pairs,
+          });
+        }
+
+        recordConsolidateJournal(store.home, {
+          mode: "apply",
+          scope: input.scope,
+          subject: input.subject ?? null,
+          pairs: result.pairs,
+          judgments: result.judgments,
+          merged: result.merged,
+          superseded: result.superseded,
+        });
+
+        return jsonContent({
+          applied: true,
+          scope: input.scope,
+          pairs: result.pairs,
+          judgments: result.judgments,
+          merged: result.merged ?? 0,
+          superseded: result.superseded ?? 0,
+          judge_errors: result.judge_errors?.length ?? 0,
+        });
+      } finally {
+        fs.rmSync(lockFile, { force: true });
+      }
+    } catch (error) {
+      return jsonContent(errorResult(error));
+    }
+  });
 
   return server;
 }

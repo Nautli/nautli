@@ -26,8 +26,11 @@ function recordStage(home, stage, detail) {
   })}\n`, "utf8");
 }
 
-export async function runOnce(store, home, config, { dry = false } = {}) {
-  const pairs = findPairs(store);
+export async function runOnce(store, home, config, { dry = false, scope, subject } = {}) {
+  const pairOpts = {};
+  if (scope) pairOpts.scope = scope;
+  if (subject) pairOpts.subject = subject;
+  const pairs = findPairs(store, pairOpts);
   recordStage(home, "pair", { count: pairs.length });
 
   const capture = async () => {

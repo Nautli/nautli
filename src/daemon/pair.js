@@ -54,8 +54,11 @@ function cosine(left, right) {
   return dot / Math.sqrt(normA * normB);
 }
 
-export function findPairs(store, { simFloor = 0.25, topK = 5 } = {}) {
-  const active = store.query({ status: STATUS.ACTIVE });
+export function findPairs(store, { simFloor = 0.25, topK = 5, scope, subject } = {}) {
+  const queryOpts = { status: STATUS.ACTIVE };
+  if (scope) queryOpts.scope = scope;
+  if (subject) queryOpts.subject = subject;
+  const active = store.query(queryOpts);
   const byId = new Map(active.map((fact) => [fact.id, fact]));
   const completed = completedPairs(store.home);
   const found = new Map();
