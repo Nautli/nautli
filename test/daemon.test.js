@@ -133,6 +133,12 @@ test("failed judgments stay observable without completing or applying the pair",
 });
 
 test("report renders approval cards and machine oracle summary", (t) => {
+  const savedLang = process.env.NAUTLI_LANG;
+  process.env.NAUTLI_LANG = "ko";
+  t.after(() => {
+    if (savedLang === undefined) delete process.env.NAUTLI_LANG;
+    else process.env.NAUTLI_LANG = savedLang;
+  });
   const { home, store } = isolatedStore(t);
   const queueFile = path.join(home, "review", "queue.jsonl");
   fs.mkdirSync(path.dirname(queueFile), { recursive: true });

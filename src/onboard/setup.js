@@ -1187,24 +1187,25 @@ export function seedSampleFacts(home) {
       };
     }
 
+    const t = makeT(resolveLocale());
     const inputs = [
       {
-        claim: "체험용 검토중복 메모: 회의 요약은 팀 문서에 기록한다",
+        claim: t("sample.duplicate_a"),
         scope: "project:sample-duplicate",
         t_valid: "2026-01-01",
       },
       {
-        claim: "체험용 검토중복 메모: 팀 문서에 회의 요약을 기록한다",
+        claim: t("sample.duplicate_b"),
         scope: "project:sample-duplicate",
         t_valid: "2026-01-02",
       },
       {
-        claim: "체험용 서비스 포트는 3100이다",
+        claim: t("sample.contradiction_a"),
         scope: "project:sample-contradiction",
         t_valid: "2026-01-01",
       },
       {
-        claim: "체험용 서비스 포트는 3200으로 변경되었다",
+        claim: t("sample.contradiction_b"),
         scope: "project:sample-contradiction",
         t_valid: "2026-01-02",
       },

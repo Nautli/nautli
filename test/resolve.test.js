@@ -13,6 +13,7 @@ import { resolveRoutedQueue } from "../src/daemon/resolve.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockResolve = path.join(root, "test", "fixtures", "mock-resolve.js");
 process.env.NAUTLI_ALLOW_TEST_JUDGE = "1";
+process.env.NAUTLI_LANG = process.env.NAUTLI_LANG || "ko";
 const config = {
   default_scope: "person",
   resolve_cmd: [process.execPath, mockResolve],

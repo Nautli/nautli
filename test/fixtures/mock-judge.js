@@ -9,7 +9,7 @@ function newer(input) {
 
 function judgment(input) {
   const claims = `${input.claim_a} ${input.claim_b}`;
-  if (String(input.claim_a).includes("포트") && String(input.claim_b).includes("포트")) {
+  if ((String(input.claim_a).includes("포트") || String(input.claim_a).includes("port")) && (String(input.claim_b).includes("포트") || String(input.claim_b).includes("port"))) {
     return {
       pair_id: input.pair_id,
       verdict: "contradiction",
@@ -27,7 +27,7 @@ function judgment(input) {
       reason: "정보 손실 없이 하나로 합칠 수 있다.",
     };
   }
-  if (claims.includes("검토중복")) {
+  if (claims.includes("검토중복") || claims.includes("review-duplicate")) {
     return {
       pair_id: input.pair_id,
       verdict: "duplicate",

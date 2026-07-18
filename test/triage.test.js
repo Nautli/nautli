@@ -14,6 +14,7 @@ import { listUndoLedger } from "../src/core/review.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockTriage = path.join(root, "test", "fixtures", "mock-triage.js");
 process.env.NAUTLI_ALLOW_TEST_JUDGE = "1";
+process.env.NAUTLI_LANG = process.env.NAUTLI_LANG || "ko";
 const config = {
   default_scope: "person",
   triage_cmd: [process.execPath, mockTriage],

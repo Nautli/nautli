@@ -34,6 +34,206 @@ import time
 BRAND = "vault-doctor"
 
 PKG_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
+def _resolve_lang():
+    override = os.environ.get("NAUTLI_LANG", "").lower()
+    if override in ("ko", "en"):
+        return override
+    detected = os.environ.get("LC_ALL") or os.environ.get("LANG") or ""
+    return "ko" if detected.lower().startswith("ko") else "en"
+
+
+_LANG = _resolve_lang()
+
+_T = {
+    "docstring": {
+        "en": "Obsidian/Markdown vault health check \u2014 scans duplicates, contradictions, and junk to produce a human-language report.",
+        "ko": "옵시디언/마크다운 볼트 헬스체크 \u2014 중복\u00b7모순\u00b7junk를 스캔해 사람 언어 리포트를 만든다.",
+    },
+    "axis_junk": { "en": "Discardable fragments", "ko": "버려도 되는 조각" },
+    "axis_contradiction": { "en": "Contradictions", "ko": "모순" },
+    "axis_duplicate": { "en": "Duplicates", "ko": "중복" },
+    "axis_structure": { "en": "Structure", "ko": "구조" },
+    "report_title": { "en": "# {brand} report, {name}", "ko": "# {brand} 리포트, {name}" },
+    "report_meta": {
+        "en": "\nGenerated {today} \u00b7 vault `{vault}` \u00b7 no third-party servers \u00b7 AI judgments via your own Claude subscription \u00b7 report is a local file\n",
+        "ko": "\n생성일 {today} \u00b7 볼트 `{vault}` \u00b7 제3자 서버 0 \u00b7 AI 판정은 본인 Claude 구독 경유 \u00b7 리포트는 로컬 파일\n",
+    },
+    "score_heading": { "en": "## Memory health score: **{score}/100**\n", "ko": "## 기억 건강 점수: **{score}/100**\n" },
+    "score_breakdown": {
+        "en": "Score breakdown: discardable fragment ratio 40pts + contradiction density 30pts + duplicate density 20pts + structure (frontmatter, dead links) 10pts. Formula in README.\n",
+        "ko": "점수 구성: 버려도 되는 조각 비율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(머리말 정보\u00b7죽은 링크) 10점. 공식은 README에 있습니다.\n",
+    },
+    "table_header": { "en": "| Axis | Score | Max |", "ko": "| 축 | 점수 | 만점 |" },
+    "scan_heading": { "en": "\n## Vault scan summary\n", "ko": "\n## 볼트 스캔 요약\n" },
+    "scan_notes": {
+        "en": "- **{notes}** notes ({kb}KB), {fm_pct}% have frontmatter",
+        "ko": "- 노트 **{notes}개** ({kb}KB), 머리말 정보가 있는 노트 {fm_pct}%",
+    },
+    "scan_dead_links": {
+        "en": "- {wikilinks} wikilinks, **{dead} dead link(s)** ({dl_pct}%). `[[links]]` whose target note does not exist.",
+        "ko": "- 위키링크 {wikilinks}개 중 **죽은 링크 {dead}개** ({dl_pct}%). 대상 노트가 없는 `[[링크]]`입니다.",
+    },
+    "scan_atoms": {
+        "en": "- **{atoms:,}** memory fragments extracted from notes, {pairs:,} candidate pairs judged",
+        "ko": "- 노트에서 추출한 기억 조각 **{atoms:,}건**, 서로 비슷한 후보쌍 {pairs:,}건 판정",
+    },
+    "scan_sources": {
+        "en": "- Sample files per source: {samples}",
+        "ko": "- 소스별 표본 파일: {samples}",
+    },
+    "findings_heading": { "en": "\n## Findings\n", "ko": "\n## 발견 사항\n" },
+    "findings_dups": {
+        "en": "- **{total} duplicate pair(s)**. The same thing written in two or more places. {hi} pair(s) are definite duplicates (auto-merge level), {mid} need human confirmation",
+        "ko": "- **중복 {total}쌍**. 같은 얘기가 두 곳 이상에 적혀 있음. 그중 {hi}쌍은 확실한 중복(자동 병합 가능 수준), {mid}쌍은 사람 확인 필요",
+    },
+    "findings_contras": {
+        "en": "- **{total} contradiction pair(s)**. Conflicting records (one may be outdated). All included in the questions below",
+        "ko": "- **모순 {total}쌍**. 서로 부딪히는 기록(한쪽이 낡았을 가능성). 전부 아래 질문 대상",
+    },
+    "findings_cross": {
+        "en": "- **{total} cross-source contradiction pair(s)**. Found between different AI memory sources",
+        "ko": "- **교차소스 모순 {total}쌍**. 서로 다른 AI 기억 소스 사이에서 발견",
+    },
+    "findings_junk": {
+        "en": "- **Discardable fragment ratio approx {pct}%** ({sample} items checked by AI). Fragments with low memory value such as narratives, one-off records, and todos. Types: {types}",
+        "ko": "- **버려도 되는 조각 비율 약 {pct}%** (표본 {sample}건을 AI로 확인). 서사, 일회성 기록, 할 일처럼 기억할 가치가 낮은 조각의 비율입니다. 유형: {types}",
+    },
+    "findings_junk_fail": {
+        "en": "- Discardable fragment ratio: measurement failed (check run.log)",
+        "ko": "- 버려도 되는 조각 비율: 측정 실패 (run.log 확인)",
+    },
+    "findings_extract_fail": {
+        "en": "- \u26a0\ufe0f **{failed}/{total}** extraction batch(es) failed (timeout/error). Those notes were skipped. Re-running the same command will retry only the failed batches",
+        "ko": "- \u26a0\ufe0f 추출 실패 묶음 **{failed}/{total}개** (시간 초과/오류). 이 몫의 노트는 이번 진단에서 빠짐. 같은 명령을 재실행하면 실패분만 이어서 시도한다",
+    },
+    "questions_heading": {
+        "en": "\n## Questions to answer (top {shown} / total {total})\n",
+        "ko": "\n## 답할 질문 (상위 {shown}개 / 전체 {total}건)\n",
+    },
+    "questions_priority": {
+        "en": "**Start here**: Look at 'outdated record' questions first. The real risk is AI or your future self picking up the wrong version. Duplicates are less urgent since no information is lost. In a large vault, duplicates and contradictions appear naturally, so answering the questions matters more than the score.\n",
+        "ko": "**먼저 할 것**: '낡은 기록' 질문부터 보세요. AI와 미래의 내가 실제로 잘못 가져갈 위험은 거기에 있습니다. 중복은 정보가 사라지지 않아 급하지 않습니다. 볼트가 크면 중복과 모순은 자연스럽게 생기므로 점수보다 질문에 답하는 편이 더 유용합니다.\n",
+    },
+    "questions_none": { "en": "No questions to answer. \U0001f389", "ko": "답할 질문이 없습니다. \U0001f389" },
+    "card_stale_label": { "en": "Outdated record (update needed)", "ko": "낡은 기록(갱신 필요)" },
+    "card_stale_head": {
+        "en": "One side appears to be outdated. Keep the newer one.",
+        "ko": "한쪽이 낡은 기록으로 보입니다. 최신 쪽을 기준으로 정리하세요.",
+    },
+    "card_contra_label": { "en": "Contradiction", "ko": "모순" },
+    "card_contra_head": {
+        "en": "These two records conflict. Which one is correct now?",
+        "ko": "이 두 기록이 서로 부딪힙니다. 지금은 어느 쪽이 맞나요?",
+    },
+    "card_dup_label": { "en": "Duplicate (needs confirmation)", "ko": "중복(확인 필요)" },
+    "card_dup_head": {
+        "en": "These look like the same thing but we are not certain. Merge into one?",
+        "ko": "같은 내용으로 보이는데 확실하지 않습니다. 하나로 합칠까요?",
+    },
+    "card_question": {
+        "en": "### Question {i} \u00b7 {label} (confidence {conf})",
+        "ko": "### 질문 {i} \u00b7 {label} (판정 확신 {conf})",
+    },
+    "card_newer": {
+        "en": "- Note: **{side} looks newer**",
+        "ko": "- 판정 참고: **{side}쪽이 더 최신**으로 보임",
+    },
+    "card_reason": { "en": "- Reason: {reason}", "ko": "- 판정 이유: {reason}" },
+    "report_meaning_heading": { "en": "---\n### What this report means\n", "ko": "---\n### 이 리포트가 말하는 것\n" },
+    "report_meaning_body": {
+        "en": "Leaving contradictions and duplicates unchecked means AI and your future self will pick up outdated records. This is why search works well in a large vault but the answers start being wrong. Clean up the questions above now, or re-run this checkup periodically.",
+        "ko": "모순과 중복을 그대로 두면 AI와 미래의 내가 낡은 기록을 집어 갑니다. 볼트가 클수록 검색은 잘 되는데 답이 틀리기 시작하는 이유가 이것입니다. 위 질문들을 지금 정리하거나, 주기적으로 이 진단을 다시 돌리세요.",
+    },
+    "methodology_heading": { "en": "---\n### Methodology and limitations", "ko": "---\n### 방법론\u00b7한계" },
+    "methodology_line1": {
+        "en": "- Extraction and judgment via local claude CLI (subscription). Judgment prompts are the nautli PoC verified version (includes 3 false-positive counter-examples for contradictions).",
+        "ko": "- 추출\u00b7판정은 로컬 claude CLI(구독) 경유, 판정 프롬프트는 nautli PoC 검증본(모순 오탐 반례 3종 포함).",
+    },
+    "methodology_line2": {
+        "en": "- The discardable fragment ratio is an estimate based on a fixed sample. A small sample means a wide margin of error.",
+        "ko": "- 버려도 되는 조각 비율은 고정된 표본으로 계산한 추정치입니다. 표본이 작으면 오차 범위가 넓습니다.",
+    },
+    "methodology_artifacts": {
+        "en": "- Intermediate artifacts and logs: `{work}`",
+        "ko": "- 중간 산출물\u00b7로그: `{work}`",
+    },
+    "multi_source": { "en": "multi-source {n}", "ko": "멀티소스 {n}개" },
+    "junk_type_other": { "en": "other", "ko": "기타" },
+    "none": { "en": "none", "ko": "없음" },
+    "main_desc": {
+        "en": "{brand}, Markdown vault health check (fully local)",
+        "ko": "{brand}, 마크다운 볼트 건강검진 (전 과정 로컬)",
+    },
+    "main_vault_help": { "en": "Obsidian/Markdown vault path(s)", "ko": "옵시디언/마크다운 볼트 경로 (복수 가능)" },
+    "main_work_help": { "en": "Working/report directory (default ~/.{brand})", "ko": "작업/리포트 저장 위치 (기본 ~/.{brand})" },
+    "main_max_files_help": { "en": "Smoke test: first N files only", "ko": "스모크 테스트용: 앞에서 N개 파일만" },
+    "main_sample_seed_help": {
+        "en": "Sample shuffle seed (default: per-source canonical path sha1)",
+        "ko": "표본 셔플 시드 (기본: 소스별 canonical 경로 sha1)",
+    },
+    "main_exclude_help": {
+        "en": "Folders/globs to exclude (repeatable). Excluded items are not sent to the LLM",
+        "ko": "제외할 폴더/글롭 (반복 가능, 예: --exclude 일기 --exclude '*.excalidraw.md'). 제외분은 LLM에 안 감",
+    },
+    "main_judge_pairs_help": { "en": "Max LLM judgment pairs (cost cap)", "ko": "LLM 판정 쌍 상한 (비용 캡)" },
+    "main_junk_sample_help": { "en": "Number of samples to check for discardable fragments", "ko": "버려도 되는 조각을 확인할 표본 수" },
+    "main_estimate_help": {
+        "en": "Zero LLM calls: show which files would be sent and estimated time, then exit",
+        "ko": "LLM 호출 0: 전송 대상 파일 목록과 예상 소요\u00b7배치 수만 출력하고 종료 (실행 전 확인용)",
+    },
+    "main_fresh_help": { "en": "Discard previous intermediates and start from scratch", "ko": "이전 중간 산출물 버리고 처음부터" },
+    "main_vault_missing": { "en": "Vault path does not exist: {vault}", "ko": "볼트 경로가 없다: {vault}" },
+    "main_work_folder": { "en": "Working folder: {work} (interrupt and re-run to resume)\n", "ko": "작업 폴더: {work} (중단해도 재실행하면 이어서 돈다)\n" },
+    "main_step1": { "en": "[1/6] Static scan...", "ko": "[1/6] 정적 스캔..." },
+    "main_step1_result": { "en": "      {notes} notes, {dead} dead links", "ko": "      노트 {notes}개, 죽은 링크 {dead}개" },
+    "main_step2": { "en": "[2/6] Building batches...", "ko": "[2/6] 배치 구성..." },
+    "main_step2_result": { "en": "      {files} files \u2192 {batches} batches", "ko": "      {files}파일 \u2192 {batches}배치" },
+    "main_estimate_header": { "en": "\n\U0001f4cb Estimate (0 LLM calls, nothing sent yet)", "ko": "\n\U0001f4cb 견적 (LLM 호출 0, 아직 아무것도 전송 안 됨)" },
+    "main_estimate_files": {
+        "en": "   Files to send to Claude: {files} ({kb}KB). Full list: {listing}",
+        "ko": "   Claude로 전송될 파일: {files}개 ({kb}KB). 전체 목록: {listing}",
+    },
+    "main_estimate_time": {
+        "en": "   Estimated time: extraction ~{extract}min + judgment ~{judge}min (uses subscription quota, approximate)",
+        "ko": "   예상 소요: 추출 ~{extract}분 + 판정 ~{judge}분 (구독 쿼터 사용, 대략치)",
+    },
+    "main_estimate_exclude": {
+        "en": "   To exclude folders from the list, use --exclude <folder> and re-run.",
+        "ko": "   빼고 싶은 폴더가 목록에 있으면 --exclude <폴더> 로 제외하고 다시 확인하라.",
+    },
+    "main_step3": { "en": "[3/6] Extracting facts ({model}, parallel {p})...", "ko": "[3/6] fact 추출 ({model}, 병렬 {p})..." },
+    "main_step3_result": { "en": "      {atoms:,} atoms", "ko": "      atom {atoms:,}건" },
+    "main_step4": { "en": "[4/6] Computing candidate pairs...", "ko": "[4/6] 후보쌍 계산..." },
+    "main_step4_result": { "en": "      {pairs:,} candidate pairs", "ko": "      후보쌍 {pairs:,}건" },
+    "main_step5": { "en": "[5/6] Judging duplicates/contradictions ({model}, parallel {p})...", "ko": "[5/6] 중복\u00b7모순 판정 ({model}, 병렬 {p})..." },
+    "main_step5_result": { "en": "      {judgments:,} judgments", "ko": "      판정 {judgments:,}건" },
+    "main_step6": { "en": "[6/6] Checking discardable fragments (sample {sample}) + report...", "ko": "[6/6] 버려도 되는 조각 확인 (표본 {sample}) + 리포트..." },
+    "main_limit_warn": {
+        "en": "\n\u26a0\ufe0f Rate limit/network issue detected {hits} time(s). Re-run if there are failures",
+        "ko": "\n\u26a0\ufe0f 사용량 한도/네트워크 장애 감지 {hits}회. 실패분이 있으면 같은 명령 재실행",
+    },
+    "main_extract_fail_warn": {
+        "en": "\n\u26a0\ufe0f {failed} extraction batch(es) failed. Re-run to resume",
+        "ko": "\n\u26a0\ufe0f 추출 실패 배치 {failed}개. 같은 명령 재실행으로 이어받기 가능",
+    },
+    "main_done": { "en": "\n\u2705 Done. Memory health score {score}/100", "ko": "\n\u2705 완료. 기억 건강 점수 {score}/100" },
+    "main_summary": {
+        "en": "   {dups} duplicate pair(s) \u00b7 {contras} contradiction pair(s) \u00b7 {cross} cross-source contradiction pair(s) \u00b7 discardable {junk} \u00b7 {cards} question(s)",
+        "ko": "   중복 {dups}쌍 \u00b7 모순 {contras}쌍 \u00b7 교차소스 모순 {cross}쌍 \u00b7 버려도 되는 조각 {junk} \u00b7 질문 {cards}건",
+    },
+    "main_report_path": { "en": "   Report: {path}", "ko": "   리포트: {path}" },
+    "junk_fail_short": { "en": "measurement failed", "ko": "측정실패" },
+}
+
+
+def _t(key, **kwargs):
+    entry = _T.get(key, {})
+    template = entry.get(_LANG) or entry.get("en", key)
+    for k, v in kwargs.items():
+        template = template.replace("{" + k + "}", str(v))
+    return template
 BATCH_BYTES = 28_000      # extract 배치당 원문 상한 (~10K tok)
 MAX_FILE_BYTES = 60_000   # 거대 파일 절단 방어
 EXTRACT_PARALLEL = 5
@@ -575,7 +775,7 @@ def health_score(scan, atoms_n, dup_n, contra_n, junk_rate):
     s_dup = 20 * max(0.0, 1 - max(0.0, per1k(dup_n) - 5) / 55)
     s_struct = 10 * (0.5 * scan["frontmatter_rate"] + 0.5 * (1 - scan["dead_link_rate"]))
     return round(s_junk + s_contra + s_dup + s_struct), \
-        {"junk": round(s_junk), "모순": round(s_contra), "중복": round(s_dup), "구조": round(s_struct)}
+        {"junk": round(s_junk), "contradiction": round(s_contra), "duplicate": round(s_dup), "structure": round(s_struct)}
 
 
 def build_cards(pairs, js, limit=10):
@@ -610,82 +810,69 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     if junk_judgments:
         junk_items = [j for j in junk_judgments if j["label"] == "junk"]
         junk_rate = len(junk_items) / len(junk_judgments)
-        junk_types = dict(collections.Counter(j.get("type") or "기타" for j in junk_items))
+        junk_types = dict(collections.Counter(j.get("type") or _t("junk_type_other") for j in junk_items))
     score, axes = health_score(scan, len(atoms), len(dups), len(contras), junk_rate)
     cards, n_contra_cards, n_dup_cards = build_cards(pairs, js)
 
     today = datetime.date.today().isoformat()
     L = []
-    report_name = os.path.basename(ctx.vault.rstrip("/")) if len(ctx.vaults) == 1 else f"멀티소스 {len(ctx.vaults)}개"
+    report_name = os.path.basename(ctx.vault.rstrip("/")) if len(ctx.vaults) == 1 else _t("multi_source", n=len(ctx.vaults))
     vault_display = ctx.vault if len(ctx.vaults) == 1 else ", ".join(ctx.vaults)
-    L.append(f"# {BRAND} 리포트, {report_name}")
-    L.append(f"\n생성일 {today} · 볼트 `{vault_display}` · 제3자 서버 0 · AI 판정은 본인 Claude 구독 경유 · 리포트는 로컬 파일\n")
-    L.append(f"## 기억 건강 점수: **{score}/100**\n")
-    L.append("점수 구성: 버려도 되는 조각 비율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(머리말 정보·죽은 링크) 10점. 공식은 README에 있습니다.\n")
-    L.append("| 축 | 점수 | 만점 |")
+    L.append(_t("report_title", brand=BRAND, name=report_name))
+    L.append(_t("report_meta", today=today, vault=vault_display))
+    L.append(_t("score_heading", score=score))
+    L.append(_t("score_breakdown"))
+    L.append(_t("table_header"))
     L.append("|---|---|---|")
-    for k, label, full in (("junk", "버려도 되는 조각", 40), ("모순", "모순", 30),
-                           ("중복", "중복", 20), ("구조", "구조", 10)):
-        L.append(f"| {label} | {axes[k]} | {full} |")
-    L.append("\n## 볼트 스캔 요약\n")
-    L.append(f"- 노트 **{scan['notes']}개** ({scan['bytes'] // 1024}KB), "
-             f"머리말 정보가 있는 노트 {round(scan['frontmatter_rate'] * 100)}%")
-    L.append(f"- 위키링크 {scan['wikilinks']}개 중 **죽은 링크 {scan['dead_links']}개** "
-             f"({round(scan['dead_link_rate'] * 100)}%). 대상 노트가 없는 `[[링크]]`입니다.")
-    L.append(f"- 노트에서 추출한 기억 조각 **{len(atoms):,}건**, 서로 비슷한 후보쌍 {len(pairs):,}건 판정")
-    samples_str = ", ".join(f"{label} **{count}개**" for label, count in sorted(source_samples.items())) or "없음"
-    L.append(f"- 소스별 표본 파일: {samples_str}")
-    L.append("\n## 발견 사항\n")
-    L.append(f"- **중복 {len(dups)}쌍**. 같은 얘기가 두 곳 이상에 적혀 있음. "
-             f"그중 {len(dups_hi)}쌍은 확실한 중복(자동 병합 가능 수준), "
-             f"{n_dup_cards}쌍은 사람 확인 필요")
-    L.append(f"- **모순 {len(contras)}쌍**. 서로 부딪히는 기록(한쪽이 낡았을 가능성). "
-             f"전부 아래 질문 대상")
-    L.append(f"- **교차소스 모순 {cross_source_contradictions}쌍**. 서로 다른 AI 기억 소스 사이에서 발견")
+    for k, t_key, full in (("junk", "axis_junk", 40), ("contradiction", "axis_contradiction", 30),
+                           ("duplicate", "axis_duplicate", 20), ("structure", "axis_structure", 10)):
+        L.append(f"| {_t(t_key)} | {axes[k]} | {full} |")
+    L.append(_t("scan_heading"))
+    L.append(_t("scan_notes", notes=scan["notes"], kb=scan["bytes"] // 1024, fm_pct=round(scan["frontmatter_rate"] * 100)))
+    L.append(_t("scan_dead_links", wikilinks=scan["wikilinks"], dead=scan["dead_links"], dl_pct=round(scan["dead_link_rate"] * 100)))
+    L.append(_t("scan_atoms", atoms=len(atoms), pairs=len(pairs)))
+    samples_str = ", ".join(f"{label} **{count}**" for label, count in sorted(source_samples.items())) or _t("none")
+    L.append(_t("scan_sources", samples=samples_str))
+    L.append(_t("findings_heading"))
+    L.append(_t("findings_dups", total=len(dups), hi=len(dups_hi), mid=n_dup_cards))
+    L.append(_t("findings_contras", total=len(contras)))
+    L.append(_t("findings_cross", total=cross_source_contradictions))
     if junk_rate is not None:
-        types_str = ", ".join(f"{k} {v}" for k, v in sorted(junk_types.items(), key=lambda x: -x[1])) or "없음"
-        L.append(f"- **버려도 되는 조각 비율 약 {round(junk_rate * 100)}%** "
-                 f"(표본 {len(junk_judgments)}건을 AI로 확인). 서사, 일회성 기록, 할 일처럼 "
-                 f"기억할 가치가 낮은 조각의 비율입니다. 유형: {types_str}")
+        types_str = ", ".join(f"{k} {v}" for k, v in sorted(junk_types.items(), key=lambda x: -x[1])) or _t("none")
+        L.append(_t("findings_junk", pct=round(junk_rate * 100), sample=len(junk_judgments), types=types_str))
     else:
-        L.append("- 버려도 되는 조각 비율: 측정 실패 (run.log 확인)")
+        L.append(_t("findings_junk_fail"))
     if failed_batches:
-        L.append(f"- ⚠️ 추출 실패 묶음 **{failed_batches}/{len(man['batches'])}개** (시간 초과/오류). "
-                 f"이 몫의 노트는 이번 진단에서 빠짐. 같은 명령을 재실행하면 실패분만 이어서 시도한다")
-    L.append("\n## 답할 질문 (상위 " + str(len(cards)) + f"개 / 전체 {n_contra_cards + n_dup_cards}건)\n")
+        L.append(_t("findings_extract_fail", failed=failed_batches, total=len(man["batches"])))
+    L.append(_t("questions_heading", shown=len(cards), total=n_contra_cards + n_dup_cards))
     if cards:
-        L.append("**먼저 할 것**: '낡은 기록' 질문부터 보세요. AI와 미래의 내가 실제로 잘못 가져갈 위험은 "
-                 "거기에 있습니다. 중복은 정보가 사라지지 않아 급하지 않습니다. 볼트가 크면 중복과 모순은 "
-                 "자연스럽게 생기므로 점수보다 질문에 답하는 편이 더 유용합니다.\n")
+        L.append(_t("questions_priority"))
     if not cards:
-        L.append("답할 질문이 없습니다. 🎉")
+        L.append(_t("questions_none"))
     for i, (kind, j, p) in enumerate(cards, 1):
-        # "모순"과 "낡은 기록 갱신"은 유저 체감이 다르다 — newer가 있으면 후자로 표기 (같은 verdict라도)
+        # "contradiction" vs "outdated record" — newer가 있으면 후자로 표기 (같은 verdict라도)
         if kind == "contradiction" and j.get("newer") in ("a", "b"):
-            label, head = "낡은 기록(갱신 필요)", "한쪽이 낡은 기록으로 보입니다. 최신 쪽을 기준으로 정리하세요."
+            label, head = _t("card_stale_label"), _t("card_stale_head")
         elif kind == "contradiction":
-            label, head = "모순", "이 두 기록이 서로 부딪힙니다. 지금은 어느 쪽이 맞나요?"
+            label, head = _t("card_contra_label"), _t("card_contra_head")
         else:
-            label, head = "중복(확인 필요)", "같은 내용으로 보이는데 확실하지 않습니다. 하나로 합칠까요?"
-        L.append(f"### 질문 {i} · {label} (판정 확신 {j.get('confidence')})")
+            label, head = _t("card_dup_label"), _t("card_dup_head")
+        L.append(_t("card_question", i=i, label=label, conf=j.get("confidence")))
         L.append(f"**{head}**")
         L.append(f"- A: {p['claim_a']}  \n  `{p.get('src_a')}` ({p.get('t_a')})")
         L.append(f"- B: {p['claim_b']}  \n  `{p.get('src_b')}` ({p.get('t_b')})")
         if j.get("newer") in ("a", "b"):
-            L.append(f"- 판정 참고: **{j['newer'].upper()}쪽이 더 최신**으로 보임")
+            L.append(_t("card_newer", side=j["newer"].upper()))
         if j.get("reason"):
-            L.append(f"- 판정 이유: {j['reason']}")
+            L.append(_t("card_reason", reason=j["reason"]))
         L.append("")
     if len(contras) + n_dup_cards > 0:
-        L.append("---\n### 이 리포트가 말하는 것\n")
-        L.append("모순과 중복을 그대로 두면 AI와 미래의 내가 낡은 기록을 집어 갑니다. "
-                 "볼트가 클수록 검색은 잘 되는데 답이 틀리기 시작하는 이유가 이것입니다. "
-                 "위 질문들을 지금 정리하거나, 주기적으로 이 진단을 다시 돌리세요.")
-        # TODO(브랜드 확정: Nightmerge — 전환 브릿지 문단 추가 가능): 소화 데몬 제품으로의 전환 브릿지 문단 추가 (차용검토 v2 롤플레이 §)
-    L.append("---\n### 방법론·한계")
-    L.append(f"- 추출·판정은 로컬 claude CLI(구독) 경유, 판정 프롬프트는 nautli PoC 검증본(모순 오탐 반례 3종 포함).")
-    L.append("- 버려도 되는 조각 비율은 고정된 표본으로 계산한 추정치입니다. 표본이 작으면 오차 범위가 넓습니다.")
-    L.append(f"- 중간 산출물·로그: `{ctx.work}`")
+        L.append(_t("report_meaning_heading"))
+        L.append(_t("report_meaning_body"))
+    L.append(_t("methodology_heading"))
+    L.append(_t("methodology_line1"))
+    L.append(_t("methodology_line2"))
+    L.append(_t("methodology_artifacts", work=ctx.work))
     report_path = ctx.path("report.md")
     open(report_path, "w", encoding="utf-8").write("\n".join(L) + "\n")
 
@@ -703,27 +890,27 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
 
 # ── main ────────────────────────────────────────────────────────────────────
 def main():
-    ap = argparse.ArgumentParser(prog=BRAND, description=f"{BRAND}, 마크다운 볼트 건강검진 (전 과정 로컬)")
-    ap.add_argument("vault", nargs="+", help="옵시디언/마크다운 볼트 경로 (복수 가능)")
+    ap = argparse.ArgumentParser(prog=BRAND, description=_t("main_desc", brand=BRAND))
+    ap.add_argument("vault", nargs="+", help=_t("main_vault_help"))
     ap.add_argument("--work-home", default=os.path.expanduser(f"~/.{BRAND}"),
-                    help=f"작업/리포트 저장 위치 (기본 ~/.{BRAND})")
-    ap.add_argument("--max-files", type=int, default=0, help="스모크 테스트용: 앞에서 N개 파일만")
-    ap.add_argument("--sample-seed", help="표본 셔플 시드 (기본: 소스별 canonical 경로 sha1)")
+                    help=_t("main_work_help", brand=BRAND))
+    ap.add_argument("--max-files", type=int, default=0, help=_t("main_max_files_help"))
+    ap.add_argument("--sample-seed", help=_t("main_sample_seed_help"))
     ap.add_argument("--exclude", action="append", default=[],
-                    help="제외할 폴더/글롭 (반복 가능, 예: --exclude 일기 --exclude '*.excalidraw.md'). 제외분은 LLM에 안 감")
-    ap.add_argument("--max-judge-pairs", type=int, default=1500, help="LLM 판정 쌍 상한 (비용 캡)")
-    ap.add_argument("--junk-sample", type=int, default=40, help="버려도 되는 조각을 확인할 표본 수")
+                    help=_t("main_exclude_help"))
+    ap.add_argument("--max-judge-pairs", type=int, default=1500, help=_t("main_judge_pairs_help"))
+    ap.add_argument("--junk-sample", type=int, default=40, help=_t("main_junk_sample_help"))
     ap.add_argument("--extract-model", default="haiku")
     ap.add_argument("--judge-model", default="sonnet")
     ap.add_argument("--estimate", action="store_true",
-                    help="LLM 호출 0: 전송 대상 파일 목록과 예상 소요·배치 수만 출력하고 종료 (실행 전 확인용)")
-    ap.add_argument("--fresh", action="store_true", help="이전 중간 산출물 버리고 처음부터")
+                    help=_t("main_estimate_help"))
+    ap.add_argument("--fresh", action="store_true", help=_t("main_fresh_help"))
     args = ap.parse_args()
 
     canonical = [os.path.realpath(os.path.abspath(os.path.expanduser(v))) for v in args.vault]
     for vault in canonical:
         if not os.path.isdir(vault):
-            print(f"볼트 경로가 없다: {vault}", file=sys.stderr)
+            print(_t("main_vault_missing", vault=vault), file=sys.stderr)
             sys.exit(1)
     unique = list(dict.fromkeys(canonical))
     vaults = []
@@ -749,15 +936,15 @@ def main():
     ctx = Ctx(vaults, work, args.max_files, excludes=args.exclude, sample_seed=args.sample_seed)
 
     print(f"{BRAND}, {', '.join(vaults)}")
-    print(f"작업 폴더: {work} (중단해도 재실행하면 이어서 돈다)\n")
-    print("[1/6] 정적 스캔...")
+    print(_t("main_work_folder", work=work))
+    print(_t("main_step1"))
     scan = stage_scan(ctx)
-    print(f"      노트 {scan['notes']}개, 죽은 링크 {scan['dead_links']}개")
-    print("[2/6] 배치 구성...")
+    print(_t("main_step1_result", notes=scan["notes"], dead=scan["dead_links"]))
+    print(_t("main_step2"))
     man = stage_manifest(ctx)
-    print(f"      {man['files']}파일 → {len(man['batches'])}배치")
+    print(_t("main_step2_result", files=man["files"], batches=len(man["batches"])))
     if args.estimate:
-        # LLM 0 견적 모드: 뭐가 나가고 얼마나 걸리는지 실행 전에 보여준다
+        # LLM 0 estimate mode
         listing = ctx.path("estimate-files.txt")
         with open(listing, "w", encoding="utf-8") as f:
             for b in man["batches"]:
@@ -766,36 +953,35 @@ def main():
                     f.write(prefix + fi["rel"] + "\n")
         total_kb = sum(fi["size"] for b in man["batches"] for fi in b) // 1024
         n_b = len(man["batches"])
-        est_extract = max(1, round(n_b * 0.15))          # 배치당 ~45초, 병렬 5 실측 근사
+        est_extract = max(1, round(n_b * 0.15))
         est_judge = max(1, round(min(args.max_judge_pairs, 6 * man["files"]) / JUDGE_BATCH / JUDGE_PARALLEL * 1.5))
-        print(f"\n📋 견적 (LLM 호출 0, 아직 아무것도 전송 안 됨)")
-        print(f"   Claude로 전송될 파일: {man['files']}개 ({total_kb}KB). 전체 목록: {listing}")
-        print(f"   예상 소요: 추출 ~{est_extract}분 + 판정 ~{est_judge}분 (구독 쿼터 사용, 대략치)")
-        print(f"   빼고 싶은 폴더가 목록에 있으면 --exclude <폴더> 로 제외하고 다시 확인하라.")
+        print(_t("main_estimate_header"))
+        print(_t("main_estimate_files", files=man["files"], kb=total_kb, listing=listing))
+        print(_t("main_estimate_time", extract=est_extract, judge=est_judge))
+        print(_t("main_estimate_exclude"))
         return
-    print(f"[3/6] fact 추출 ({args.extract_model}, 병렬 {EXTRACT_PARALLEL})...")
+    print(_t("main_step3", model=args.extract_model, p=EXTRACT_PARALLEL))
     atoms = stage_extract(ctx, man, args.extract_model)
-    print(f"      atom {len(atoms):,}건")
-    print("[4/6] 후보쌍 계산...")
+    print(_t("main_step3_result", atoms=len(atoms)))
+    print(_t("main_step4"))
     pairs = stage_pair(ctx, atoms, args.max_judge_pairs)
-    print(f"      후보쌍 {len(pairs):,}건")
-    print(f"[5/6] 중복·모순 판정 ({args.judge_model}, 병렬 {JUDGE_PARALLEL})...")
+    print(_t("main_step4_result", pairs=len(pairs)))
+    print(_t("main_step5", model=args.judge_model, p=JUDGE_PARALLEL))
     js = stage_judge(ctx, pairs, args.judge_model)
-    print(f"      판정 {len(js):,}건")
-    print(f"[6/6] 버려도 되는 조각 확인 (표본 {args.junk_sample}) + 리포트...")
+    print(_t("main_step5_result", judgments=len(js)))
+    print(_t("main_step6", sample=args.junk_sample))
     junk = stage_junk(ctx, atoms, args.judge_model, args.junk_sample)
     summary = stage_report(ctx, scan, man, atoms, pairs, js, junk)
 
     if _limit_hits["hits"]:
-        print(f"\n⚠️ 사용량 한도/네트워크 장애 감지 {_limit_hits['hits']}회. 실패분이 있으면 같은 명령 재실행")
+        print(_t("main_limit_warn", hits=_limit_hits["hits"]))
     if summary["failed_extract_batches"]:
-        print(f"\n⚠️ 추출 실패 배치 {summary['failed_extract_batches']}개. 같은 명령 재실행으로 이어받기 가능")
-    print(f"\n✅ 완료. 기억 건강 점수 {summary['score']}/100")
-    junk_str = f"~{round(summary['junk_rate'] * 100)}%" if summary["junk_rate"] is not None else "측정실패"
-    print(f"   중복 {summary['duplicates']}쌍 · 모순 {summary['contradictions']}쌍 · "
-          f"교차소스 모순 {summary['cross_source_contradictions']}쌍 · "
-          f"버려도 되는 조각 {junk_str} · 질문 {summary['review_cards']}건")
-    print(f"   리포트: {summary['report']}")
+        print(_t("main_extract_fail_warn", failed=summary["failed_extract_batches"]))
+    print(_t("main_done", score=summary["score"]))
+    junk_str = f"~{round(summary['junk_rate'] * 100)}%" if summary["junk_rate"] is not None else _t("junk_fail_short")
+    print(_t("main_summary", dups=summary["duplicates"], contras=summary["contradictions"],
+             cross=summary["cross_source_contradictions"], junk=junk_str, cards=summary["review_cards"]))
+    print(_t("main_report_path", path=summary["report"]))
 
 
 if __name__ == "__main__":

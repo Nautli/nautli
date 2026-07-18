@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { buildReceipt } from "../core/receipt.js";
+import { resolveLocale, makeT } from "../i18n/strings.js";
 
 function pendingReviews(home) {
   const file = path.join(home, "review", "queue.jsonl");
@@ -23,6 +24,7 @@ function oneLine(value) {
 }
 
 export function writeReport(store, home, results) {
+  const t = makeT(resolveLocale());
   const pending = pendingReviews(home).filter((review) => review.type !== "capture");
   const cards = pending.slice(0, 3);
   const deferred = Math.max(0, pending.length - cards.length);
@@ -38,32 +40,32 @@ export function writeReport(store, home, results) {
   const hasOracleStats = oracle && ["resolved", "remembered", "discarded"]
     .some((field) => Object.hasOwn(oracle, field));
   const summaryParts = [
-    `적용 ${results.applied ?? 0}건`,
-    `리뷰 대기 추가 ${results.queued ?? 0}건`,
-    `건너뜀 ${results.skipped ?? 0}건`,
+    t("report.summary_applied", { count: results.applied ?? 0 }),
+    t("report.summary_queued", { count: results.queued ?? 0 }),
+    t("report.summary_skipped", { count: results.skipped ?? 0 }),
   ];
-  if (machineOracle > 0) summaryParts.push(`기술 기록 보류 ${machineOracle}건`);
-  if (triageRouted > 0) summaryParts.push(`AI가 대신 맡음 ${triageRouted}건`);
-  if (captureRemembered > 0) summaryParts.push(`AI가 대신 기억함 ${captureRemembered}건`);
-  if (captureHeld > 0) summaryParts.push(`보류 ${captureHeld}건`);
+  if (machineOracle > 0) summaryParts.push(t("report.summary_machine_oracle", { count: machineOracle }));
+  if (triageRouted > 0) summaryParts.push(t("report.summary_triage_routed", { count: triageRouted }));
+  if (captureRemembered > 0) summaryParts.push(t("report.summary_capture_remembered", { count: captureRemembered }));
+  if (captureHeld > 0) summaryParts.push(t("report.summary_capture_held", { count: captureHeld }));
   if (hasOracleStats && Number.isFinite(oracleResolved)) {
-    summaryParts.push(`AI가 조사해 판결 ${oracleResolved}건`);
+    summaryParts.push(t("report.summary_oracle_resolved", { count: oracleResolved }));
   }
-  if (oraclePromoted > 0) summaryParts.push(`사람으로 승격 ${oraclePromoted}건`);
-  const summary = `요약: ${summaryParts.join(", ")}.`;
+  if (oraclePromoted > 0) summaryParts.push(t("report.summary_oracle_promoted", { count: oraclePromoted }));
+  const summary = t("report.summary_prefix", { text: summaryParts.join(", ") });
   const lines = [summary];
   const failedPairs = results.failed_pairs ?? 0;
   if (failedPairs > 0) {
-    lines.push(`(판정 ${failedPairs}쌍은 일시 오류로 건너뜀: 다음 소화 때 다시 시도해요)`);
+    lines.push(t("report.failed_pairs", { count: failedPairs }));
   }
   if (machineOracle > 0) {
-    lines.push("(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요)");
+    lines.push(t("report.machine_oracle_note"));
   }
   if (triageRouted > 0) {
-    lines.push("(AI가 대신 맡음: 사람이 답할 필요 없는 질문이라 보류해 뒀어요)");
+    lines.push(t("report.triage_routed_note"));
   }
   if (captureHeld > 0) {
-    lines.push("(보류: 확정하기 어려운 자동 발견은 지우지 않고 기록에 남겼어요)");
+    lines.push(t("report.capture_held_note"));
   }
   lines.push("");
 
@@ -71,21 +73,21 @@ export function writeReport(store, home, results) {
   const delta = receipt.facts_delta >= 0
     ? `+${receipt.facts_delta}`
     : String(receipt.facts_delta);
-  lines.push("## 절감 영수증");
+  lines.push(t("report.receipt_heading"));
   if (!receipt.sample_ok) {
-    lines.push("첫 주에는 절감보다 기억이 쌓이는 과정을 보여드려요");
+    lines.push(t("report.receipt_first_week"));
   }
   lines.push(
-    `- 대화 ${receipt.conversations}번`,
-    `- 기억 약 ${receipt.tokens_delivered}토큰 골라 건넴`,
-    `- 밤새 정리한 기록 ${receipt.organized}건`,
-    `- 현재 이어지는 사실 ${receipt.facts_active}개, 이번 주 ${delta}`,
+    t("report.receipt_conversations", { count: receipt.conversations }),
+    t("report.receipt_tokens", { count: receipt.tokens_delivered }),
+    t("report.receipt_organized", { count: receipt.organized }),
+    t("report.receipt_facts", { active: receipt.facts_active, delta }),
     "",
   );
 
   const oracleDecisions = Array.isArray(oracle?.decisions) ? oracle.decisions : [];
   if (oracleDecisions.length > 0) {
-    lines.push("## AI 조사 판결");
+    lines.push(t("report.oracle_heading"));
     oracleDecisions.forEach((decision, index) => {
       lines.push(
         `${index + 1}. ${oneLine(decision.decision)}: ${oneLine(decision.evidence_summary)}`,
@@ -97,32 +99,33 @@ export function writeReport(store, home, results) {
   cards.forEach((review, index) => {
     const duplicate = review.verdict === "duplicate";
     const headline = oneLine(review.crux_plain) || oneLine(review.crux) || (duplicate
-      ? "이 두 기억이 같은 내용 같아요."
-      : "두 기억이 동시에 맞기 어려워 보여요.");
+      ? t("report.card_headline_duplicate")
+      : t("report.card_headline_contradiction"));
     const question = duplicate
-      ? "하나로 합칠까요? (O / X / 모름)"
-      : "지금은 어느 쪽이 맞나요? (A / B / 둘 다 / 모름)";
+      ? t("report.card_question_duplicate")
+      : t("report.card_question_contradiction");
     const recommendation = review.newer === "a" || review.newer === "b"
-      ? `데몬 추천: ${review.newer.toUpperCase()}가 최신으로 보여요 (확신 ${Math.round(Number(review.confidence) * 100)}%)`
+      ? t("report.card_recommendation", { side: review.newer.toUpperCase(), pct: Math.round(Number(review.confidence) * 100) })
       : null;
     const reason = oneLine(review.reason);
+    const reasonSuffix = reason ? t("report.card_reason_prefix", { reason }) : "";
     lines.push(
-      `## 리뷰 카드 ${index + 1}`,
+      t("report.card_heading", { index: index + 1 }),
       `**${headline}**`,
-      `질문: ${question}`,
+      t("report.card_question_label", { text: question }),
     );
     if (recommendation) lines.push(recommendation);
     lines.push(
-      "응답은 대시보드에서: npx nautli dashboard",
+      t("report.card_dashboard"),
       "",
-      "참고(원문)",
+      t("report.card_reference"),
       `- A: ${oneLine(review.claims?.a)}`,
       `- B: ${oneLine(review.claims?.b)}`,
-      `- 판정: ${review.verdict} ${review.confidence} · pair: ${review.pair_id}${reason ? ` · 이유: ${reason}` : ""}`,
+      t("report.card_verdict", { verdict: review.verdict, confidence: review.confidence, pair_id: review.pair_id, reason: reasonSuffix }),
       "",
     );
   });
-  if (deferred > 0) lines.push(`이월: ${deferred}건`, "");
+  if (deferred > 0) lines.push(t("report.deferred", { count: deferred }), "");
 
   // 로컬 날짜 필수 — UTC면 KST 새벽 실행(04:14)이 전날 리포트를 덮어쓴다 (실사고 2026-07-17)
   const date = new Date().toLocaleDateString("sv-SE");
