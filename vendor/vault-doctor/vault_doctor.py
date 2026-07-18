@@ -225,6 +225,14 @@ _T = {
     },
     "main_report_path": { "en": "   Report: {path}", "ko": "   리포트: {path}" },
     "junk_fail_short": { "en": "measurement failed", "ko": "측정실패" },
+    "dropped_over_limit": {
+        "en": "  \u26a0\ufe0f {dropped} candidate pair(s) excluded by the judgment cap ({limit}). Adjust with --max-judge-pairs",
+        "ko": "  \u26a0\ufe0f 후보쌍 {dropped}건은 판정 상한({limit})에 걸려 이번 판정에서 제외됨 (--max-judge-pairs로 조정 가능)",
+    },
+    "junk_checking": {
+        "en": "  Checking discardable fragments {cur}/{total}",
+        "ko": "  버려도 되는 조각 확인 {cur}/{total}",
+    },
 }
 
 
@@ -690,8 +698,7 @@ def stage_pair(ctx, atoms, max_judge_pairs):
     ctx.log(f"pair pairs={len(result)} cross={sum(p['cross_source'] for p in result)} "
             f"dropped_cross_quota={dropped_cross} dropped_by_cap={dropped}")
     if dropped:
-        print(f"  ⚠️ 후보쌍 {dropped}건은 판정 상한({max_judge_pairs})에 걸려 이번 판정에서 제외됨 "
-              f"(--max-judge-pairs로 조정 가능)", flush=True)
+        print(_t("dropped_over_limit", dropped=dropped, limit=max_judge_pairs), flush=True)
     return result
 
 
@@ -760,7 +767,7 @@ def stage_junk(ctx, atoms, model, sample_n):
         if stdout is None:
             continue
         results += parse_jsonl_stdout(stdout, ("id", "label"))
-        print(f"  버려도 되는 조각 확인 {min(i + JUNK_BATCH, len(sample))}/{len(sample)}", flush=True)
+        print(_t("junk_checking", cur=min(i + JUNK_BATCH, len(sample)), total=len(sample)), flush=True)
     json.dump(results, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     ctx.log(f"junk sample={len(sample)} judged={len(results)}")
     return results
