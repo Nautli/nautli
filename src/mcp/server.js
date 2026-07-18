@@ -107,7 +107,7 @@ function safe(handler) {
 }
 
 export function createServer(store, config) {
-  const server = new McpServer({ name: BRAND, version: "0.1.0" });
+  const server = new McpServer({ name: BRAND, version: "0.2.1" });
 
   server.registerTool("remember", {
     inputSchema: {
