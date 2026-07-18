@@ -10,6 +10,7 @@ import {
   isTelemetryEnabled,
   sendTelemetry,
 } from "../src/daemon/telemetry.js";
+import { initStore, readConfig, writeConfig } from "../src/onboard/setup.js";
 
 function isolatedStore(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-telemetry-"));
@@ -21,14 +22,64 @@ function isolatedStore(t) {
   return { home, store };
 }
 
-test("telemetry is off by default and the pipeline does not build a payload", async (t) => {
+test("telemetry is off when config has no telemetry key (existing installs)", async (t) => {
   const { home, store } = isolatedStore(t);
   assert.equal(isTelemetryEnabled({}), false);
+  assert.equal(isTelemetryEnabled({ default_scope: "person" }), false);
 
   const result = await runOnce(store, home, { triage_cmd: false, resolve_cmd: false });
 
   assert.deepEqual(result.telemetry, { sent: false });
-  assert.equal(fs.existsSync(path.join(home, "config.json")), false);
+});
+
+test("new install config has telemetry enabled by default", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-new-install-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const result = initStore(home);
+  assert.equal(result.first_install, true);
+
+  const config = JSON.parse(fs.readFileSync(path.join(home, "config.json"), "utf8"));
+  assert.equal(isTelemetryEnabled(config), true);
+  assert.equal(config.telemetry.enabled, true);
+});
+
+test("telemetry can be turned off via config file", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-off-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  initStore(home);
+  assert.equal(isTelemetryEnabled(readConfig(home)), true);
+
+  writeConfig(home, { telemetry: { enabled: false } });
+  const after = readConfig(home);
+  assert.equal(isTelemetryEnabled(after), false);
+  assert.equal(after.telemetry.enabled, false);
+});
+
+test("payload only contains numeric, uuid, version, and enum values — no free text", (t) => {
+  const { home, store } = isolatedStore(t);
+  const payload = buildTelemetryPayload(home, store);
+  const serialized = JSON.stringify(payload);
+
+  // All string values must be UUIDs, version strings, platform enums, or numeric bucket keys
+  function checkLeaves(obj, path) {
+    for (const [key, value] of Object.entries(obj)) {
+      const fullPath = path ? `${path}.${key}` : key;
+      if (typeof value === "object" && value !== null) {
+        checkLeaves(value, fullPath);
+      } else if (typeof value === "string") {
+        // Allowed: UUID, semver, platform, confidence bucket keys like "0.0"-"1.0"
+        const allowed = /^[0-9a-f-]{36}$/iu.test(value)
+          || /^\d+\.\d+\.\d+/u.test(value)
+          || ["darwin", "linux", "win32"].includes(value);
+        assert.ok(allowed, `String at ${fullPath} = "${value}" must be UUID, version, or platform`);
+      } else if (typeof value !== "number") {
+        assert.fail(`Unexpected type at ${fullPath}: ${typeof value}`);
+      }
+    }
+  }
+  checkLeaves(payload, "");
 });
 
 test("payload never contains user supplied claim, scope, or project strings", (t) => {

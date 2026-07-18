@@ -474,15 +474,22 @@ export function initStore(home) {
   const store = new Store(home);
   store.close();
 
+  let firstInstall = false;
   const config = path.join(home, "config.json");
   if (!fs.existsSync(config)) {
-    fs.writeFileSync(config, `${JSON.stringify(DEFAULT_CONFIG)}\n`, "utf8");
+    const newInstallConfig = {
+      ...DEFAULT_CONFIG,
+      telemetry: { enabled: true },
+    };
+    fs.writeFileSync(config, `${JSON.stringify(newInstallConfig)}\n`, "utf8");
+    firstInstall = true;
   }
 
   return {
     ok: true,
     home,
     index: path.join(home, "index.sqlite"),
+    first_install: firstInstall,
   };
 }
 

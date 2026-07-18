@@ -129,14 +129,10 @@ function parseBudget(value) {
 function initialize(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 0);
-  fs.mkdirSync(home, { recursive: true });
 
-  const store = new Store(home);
-  store.close();
-
-  const configFile = path.join(home, "config.json");
-  if (!fs.existsSync(configFile)) {
-    fs.writeFileSync(configFile, `${JSON.stringify(DEFAULT_CONFIG)}\n`, "utf8");
+  const result = initStore(home);
+  if (result.first_install) {
+    process.stderr.write(t("telemetry.first_run_notice") + "\n");
   }
 
   return { status: "initialized", home, config: readConfig(home) };

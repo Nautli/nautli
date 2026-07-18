@@ -77,6 +77,7 @@ mcp        MCP 서버를 실행해요.
   "cli.review.contradiction": { en: "Contradiction", ko: "모순 발견" },
   "cli.review.duplicate_prompt": { en: "[O] Merge / [X] Keep separate / [L] Review tomorrow: ", ko: "[O] 합치기 / [X] 따로 유지 / [L] 내일 다시 보기: " },
   "cli.review.contradiction_prompt": { en: "[A] A is right / [B] B is right / [O] Both are right / [?] I don't know / Other correction: ", ko: "[A] A가 맞아요 / [B] B가 맞아요 / [O] 둘 다 맞아요 / [?] 몰라요 / 기타 정정문: " },
+  "telemetry.first_run_notice": { en: "Telemetry is on by default. Only judgment meta (card counts, routing stats) is sent — never your notes or memory content. Turn it off anytime: nautli telemetry off", ko: "판정 메타 수집이 기본으로 켜져 있어요. 카드 개수와 판정 통계만 보내고 노트나 기억 내용은 절대 보내지 않아요. 끄려면: nautli telemetry off" },
   "cli.init.next": { en: "Next: npx nautli dashboard (opens setup)", ko: "다음 단계: npx nautli dashboard (설정 화면이 열려요)" },
   "cli.unknown_command": { en: "Unknown command: {command}", ko: "알 수 없는 명령: {command}" },
 

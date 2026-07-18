@@ -28,6 +28,7 @@ import {
   uninstallDaemon,
   writeConfig,
 } from "../onboard/setup.js";
+import { isTelemetryEnabled } from "../daemon/telemetry.js";
 import {
   SCAN_VERSION,
   detectAgents,
@@ -762,11 +763,13 @@ export function createDashboardServer(home, options = {}) {
         const stats = statsFor(home);
         const pending = listSurfacedCards(home).cards.length;
 
+        const config = readConfig(home);
         json(response, 200, {
           setup,
           doctor: diagnosis.result,
           stats,
           pending,
+          telemetry_enabled: isTelemetryEnabled(config),
         });
 
         if (!cachedClaude) refreshClaudeStatus();
@@ -809,6 +812,22 @@ export function createDashboardServer(home, options = {}) {
         } catch (error) {
           json(response, 200, scanFailure(error, t));
         }
+        return;
+      }
+
+      if (
+        request.method === "POST"
+        && url.pathname === "/api/telemetry"
+      ) {
+        const parsed = await bodyJson(request);
+        const enabled = parsed.enabled === true;
+        const config = readConfig(home);
+        const telemetry = config.telemetry && typeof config.telemetry === "object"
+          && !Array.isArray(config.telemetry)
+          ? config.telemetry
+          : {};
+        writeConfig(home, { telemetry: { ...telemetry, enabled } });
+        json(response, 200, { ok: true, enabled });
         return;
       }
 
