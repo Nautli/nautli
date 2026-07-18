@@ -93,3 +93,13 @@ test("korean project scopes are accepted (W1 한국 유저 — 지시문이 proj
     reason: ERR.E_UNKNOWN_SCOPE,
   });
 });
+
+test("t_valid defaults to local date, not UTC (TASK-042 regression)", (t) => {
+  const store = isolatedStore(t);
+  const result = remember(store, { claim: "로컬 날짜 검증" }, config);
+  assert.equal(result.status, "added");
+  const fact = store.getFact(result.id);
+  const expected = new Date().toLocaleDateString("sv-SE");
+  assert.equal(fact.t_valid, expected, "t_valid must be local date, not UTC");
+  assert.match(fact.t_valid, /^\d{4}-\d{2}-\d{2}$/);
+});
