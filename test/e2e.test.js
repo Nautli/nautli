@@ -40,6 +40,7 @@ test("CLI story survives daemon digestion and rebuild", (t) => {
     default_scope: "person",
     judge_cmd: [process.execPath, mockJudge],
     contradiction_auto: true, // e2e는 자동 무효화 경로까지 검증 (제품 기본값은 false)
+    patrol: { settle_ms: 0, max_wait_ms: 0 }, // remember가 만든 스풀로 dwell 실슬립 방지
   })}\n`, "utf8");
 
   runCli(home, ["remember", "서비스 포트는 3000", "--scope", "project:app"], "2025-01-01T12:00:00.000Z");
@@ -76,6 +77,7 @@ test("daemon-run exits one when judging fails", (t) => {
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
     default_scope: "person",
     judge_cmd: ["claude", "/tmp/forbidden-judge.js"],
+    patrol: { settle_ms: 0, max_wait_ms: 0 },
   })}\n`, "utf8");
   runCli(home, ["remember", "실패 판정 서비스 포트는 3000", "--scope", "project:failed-daemon"]);
   runCli(home, ["remember", "실패 판정 서비스 포트는 4000", "--scope", "project:failed-daemon"]);
@@ -95,6 +97,7 @@ test("daemon-run gates catch-up on the last successful digestion", (t) => {
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify({
     default_scope: "person",
     judge_cmd: [process.execPath, mockJudge],
+    patrol: { settle_ms: 0, max_wait_ms: 0 },
   })}\n`, "utf8");
 
   const first = runCli(home, ["daemon-run"], "2025-03-01T03:30:00.000Z");

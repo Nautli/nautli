@@ -38,9 +38,15 @@ test("spool markers report newest mtime and consume includes the boundary", (t) 
     .find((file) => file !== first);
   fs.utimesSync(second, new Date(2_000), new Date(2_000));
 
-  assert.deepEqual(readSpool(home), { count: 2, newest_at: 2_000 });
-  assert.equal(consumeSpool(home, 1_000), 1);
-  assert.deepEqual(readSpool(home), { count: 1, newest_at: 2_000 });
+  const snapshot = readSpool(home);
+  assert.equal(snapshot.count, 2);
+  assert.equal(snapshot.newest_at, 2_000);
+  // 이름 스냅샷 소비 — 지정한 marker만 지우고 나머지는 남긴다 (시계 비의존).
+  assert.equal(consumeSpool(home, [path.basename(first)]), 1);
+  const after = readSpool(home);
+  assert.equal(after.count, 1);
+  assert.equal(after.newest_at, 2_000);
+  assert.deepEqual(after.names, [path.basename(second)]);
 });
 
 test("remember touches spool only when a fact is added, including supersedes", (t) => {

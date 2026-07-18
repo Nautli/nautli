@@ -584,7 +584,8 @@ export async function runDaemon(home, args, {
         await dwellForSpool(home, config, { spoolReader, now, sleeper });
       }
 
-      const runStart = now();
+      // 디지스트 직전 스냅샷 — 소화 중 새로 생긴 marker는 다음 사이클이 처리한다.
+      const snapshot = spoolReader(home);
       const digestResult = await digestRunner(home, {
         dry: parsed.values.dry,
         locale,
@@ -594,7 +595,7 @@ export async function runDaemon(home, args, {
       if (!parsed.values.dry) notifier(result, { home, locale, config });
 
       const succeeded = result.ok === true && !result.skipped_run;
-      if (eventRun && succeeded) spoolConsumer(home, runStart);
+      if (eventRun && succeeded) spoolConsumer(home, snapshot.names ?? []);
       if (!eventRun || !succeeded || spoolReader(home).count === 0) break;
     }
     return { missing: false, result };

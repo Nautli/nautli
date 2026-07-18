@@ -1180,7 +1180,8 @@ export function notifyDigestResult(result, {
     }
     return { notified: true };
   } catch {
-    if (!failed && guard.ok) {
+    // 상태파일이 없던 최초 실행(guard.ok false)에서도 누적은 보존한다 — 파일은 여기서 생성된다.
+    if (!failed) {
       writeNotifyState(home, { ...guard.state, accum_applied: notificationApplied });
     }
     return { notified: false, reason: "osascript_failed" };

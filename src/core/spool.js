@@ -31,28 +31,28 @@ export function touchSpool(home) {
 export function readSpool(home) {
   try {
     const directory = spoolDirectory(home);
-    const mtimes = markerNames(directory)
-      .map((name) => fs.statSync(path.join(directory, name)).mtimeMs);
+    const names = markerNames(directory);
+    const mtimes = names.map((name) => fs.statSync(path.join(directory, name)).mtimeMs);
     return {
-      count: mtimes.length,
-      newest_at: mtimes.length === 0 ? null : Math.max(...mtimes),
+      count: names.length,
+      newest_at: names.length === 0 ? null : Math.max(...mtimes),
+      names,
     };
   } catch {
-    return { count: 0, newest_at: null };
+    return { count: 0, newest_at: null, names: [] };
   }
 }
 
-export function consumeSpool(home, beforeMs) {
+// 이름 스냅샷 기반 소비 — mtime vs 시계 비교는 가짜/역행 시계에서 미소비·과소비를
+// 일으키므로(디지스트 직전 readSpool 스냅샷의 names만 정확히 지운다) 시계 비의존으로 처리.
+export function consumeSpool(home, names) {
   let removed = 0;
   try {
     const directory = spoolDirectory(home);
-    for (const name of markerNames(directory)) {
-      const file = path.join(directory, name);
+    for (const name of names ?? []) {
       try {
-        if (fs.statSync(file).mtimeMs <= beforeMs) {
-          fs.unlinkSync(file);
-          removed += 1;
-        }
+        fs.unlinkSync(path.join(directory, name));
+        removed += 1;
       } catch {
         // 다른 프로세스가 먼저 소비했거나 개별 marker가 손상된 경우는 무시한다.
       }
