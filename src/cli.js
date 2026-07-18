@@ -485,6 +485,27 @@ async function captureHookCommand(home, args) {
   });
 }
 
+async function sessionStartHookCommand(home, args) {
+  const parsed = parseCommand(args);
+  requirePositionals(parsed.positionals, 0);
+
+  const input = await readCaptureHookInput();
+  if (input === null) return;
+  const payload = JSON.parse(input);
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return;
+
+  const { session_id: sessionId, cwd } = payload;
+  if (typeof sessionId !== "string" || sessionId.length === 0) return;
+
+  const { buildSessionStartOutput } = await import("./session-start/index.js");
+  const config = readConfig(home);
+  const result = buildSessionStartOutput(home, { sessionId, cwd, config });
+
+  if (result.injected && result.output) {
+    process.stdout.write(result.output);
+  }
+}
+
 function claimPreview(claim) {
   return [...claim].slice(0, 40).join("");
 }
@@ -709,6 +730,43 @@ export async function main(argv = process.argv.slice(2)) {
           `capture-hook: ${error instanceof Error ? error.message : String(error)}\n`,
         );
       }
+      process.exitCode = 0;
+      return;
+    }
+
+    if (command === "session-start-hook") {
+      try {
+        await sessionStartHookCommand(home, args);
+      } catch (error) {
+        process.stderr.write(
+          `session-start-hook: ${error instanceof Error ? error.message : String(error)}\n`,
+        );
+      }
+      process.exitCode = 0;
+      return;
+    }
+
+    if (command === "session-start-judgment") {
+      const { computeJudgment } = await import("./session-start/judgment.js");
+      const parsed = parseCommand(args, { since: { type: "string" } });
+      requirePositionals(parsed.positionals, 0);
+      writeJson(computeJudgment(home, { since: parsed.values.since }));
+      process.exitCode = 0;
+      return;
+    }
+
+    if (command === "session-start") {
+      const [action] = args;
+      const {
+        sessionStartHookStatus,
+        installSessionStartHook,
+        uninstallSessionStartHook,
+      } = await import("./session-start/hooks.js");
+      const options = { userHome: os.homedir() };
+      if (action === "install") { writeJson(installSessionStartHook(options)); }
+      else if (action === "uninstall") { writeJson(uninstallSessionStartHook(options)); }
+      else if (action === "status") { writeJson(sessionStartHookStatus(options)); }
+      else throw codedError(ERR.E_INVALID_INPUT);
       process.exitCode = 0;
       return;
     }
