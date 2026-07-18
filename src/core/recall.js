@@ -1,11 +1,22 @@
 import { ERR, STATUS } from "./schema.js";
+import { computeFreshness, decayedConfidence } from "./validity.js";
 
 const DAY_MS = 86_400_000;
 
-function renderFact(fact) {
+const FRESHNESS_MARKER = Object.freeze({
+  fresh: "",
+  stale: " ⚠️stale",
+  expired: " ❌expired",
+});
+
+function renderFact(fact, freshnessInfo) {
   const [year, month, day] = String(fact.t_valid).slice(0, 10).split("-");
   void year;
-  return `- [${fact.scope}] ${fact.claim} (${Number(month)}/${Number(day)} 기준, 확신 ${fact.confidence})`;
+  const marker = freshnessInfo ? (FRESHNESS_MARKER[freshnessInfo.freshness] ?? "") : "";
+  const displayConfidence = freshnessInfo
+    ? decayedConfidence(fact, freshnessInfo)
+    : fact.confidence;
+  return `- [${fact.scope}] ${fact.claim} (${Number(month)}/${Number(day)} 기준, 확신 ${Number(displayConfidence.toFixed(2))}${marker})`;
 }
 
 function visibleAt(fact, asOf, includeArchived) {
@@ -33,14 +44,21 @@ function recency(fact, referenceTime) {
   return Math.exp(-days / 90);
 }
 
-function projection(fact) {
-  return {
+function projection(fact, freshnessInfo) {
+  const base = {
     id: fact.id,
     claim: fact.claim,
     t_valid: fact.t_valid,
     confidence: fact.confidence,
     scope: fact.scope,
   };
+  if (freshnessInfo) {
+    base.freshness = freshnessInfo.freshness;
+    if (freshnessInfo.freshness !== "fresh") {
+      base.effective_confidence = decayedConfidence(fact, freshnessInfo);
+    }
+  }
+  return base;
 }
 
 export function recall(store, task, opts = {}) {
@@ -56,6 +74,7 @@ export function recall(store, task, opts = {}) {
   const asOf = opts.as_of;
   const includeArchived = opts.include_archived ?? false;
   const source = opts.source ?? "core";
+  const ttlConfig = opts.ttl_days;
   const candidates = new Map();
   const ranks = new Map();
 
@@ -80,8 +99,10 @@ export function recall(store, task, opts = {}) {
     if (weight === 0) continue;
     const rank = ranks.get(fact.id);
     const ftsNorm = rank === undefined ? 0.3 : 1 / (1 + Math.max(0, rank));
-    const score = ftsNorm * recency(fact, referenceTime) * fact.confidence * weight;
-    scored.push({ fact, score });
+    const freshnessInfo = computeFreshness(fact, referenceTime, ttlConfig);
+    const effectiveConfidence = decayedConfidence(fact, freshnessInfo);
+    const score = ftsNorm * recency(fact, referenceTime) * effectiveConfidence * weight;
+    scored.push({ fact, score, freshnessInfo });
   }
 
   scored.sort((left, right) => right.score - left.score
@@ -91,11 +112,11 @@ export function recall(store, task, opts = {}) {
   const facts = [];
   const lines = [];
   let tokensUsed = 0;
-  for (const { fact } of scored) {
-    const line = renderFact(fact);
+  for (const { fact, freshnessInfo } of scored) {
+    const line = renderFact(fact, freshnessInfo);
     const tokens = Math.ceil(line.length / 3);
     if (tokensUsed + tokens > budget) continue;
-    facts.push(projection(fact));
+    facts.push(projection(fact, freshnessInfo));
     lines.push(line);
     tokensUsed += tokens;
   }
@@ -119,5 +140,6 @@ export function briefing(store, context = "", scope, config = {}) {
     budget_tokens: 2000,
     scope: scope ?? config.default_scope,
     source: config.source ?? "core",
+    ttl_days: config.ttl_days,
   });
 }

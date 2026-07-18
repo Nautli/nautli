@@ -100,22 +100,75 @@ function orderedByAge(a, b) {
   return aKey <= bKey ? [a, b] : [b, a];
 }
 
+// deferred 복원 시 surfaced_at을 벗겨야 복원 카드가 노출 캡 후보줄로 되돌아간다
+// (유지하면 이미 노출된 3장 위에 얹혀 하루 캡을 뚫는다).
+function restoreDueDeferred(entry, today) {
+  if (entry.status !== "deferred"
+    || typeof entry.deferred_until !== "string"
+    || entry.deferred_until > today) {
+    return null;
+  }
+  const { surfaced_at: _surfaced, ...rest } = entry;
+  return { ...rest, status: "pending" };
+}
+
 export function listCards(home) {
   return withReviewLock(home, () => {
     const entries = readQueue(home);
     const today = new Date().toLocaleDateString("sv-SE");
     let changed = false;
     const restored = entries.map((entry) => {
-      if (entry.status === "deferred"
-        && typeof entry.deferred_until === "string"
-        && entry.deferred_until <= today) {
+      const revived = restoreDueDeferred(entry, today);
+      if (revived) {
         changed = true;
-        return { ...entry, status: "pending" };
+        return revived;
       }
       return entry;
     });
     if (changed) writeQueue(home, restored);
     return restored.filter((entry) => entry.status === "pending");
+  });
+}
+
+// 유저 노출 경로 전용이며 하루 cap개만 새로 노출한다는 불변식을 지킨다.
+export function listSurfacedCards(home, { cap = 3, now = new Date() } = {}) {
+  return withReviewLock(home, () => {
+    const entries = readQueue(home);
+    const today = now.toLocaleDateString("sv-SE");
+    let changed = false;
+    const restored = entries.map((entry) => {
+      const revived = restoreDueDeferred(entry, today);
+      if (revived) {
+        changed = true;
+        return revived;
+      }
+      return entry;
+    });
+    const pending = restored.filter((entry) => entry.status === "pending");
+    // surfaced_at은 UTC ISO라 로컬 날짜로 환산해 비교한다 — 문자열 startsWith 비교는
+    // UTC 오프셋 구간(예: KST 오전)에서 당일 노출을 놓쳐 캡이 재개방된다.
+    const surfacedToday = restored.filter((entry) => (
+      entry.surfaced_at
+      && new Date(entry.surfaced_at).toLocaleDateString("sv-SE") === today
+    )).length;
+    const visible = pending.filter((entry) => entry.surfaced_at);
+    const slots = Math.max(0, Math.min(cap - visible.length, cap - surfacedToday));
+    const compareCards = (a, b) => {
+      const typeOrder = Number(a.type === "capture") - Number(b.type === "capture");
+      if (typeOrder !== 0) return typeOrder;
+      const atOrder = (a.at || "").localeCompare(b.at || "");
+      if (atOrder !== 0) return atOrder;
+      return a.pair_id.localeCompare(b.pair_id);
+    };
+    const surfacedAt = now.toISOString();
+    const candidates = pending.filter((entry) => !entry.surfaced_at).sort(compareCards);
+    for (const entry of candidates.slice(0, slots)) {
+      entry.surfaced_at = surfacedAt;
+      changed = true;
+    }
+    if (changed) writeQueue(home, restored);
+    const cards = pending.filter((entry) => entry.surfaced_at).sort(compareCards);
+    return { cards, backlog: pending.length - cards.length };
   });
 }
 

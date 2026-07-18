@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
 import { remember } from "../src/core/gate.js";
-import { applyCard, listCards } from "../src/core/review.js";
+import { applyCard, listCards, listSurfacedCards } from "../src/core/review.js";
 import { STATUS } from "../src/core/schema.js";
 import { Store } from "../src/core/store.js";
 
@@ -201,4 +201,170 @@ test("a stale review lock is reclaimed after sixty seconds", (t) => {
   fs.utimesSync(lock, stale, stale);
   assert.equal(listCards(home).length, 1);
   assert.equal(fs.existsSync(lock), false);
+});
+
+function capHome(t) {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-cap-"));
+  fs.mkdirSync(path.join(home, "review"), { recursive: true });
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  return home;
+}
+
+function writeCapQueue(home, entries) {
+  fs.writeFileSync(
+    path.join(home, "review", "queue.jsonl"),
+    `${entries.map((entry) => JSON.stringify(entry)).join("\n")}\n`,
+    "utf8",
+  );
+}
+
+function readCapQueue(home) {
+  return fs.readFileSync(path.join(home, "review", "queue.jsonl"), "utf8")
+    .trim().split("\n").map((line) => JSON.parse(line));
+}
+
+test("daily surfacing cap limits cards to 3 per day", (t) => {
+  const home = capHome(t);
+  const entries = Array.from({ length: 7 }, (_, index) => ({
+    pair_id: `capture-${index + 1}`,
+    type: "capture",
+    claim: `기억 후보 ${index + 1}`,
+    crux_plain: "질문",
+    status: "pending",
+    at: `2026-07-${String(index + 10).padStart(2, "0")}T09:00:00.000Z`,
+  }));
+  writeCapQueue(home, entries);
+  const day1 = new Date("2026-07-18T09:00:00");
+
+  const first = listSurfacedCards(home, { now: day1 });
+  assert.deepEqual(first.cards.map((entry) => entry.pair_id), [
+    "capture-1",
+    "capture-2",
+    "capture-3",
+  ]);
+  assert.equal(first.backlog, 4);
+
+  const repeated = listSurfacedCards(home, { now: day1 });
+  assert.deepEqual(repeated.cards.map((entry) => entry.pair_id), [
+    "capture-1",
+    "capture-2",
+    "capture-3",
+  ]);
+  assert.equal(repeated.backlog, 4);
+  assert.equal(readCapQueue(home).filter((entry) => entry.surfaced_at).length, 3);
+  assert.equal(listCards(home).length, 7);
+});
+
+test("answering does not free same-day slots", (t) => {
+  const home = capHome(t);
+  const entries = Array.from({ length: 7 }, (_, index) => ({
+    pair_id: `capture-${index + 1}`,
+    type: "capture",
+    claim: `기억 후보 ${index + 1}`,
+    crux_plain: "질문",
+    status: "pending",
+    at: `2026-07-${String(index + 10).padStart(2, "0")}T09:00:00.000Z`,
+  }));
+  writeCapQueue(home, entries);
+  const day1 = new Date("2026-07-18T09:00:00");
+  listSurfacedCards(home, { now: day1 });
+  const queued = readCapQueue(home);
+  queued.find((entry) => entry.surfaced_at).status = "answered";
+  writeCapQueue(home, queued);
+
+  const sameDay = listSurfacedCards(home, { now: day1 });
+  assert.equal(sameDay.cards.length, 2);
+  assert.equal(readCapQueue(home).filter((entry) => entry.surfaced_at).length, 3);
+
+  const day2 = new Date("2026-07-19T09:00:00");
+  const nextDay = listSurfacedCards(home, { now: day2 });
+  assert.equal(nextDay.cards.length, 3);
+  assert.equal(readCapQueue(home).filter((entry) => entry.surfaced_at).length, 4);
+});
+
+test("pair cards surface before capture cards", (t) => {
+  const home = capHome(t);
+  writeCapQueue(home, [
+    {
+      pair_id: "capture-1",
+      type: "capture",
+      claim: "기억 후보",
+      crux_plain: "질문",
+      status: "pending",
+      at: "2026-07-10T09:00:00.000Z",
+    },
+    {
+      pair_id: "pair-1",
+      verdict: "contradiction",
+      claims: { a: "서비스 포트는 3000이다", b: "서비스 포트는 4000이다" },
+      status: "pending",
+    },
+  ]);
+  const day1 = new Date("2026-07-18T09:00:00");
+
+  const surfaced = listSurfacedCards(home, { cap: 1, now: day1 });
+  assert.equal(surfaced.cards[0].pair_id, "pair-1");
+  assert.notEqual(surfaced.cards[0].type, "capture");
+});
+
+test("answering does not reopen slots across the UTC date boundary", (t) => {
+  // KST처럼 UTC보다 앞선 타임존의 오전엔 로컬 날짜와 UTC 날짜가 다르다 —
+  // surfaced_at(UTC ISO)을 문자열 비교하면 당일 노출을 놓쳐 캡이 재개방된다.
+  const home = capHome(t);
+  const entries = Array.from({ length: 5 }, (_, index) => ({
+    pair_id: `capture-${index + 1}`,
+    type: "capture",
+    claim: `기억 후보 ${index + 1}`,
+    crux_plain: "질문",
+    status: "pending",
+    at: `2026-07-${String(index + 10).padStart(2, "0")}T09:00:00.000Z`,
+  }));
+  writeCapQueue(home, entries);
+  const morning = new Date("2026-07-18T08:00:00");
+  listSurfacedCards(home, { now: morning });
+
+  const queued = readCapQueue(home);
+  for (const entry of queued) {
+    if (entry.surfaced_at) entry.status = "answered";
+  }
+  writeCapQueue(home, queued);
+
+  const later = new Date("2026-07-18T09:00:00");
+  const afterAnswering = listSurfacedCards(home, { now: later });
+  assert.equal(afterAnswering.cards.length, 0);
+  assert.equal(readCapQueue(home).filter((entry) => entry.surfaced_at).length, 3);
+});
+
+test("deferred cards lose surfaced_at on restore and respect the cap", (t) => {
+  const home = capHome(t);
+  const entries = Array.from({ length: 5 }, (_, index) => ({
+    pair_id: `capture-${index + 1}`,
+    type: "capture",
+    claim: `기억 후보 ${index + 1}`,
+    crux_plain: "질문",
+    status: "pending",
+    at: `2026-07-${String(index + 10).padStart(2, "0")}T09:00:00.000Z`,
+  }));
+  writeCapQueue(home, entries);
+  const day1 = new Date("2026-07-18T09:00:00");
+  listSurfacedCards(home, { now: day1 });
+
+  // 노출된 카드 하나를 이틀 뒤로 미룬다 (surfaced_at은 남은 상태).
+  const queued = readCapQueue(home);
+  const deferred = queued.find((entry) => entry.surfaced_at);
+  deferred.status = "deferred";
+  deferred.deferred_until = "2026-07-20";
+  writeCapQueue(home, queued);
+
+  // 다음날 새 카드가 그 자리를 채운다.
+  const day2 = new Date("2026-07-19T09:00:00");
+  assert.equal(listSurfacedCards(home, { now: day2 }).cards.length, 3);
+
+  // 복원일: surfaced_at이 벗겨져 후보줄로 돌아가고, 노출은 여전히 cap 이하다.
+  const day3 = new Date("2026-07-20T09:00:00");
+  const restoredDay = listSurfacedCards(home, { now: day3 });
+  assert.equal(restoredDay.cards.length <= 3, true);
+  const restoredEntry = readCapQueue(home)
+    .find((entry) => entry.pair_id === deferred.pair_id);
+  assert.equal(restoredEntry.status, "pending");
 });

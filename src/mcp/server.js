@@ -9,7 +9,7 @@ import { BRAND } from "../brand.js";
 import { remember } from "../core/gate.js";
 import { briefing as buildBriefing, recall } from "../core/recall.js";
 import { buildReceipt } from "../core/receipt.js";
-import { listCards } from "../core/review.js";
+import { listCards, listSurfacedCards } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { makeT, resolveLocale } from "../i18n/strings.js";
@@ -40,13 +40,18 @@ export function receiptHeader(receipt, t) {
 
 export function daemonStatusHeader(home, t, store) {
   const lines = [];
-  let pending = 0;
+  let surfaced = { cards: [], backlog: 0 };
   try {
-    pending = listCards(home).length;
+    surfaced = listSurfacedCards(home);
   } catch {
     // 리뷰 큐 파손이 briefing 자체를 막으면 안 된다.
   }
-  if (pending > 0) lines.push(t("mcp.briefing.cards_waiting", { count: pending }));
+  const pending = surfaced.cards.length;
+  if (pending > 0) {
+    lines.push(surfaced.backlog > 0
+      ? t("mcp.briefing.cards_waiting_backlog", { count: pending, backlog: surfaced.backlog })
+      : t("mcp.briefing.cards_waiting", { count: pending }));
+  }
   const freshness = digestFreshness(home);
   if (freshness.last_success_at && freshness.age_ms > DIGEST_STALE_MS) {
     lines.push(t("mcp.briefing.digest_stale", { last: freshness.last_success_at }));

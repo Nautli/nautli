@@ -67,7 +67,9 @@ test("deleting the index and rebuilding preserves query and recall results", (t)
   const state = isolatedStore(t);
   for (let index = 0; index < 20; index += 1) state.store.addFact(fact(index));
   const beforeQuery = state.store.query({ scope: "project:alpha", status: STATUS.ACTIVE });
-  const beforeRecall = recall(state.store, "저장소", { scope: "project:alpha", budget_tokens: 2000 });
+  // Pin as_of to eliminate time-dependent freshness drift between calls
+  const asOf = new Date().toISOString();
+  const beforeRecall = recall(state.store, "저장소", { scope: "project:alpha", budget_tokens: 2000, as_of: asOf });
 
   state.store.close();
   for (const suffix of ["", "-wal", "-shm"]) {
@@ -81,6 +83,7 @@ test("deleting the index and rebuilding preserves query and recall results", (t)
   assert.deepEqual(recall(rebuilt, "저장소", {
     scope: "project:alpha",
     budget_tokens: 2000,
+    as_of: asOf,
   }), beforeRecall);
 });
 

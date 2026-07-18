@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { recall } from "../core/recall.js";
 import { buildReceipt } from "../core/receipt.js";
 import { remember } from "../core/gate.js";
-import { applyCaptureCard, applyCard, listCards } from "../core/review.js";
+import { applyCaptureCard, applyCard, listCards, listSurfacedCards } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { makeT, resolveLocale } from "../i18n/strings.js";
@@ -202,17 +202,21 @@ function cardFacts(store, card) {
 }
 
 function cardsFor(home) {
-  const cards = listCards(home);
+  // 유저 노출 경로 — 하루 3개 캡. 내부(dedup·그래프)는 listCards 전체를 계속 쓴다.
+  const { cards, backlog } = listSurfacedCards(home);
   if (
     cards.length === 0
     || !fs.existsSync(path.join(home, "index.sqlite"))
   ) {
-    return cards.map((card) => (card.type === "capture" ? cardFacts(null, card) : card));
+    return {
+      cards: cards.map((card) => (card.type === "capture" ? cardFacts(null, card) : card)),
+      backlog,
+    };
   }
 
   const store = new Store(home);
   try {
-    return cards.map((card) => cardFacts(store, card));
+    return { cards: cards.map((card) => cardFacts(store, card)), backlog };
   } finally {
     store.close();
   }
@@ -756,7 +760,7 @@ export function createDashboardServer(home, options = {}) {
         setup.optional.cursor = cursorStatus(userHome);
         const diagnosis = doctor(home, { setup });
         const stats = statsFor(home);
-        const pending = listCards(home).length;
+        const pending = listSurfacedCards(home).cards.length;
 
         json(response, 200, {
           setup,
@@ -855,7 +859,7 @@ export function createDashboardServer(home, options = {}) {
         request.method === "GET"
         && url.pathname === "/api/cards"
       ) {
-        json(response, 200, { cards: cardsFor(home) });
+        json(response, 200, cardsFor(home));
         return;
       }
 
