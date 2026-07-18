@@ -192,89 +192,85 @@ export function createServer(store, config) {
       subject: z.string().optional(),
       max_pairs: z.number().int().optional(),
     },
-  }, async (input) => {
+  }, safe(async (input) => {
+    const dry = !input.apply;
+    const lockFile = path.join(store.home, "daemon", "run.lock");
+
+    if (!dry && !input.scope) {
+      return {
+        error: ERR.E_INVALID_INPUT,
+        message: "apply=true requires a scope to limit blast radius. Use scope (e.g. 'person', 'project:nautli').",
+      };
+    }
+
+    if (!acquireDigestLock(lockFile)) {
+      return {
+        error: ERR.E_STORE_BUSY,
+        message: "Digest is already running (daemon or another consolidate call). Try again later.",
+      };
+    }
+
     try {
-      const dry = !input.apply;
-      const lockFile = path.join(store.home, "daemon", "run.lock");
+      const pairOpts = {};
+      if (input.scope) pairOpts.scope = input.scope;
+      if (input.subject) pairOpts.subject = input.subject;
+      const maxPairs = Math.min(input.max_pairs ?? MAX_ON_DEMAND_PAIRS, MAX_ON_DEMAND_PAIRS);
 
-      if (!dry && !input.scope) {
-        return jsonContent({
-          error: ERR.E_INVALID_INPUT,
-          message: "apply=true requires a scope to limit blast radius. Use scope (e.g. 'person', 'project:nautli').",
-        });
-      }
-
-      if (!acquireDigestLock(lockFile)) {
-        return jsonContent({
-          error: ERR.E_STORE_BUSY,
-          message: "Digest is already running (daemon or another consolidate call). Try again later.",
-        });
-      }
-
-      try {
-        const pairOpts = {};
-        if (input.scope) pairOpts.scope = input.scope;
-        if (input.subject) pairOpts.subject = input.subject;
-        const maxPairs = Math.min(input.max_pairs ?? MAX_ON_DEMAND_PAIRS, MAX_ON_DEMAND_PAIRS);
-
-        if (dry) {
-          // dry_run: findPairs only — no pipeline/capture side-effects
-          const allPairs = findPairs(store, pairOpts);
-          const candidates = allPairs.slice(0, maxPairs).map(({ a, b, sim }) => ({
-            pair_id: `${a.id}:${b.id}`,
-            claim_a: a.claim,
-            claim_b: b.claim,
-            scope: a.scope,
-            subject_a: a.subject,
-            subject_b: b.subject,
-            similarity: Math.round(sim * 100) / 100,
-          }));
-
-          recordConsolidateJournal(store.home, {
-            mode: "dry_run",
-            scope: input.scope ?? null,
-            subject: input.subject ?? null,
-            candidates: candidates.length,
-          });
-
-          return jsonContent({
-            dry_run: true,
-            candidates,
-            total_pairs: allPairs.length,
-          });
-        }
-
-        const result = await runOnce(store, store.home, config, {
-          scope: input.scope,
-          subject: input.subject,
-        });
+      if (dry) {
+        // dry_run: findPairs only — no pipeline/capture side-effects
+        const allPairs = findPairs(store, pairOpts);
+        const candidates = allPairs.slice(0, maxPairs).map(({ a, b, sim }) => ({
+          pair_id: `${a.id}:${b.id}`,
+          claim_a: a.claim,
+          claim_b: b.claim,
+          scope: a.scope,
+          subject_a: a.subject,
+          subject_b: b.subject,
+          similarity: Math.round(sim * 100) / 100,
+        }));
 
         recordConsolidateJournal(store.home, {
-          mode: "apply",
-          scope: input.scope,
+          mode: "dry_run",
+          scope: input.scope ?? null,
           subject: input.subject ?? null,
-          pairs: result.pairs,
-          judgments: result.judgments,
-          merged: result.merged,
-          superseded: result.superseded,
+          candidates: candidates.length,
         });
 
-        return jsonContent({
-          applied: true,
-          scope: input.scope,
-          pairs: result.pairs,
-          judgments: result.judgments,
-          merged: result.merged ?? 0,
-          superseded: result.superseded ?? 0,
-          judge_errors: result.judge_errors?.length ?? 0,
-        });
-      } finally {
-        fs.rmSync(lockFile, { force: true });
+        return {
+          dry_run: true,
+          candidates,
+          total_pairs: allPairs.length,
+        };
       }
-    } catch (error) {
-      return jsonContent(errorResult(error));
+
+      const result = await runOnce(store, store.home, config, {
+        scope: input.scope,
+        subject: input.subject,
+      });
+
+      recordConsolidateJournal(store.home, {
+        mode: "apply",
+        scope: input.scope,
+        subject: input.subject ?? null,
+        pairs: result.pairs,
+        judgments: result.judgments,
+        merged: result.merged,
+        superseded: result.superseded,
+      });
+
+      return {
+        applied: true,
+        scope: input.scope,
+        pairs: result.pairs,
+        judgments: result.judgments,
+        merged: result.merged ?? 0,
+        superseded: result.superseded ?? 0,
+        judge_errors: result.judge_errors?.length ?? 0,
+      };
+    } finally {
+      fs.rmSync(lockFile, { force: true });
     }
-  });
+  }));
 
   return server;
 }

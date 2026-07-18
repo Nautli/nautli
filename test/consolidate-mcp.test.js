@@ -3,14 +3,26 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { Store } from "../src/core/store.js";
 import { remember } from "../src/core/gate.js";
 import { createServer } from "../src/mcp/server.js";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const mockJudge = path.join(root, "test", "fixtures", "mock-judge.js");
+process.env.NAUTLI_ALLOW_TEST_JUDGE = "1";
 
 const config = {
   default_scope: "person",
   judge_cmd: null,
   triage_cmd: false,
+};
+
+const applyConfig = {
+  default_scope: "person",
+  judge_cmd: [process.execPath, mockJudge],
+  triage_cmd: false,
+  contradiction_auto: true,
 };
 
 function isolatedHome(t) {
@@ -19,11 +31,11 @@ function isolatedHome(t) {
   return home;
 }
 
-function setup(t) {
+function setup(t, cfg = config) {
   const home = isolatedHome(t);
   const store = new Store(home);
   t.after(() => store.close());
-  const server = createServer(store, config);
+  const server = createServer(store, cfg);
   const handler = server._registeredTools["consolidate"].handler;
   return { home, store, handler };
 }
@@ -131,4 +143,30 @@ test("consolidate max_pairs caps candidates", async (t) => {
 
   assert.equal(result.dry_run, true);
   assert.ok(result.candidates.length <= 3);
+});
+
+test("consolidate apply with scope succeeds and returns expected fields", async (t) => {
+  const { home, store, handler } = setup(t, applyConfig);
+  add(store, "서비스 포트는 3000", "project:test", "2025-01-01");
+  add(store, "서비스 포트는 4000", "project:test", "2025-02-01");
+
+  const result = parseResult(await handler({ apply: true, scope: "project:test" }, {}));
+
+  assert.equal(result.applied, true);
+  assert.equal(result.scope, "project:test");
+  assert.equal(typeof result.pairs, "number");
+  assert.equal(typeof result.judgments, "number");
+  assert.equal(typeof result.merged, "number");
+  assert.equal(typeof result.superseded, "number");
+  assert.equal(typeof result.judge_errors, "number");
+  assert.ok(result.pairs >= 1);
+
+  // Verify apply journal entry
+  const journalFile = path.join(home, "daemon", "journal.jsonl");
+  const lines = fs.readFileSync(journalFile, "utf8").trim().split("\n");
+  const mcpEntries = lines
+    .map((l) => JSON.parse(l))
+    .filter((e) => e.kind === "consolidate_mcp" && e.mode === "apply");
+  assert.ok(mcpEntries.length >= 1);
+  assert.equal(mcpEntries[0].scope, "project:test");
 });
