@@ -9,7 +9,7 @@ import { BRAND } from "../brand.js";
 import { remember } from "../core/gate.js";
 import { briefing as buildBriefing, recall } from "../core/recall.js";
 import { buildReceipt } from "../core/receipt.js";
-import { listSurfacedCards, undoStats } from "../core/review.js";
+import { undoStats } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { makeT, resolveLocale } from "../i18n/strings.js";

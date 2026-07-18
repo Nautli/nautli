@@ -95,14 +95,24 @@ export function applyJudgments(store, judgments, config = {}) {
       let outcome = "skipped";
 
       if (a?.status === STATUS.ACTIVE && b?.status === STATUS.ACTIVE) {
-        // T1: duplicate, conf≥0.9, scope≠person, no crux_plain → auto-merge + undo ledger
+        // T1: duplicate, conf≥0.9, scope≠person(양쪽 모두), no crux_plain → auto-merge + undo ledger
         const isT1 = judgment.verdict === "duplicate"
           && confidence >= 0.9
           && a.scope !== "person"
+          && b.scope !== "person"
           && !judgment.crux_plain;
 
         if (isT1) {
-          const selected = olderDuplicate(a, b);
+          // 승자 방향은 judge의 newer 필드가 정본, t_valid 비교는 newer 부재 시 폴백 (GO 조건 ③).
+          // 명시됐는데 a/b가 아닌 오염값은 부재 취급 금지 — 방향 불명으로 shadow 강등.
+          const invalidNewer = judgment.newer != null
+            && judgment.newer !== "a" && judgment.newer !== "b";
+          const newerFact = judgment.newer === "a" ? a : judgment.newer === "b" ? b : null;
+          const selected = invalidNewer
+            ? null
+            : newerFact
+              ? (newerFact.id === a.id ? [b, a] : [a, b])
+              : olderDuplicate(a, b);
           if (selected) {
             const [oldFact, newFact] = selected;
             const beforeState = [
@@ -127,6 +137,24 @@ export function applyJudgments(store, judgments, config = {}) {
             });
             applied += 1;
             outcome = "applied";
+          } else {
+            // 승자 방향 판별 불가(newer 부재 + t_valid·confidence 동률) — 조용한 누락 대신 shadow로 강등
+            recordAutoApply(store.home, {
+              pair_id: judgment.pair_id,
+              action: "shadow",
+              verdict: judgment.verdict,
+              confidence,
+              scope: a.scope,
+              model: judgment.model ?? null,
+              before_state: [],
+              fact_ids: [a.id, b.id],
+              newer: judgment.newer,
+              claim_a: a.claim,
+              claim_b: b.claim,
+              type: "pair",
+            });
+            shadowed += 1;
+            outcome = "shadowed";
           }
         } else if (judgment.verdict === "contradiction"
           && config.contradiction_auto === true
@@ -158,9 +186,11 @@ export function applyJudgments(store, judgments, config = {}) {
           });
           applied += 1;
           outcome = "applied";
-        } else if ((judgment.verdict === "duplicate" && confidence >= 0.6 && confidence < 0.9)
-          || (judgment.verdict === "contradiction" && confidence >= 0.6)
-          || (judgment.verdict === "duplicate" && confidence >= 0.9 && (a.scope === "person" || judgment.crux_plain))) {
+        } else if ((judgment.verdict === "duplicate" && confidence < 0.9)
+          || judgment.verdict === "contradiction"
+          || (judgment.verdict === "duplicate" && confidence >= 0.9
+            && (a.scope === "person" || b.scope === "person" || judgment.crux_plain))) {
+          // 티어 표 기준 저신뢰 하한 없음: contradiction 전부, duplicate<0.9 전부 shadow (confidence NaN은 위 비교가 false라 자연 제외)
           // Zero-touch: instead of queuing for human review, record as shadow in undo ledger
           if (judgment.oracle === "machine") {
             machineOracle += 1;
@@ -179,6 +209,7 @@ export function applyJudgments(store, judgments, config = {}) {
               model: judgment.model ?? null,
               before_state: [],
               fact_ids: [a.id, b.id],
+              newer: judgment.newer,
               claim_a: a.claim,
               claim_b: b.claim,
               type: "pair",

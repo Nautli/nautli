@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { applyCaptureCard } from "../core/review.js";
+import { applyCaptureCard, recordAutoApply } from "../core/review.js";
 import { withReviewLock } from "../core/review-lock.js";
 import { appendRawLog, buildCommand, extractJsonObjects } from "./judge.js";
 
@@ -304,7 +304,34 @@ export async function triagePendingQueue(store, home, config) {
 
   let pairRouted = 0;
   let captureHeld = 0;
+  let captureShadowed = 0;
   const routedAt = new Date().toISOString();
+
+  // 제로터치: human 판정 capture는 사람 큐에 남기지 않고 shadow로 보낸다 —
+  // 질문 탭이 사라진 뒤 pending은 아무도 못 보는 무한 백로그가 되기 때문 (티어 표 T2-7).
+  const shadowCapture = (entry) => {
+    recordAutoApply(home, {
+      pair_id: entry.pair_id,
+      action: "shadow",
+      verdict: null,
+      confidence: entry.confidence ?? null,
+      scope: entry.scope ?? null,
+      model: null,
+      before_state: [],
+      fact_ids: [],
+      claim: entry.claim,
+      type: "capture",
+    });
+    captureShadowed += 1;
+    return {
+      ...entry,
+      status: "routed",
+      route: "shadow",
+      routed_at: routedAt,
+      handled_at: routedAt,
+      answered_by: "triage",
+    };
+  };
 
   withReviewLock(home, () => {
     const queue = readQueue(home);
@@ -320,8 +347,8 @@ export async function triagePendingQueue(store, home, config) {
             "recommend",
             "recommend_reason_plain",
           ]);
-          if (enriched !== entry) changed = true;
-          return enriched;
+          changed = true;
+          return shadowCapture(enriched);
         }
         if (result?.route === "hold") {
           captureHeld += 1;
@@ -342,8 +369,8 @@ export async function triagePendingQueue(store, home, config) {
             "recommend",
             "recommend_reason_plain",
           ]);
-          if (enriched !== entry) changed = true;
-          return enriched;
+          changed = true;
+          return shadowCapture(enriched);
         }
         return entry;
       }
@@ -375,12 +402,13 @@ export async function triagePendingQueue(store, home, config) {
     if (changed) writeQueue(home, updated);
   });
 
-  const routed = pairRouted + captureRemembered + captureHeld;
+  const routed = pairRouted + captureRemembered + captureHeld + captureShadowed;
   return {
     checked: pending.length,
     routed,
     kept: pending.length - routed,
     capture_remembered: captureRemembered,
     capture_held: captureHeld,
+    capture_shadowed: captureShadowed,
   };
 }

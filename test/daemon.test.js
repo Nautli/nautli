@@ -102,7 +102,8 @@ test("failed judgments stay observable without completing or applying the pair",
     pair_id,
     verdict: "duplicate",
     confidence: 0.95,
-    newer: "b",
+    // newer는 이제 승자 방향의 정본 — 정렬 순서와 무관하게 newFact를 가리키게 계산한다
+    newer: pair_id.split(":")[1] === newFact.id ? "b" : "a",
     reason: "같은 사실이다.",
   };
 

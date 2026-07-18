@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
 import { remember } from "../src/core/gate.js";
-import { applyCard, listCards, listSurfacedCards, listUndoLedger, migratePendingToAutoApply, recordAutoApply, undoAutoApply, undoStats } from "../src/core/review.js";
+import { applyCard, confirmShadowApply, listCards, listSurfacedCards, listUndoLedger, migratePendingToAutoApply, recordAutoApply, undoAutoApply, undoStats } from "../src/core/review.js";
 import { STATUS } from "../src/core/schema.js";
 import { Store } from "../src/core/store.js";
 
@@ -500,4 +500,129 @@ test("undoAutoApply rejects unknown undo_id", (t) => {
   const store = new Store(home);
   t.after(() => store.close());
   assert.throws(() => undoAutoApply(store, home, "nonexistent"), (error) => error.code === "E_NOT_FOUND");
+});
+
+// r1 리뷰 반영: migration T1 merge 경로 — conf≥0.9 + newer 필드가 승자 방향의 정본.
+test("migration T1 merges high-confidence pending duplicate following newer field", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t);
+  // 큐를 T1 조건으로 재작성: conf 0.95, newer="a"(시간상 더 오래된 oldFact가 judge 기준 승자)
+  fs.writeFileSync(path.join(home, "review", "queue.jsonl"), `${JSON.stringify({
+    pair_id: pairId,
+    verdict: "duplicate",
+    confidence: 0.95,
+    newer: "a",
+    claims: { a: store.getFact(oldFact.id).claim, b: store.getFact(newFact.id).claim },
+    status: "pending",
+  })}\n`, "utf8");
+
+  const result = migratePendingToAutoApply(store, home);
+  assert.equal(result.migrated, 1);
+  // newer="a" → t_valid로는 newFact가 최신이지만 judge 승자 oldFact가 살아남는다
+  assert.equal(store.getFact(newFact.id).status, STATUS.SUPERSEDED);
+  assert.equal(store.getFact(newFact.id).superseded_by, oldFact.id);
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+  const ledger = listUndoLedger(home);
+  assert.equal(ledger.length, 1);
+  assert.equal(ledger[0].action, "merge");
+});
+
+// r1 리뷰 반영: human 판정(crux_plain) pending은 conf 높아도 migration에서 merge 금지 → shadow.
+test("migration keeps human-triaged pending as shadow even at high confidence", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t);
+  fs.writeFileSync(path.join(home, "review", "queue.jsonl"), `${JSON.stringify({
+    pair_id: pairId,
+    verdict: "duplicate",
+    confidence: 0.95,
+    crux_plain: "표현이 달라 사람 확인이 필요했던 카드",
+    claims: { a: store.getFact(oldFact.id).claim, b: store.getFact(newFact.id).claim },
+    status: "pending",
+  })}\n`, "utf8");
+
+  const result = migratePendingToAutoApply(store, home);
+  assert.equal(result.migrated, 1);
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+  assert.equal(listUndoLedger(home)[0].action, "shadow");
+});
+
+// 마이크로 컨펌: shadow contradiction을 유저가 승인하면 newer 방향으로 적용 + undo 가능해진다.
+test("confirmShadowApply applies shadowed contradiction along newer and stays undoable", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t, "contradiction");
+  const shadowEntry = recordAutoApply(home, {
+    pair_id: pairId,
+    action: "shadow",
+    verdict: "contradiction",
+    confidence: 0.7,
+    scope: "project:review",
+    model: null,
+    before_state: [],
+    fact_ids: [oldFact.id, newFact.id],
+    newer: "b",
+    claim_a: store.getFact(oldFact.id).claim,
+    claim_b: store.getFact(newFact.id).claim,
+    type: "pair",
+  });
+
+  const confirmed = confirmShadowApply(store, home, shadowEntry.undo_id);
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.action, "b_wins");
+  assert.equal(store.getFact(oldFact.id).status, STATUS.INVALIDATED);
+  assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+  const entry = listUndoLedger(home).find((e) => e.undo_id === shadowEntry.undo_id);
+  assert.equal(entry.action, "b_wins");
+  assert.equal(entry.confirmed_by, "user");
+
+  // 확인 후에도 되돌리기 가능 (역연산 보장)
+  const undone = undoAutoApply(store, home, shadowEntry.undo_id);
+  assert.equal(undone.ok, true);
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+});
+
+// 마이크로 컨펌: 방향 정보 없는 contradiction shadow는 적용 거부 (임의 방향 적용 금지).
+test("confirmShadowApply refuses contradiction without direction", (t) => {
+  const { home, store, oldFact, newFact, pairId } = fixture(t, "contradiction");
+  const shadowEntry = recordAutoApply(home, {
+    pair_id: pairId,
+    action: "shadow",
+    verdict: "contradiction",
+    confidence: 0.7,
+    scope: "project:review",
+    model: null,
+    before_state: [],
+    fact_ids: [oldFact.id, newFact.id],
+    type: "pair",
+  });
+
+  const refused = confirmShadowApply(store, home, shadowEntry.undo_id);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.reason, "no_direction");
+  assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
+  assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+});
+
+// r2 리뷰 반영: capture 확인이 기존 fact와 duplicate로 판정되면 fact_id 미기록 — undo가 기존 fact를 archive하면 안 됨.
+test("confirmShadowApply on duplicate capture never records existing fact for undo", (t) => {
+  const { home, store } = fixture(t);
+  const existing = remember(store, { claim: "캡처 중복 테스트: 릴리즈는 금요일에 한다", scope: "project:review" }, config);
+  const shadowEntry = recordAutoApply(home, {
+    pair_id: "cap:dup-test",
+    action: "shadow",
+    verdict: null,
+    confidence: 0.8,
+    scope: "project:review",
+    model: null,
+    before_state: [],
+    fact_ids: [],
+    claim: "캡처 중복 테스트: 릴리즈는 금요일에 한다",
+    type: "capture",
+  });
+
+  const confirmed = confirmShadowApply(store, home, shadowEntry.undo_id);
+  assert.equal(confirmed.ok, true);
+  const entry = listUndoLedger(home).find((e) => e.undo_id === shadowEntry.undo_id);
+  assert.equal(entry.fact_id, undefined); // duplicate였으므로 기존 fact를 undo 대상으로 잡지 않는다
+
+  const undone = undoAutoApply(store, home, shadowEntry.undo_id);
+  assert.equal(undone.ok, true);
+  assert.equal(store.getFact(existing.id).status, STATUS.ACTIVE); // 기존 fact 무사
 });

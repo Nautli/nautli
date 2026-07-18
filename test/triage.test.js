@@ -9,6 +9,7 @@ import { remember } from "../src/core/gate.js";
 import { applyJudgments } from "../src/daemon/apply.js";
 import { writeReport } from "../src/daemon/report.js";
 import { triageCards, triagePendingQueue } from "../src/daemon/triage.js";
+import { listUndoLedger } from "../src/core/review.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mockTriage = path.join(root, "test", "fixtures", "mock-triage.js");
@@ -169,10 +170,11 @@ test("triagePendingQueue routes machine cards and enriches human pair and captur
   const result = await triagePendingQueue(store, home, config);
   assert.deepEqual(result, {
     checked: 3,
-    routed: 1,
-    kept: 2,
+    routed: 2,
+    kept: 1,
     capture_remembered: 0,
     capture_held: 0,
+    capture_shadowed: 1,
   });
   const queue = fs.readFileSync(queueFile, "utf8").trim().split("\n").map(JSON.parse);
   const routed = queue.find((entry) => entry.pair_id === machinePair);
@@ -183,13 +185,14 @@ test("triagePendingQueue routes machine cards and enriches human pair and captur
   assert.deepEqual(routed.claims, { a: machineA.claim, b: machineB.claim });
   assert.equal(kept.status, "pending");
   assert.equal(kept.crux_plain, "앞으로 어떤 방식을 더 중요하게 생각하는지 확인이 필요해요.");
-  assert.deepEqual(queue.find((entry) => entry.type === "capture"), {
-    ...capture,
-    crux_plain: "앞으로 이 결정을 계속 따를지 확인이 필요해요.",
-    context_plain: "7월 16일에 capture-project 작업을 정리하다가 나온 내용이에요.",
-    recommend: "remember",
-    recommend_reason_plain: "이미 정한 방향이라 기억해 두면 다음 작업에서 다시 확인할 수 있어요.",
-  });
+  // 제로터치: human capture는 pending 대신 shadow로 라우팅되고 enrichment는 보존된다
+  const shadowedCapture = queue.find((entry) => entry.type === "capture");
+  assert.equal(shadowedCapture.status, "routed");
+  assert.equal(shadowedCapture.route, "shadow");
+  assert.equal(shadowedCapture.crux_plain, "앞으로 이 결정을 계속 따를지 확인이 필요해요.");
+  assert.equal(shadowedCapture.recommend, "remember");
+  const ledger126 = listUndoLedger(home);
+  assert.equal(ledger126.filter((e) => e.action === "shadow").length, 1);
 });
 
 test("capture triage remembers confirmed technical facts, holds noise, and keeps human decisions", async (t) => {
@@ -236,10 +239,11 @@ test("capture triage remembers confirmed technical facts, holds noise, and keeps
   const result = await triagePendingQueue(store, home, config);
   assert.deepEqual(result, {
     checked: 3,
-    routed: 2,
-    kept: 1,
+    routed: 3,
+    kept: 0,
     capture_remembered: 1,
     capture_held: 1,
+    capture_shadowed: 1,
   });
 
   const queue = fs.readFileSync(queueFile, "utf8").trim().split("\n").map(JSON.parse);
@@ -258,7 +262,8 @@ test("capture triage remembers confirmed technical facts, holds noise, and keeps
   assert.match(held.routed_at, /^\d{4}-\d{2}-\d{2}T/u);
 
   const human = queue.find((entry) => entry.pair_id === "cap:human");
-  assert.equal(human.status, "pending");
+  assert.equal(human.status, "routed");
+  assert.equal(human.route, "shadow");
   assert.equal(human.crux_plain, "앞으로 이 결정을 계속 따를지 확인이 필요해요.");
   assert.equal(
     human.context_plain,
@@ -301,13 +306,18 @@ test("triagePendingQueue never downgrades an existing human capture to remember"
 
   assert.deepEqual(result, {
     checked: 1,
-    routed: 0,
-    kept: 1,
+    routed: 1,
+    kept: 0,
     capture_remembered: 0,
     capture_held: 0,
+    capture_shadowed: 1,
   });
-  assert.deepEqual(JSON.parse(fs.readFileSync(queueFile, "utf8").trim()), capture);
+  const shadowedHuman = JSON.parse(fs.readFileSync(queueFile, "utf8").trim());
+  assert.equal(shadowedHuman.status, "routed");
+  assert.equal(shadowedHuman.route, "shadow");
+  // 핵심 불변식: human 판정 카드는 어떤 경로로도 자동 remember 되지 않는다 (shadow는 fact를 만들지 않음)
   assert.equal(store.query().length, 0);
+  assert.equal(listUndoLedger(home)[0].action, "shadow");
 });
 
 test("triagePendingQueue never routes an existing human pair to machine", async (t) => {
@@ -335,6 +345,7 @@ test("triagePendingQueue never routes an existing human pair to machine", async 
     kept: 1,
     capture_remembered: 0,
     capture_held: 0,
+    capture_shadowed: 0,
   });
   assert.deepEqual(JSON.parse(fs.readFileSync(queueFile, "utf8").trim()), pair);
 });
@@ -358,13 +369,15 @@ test("capture triage drops a context with a dash but keeps the human card", asyn
   const result = await triagePendingQueue(store, home, config);
   assert.deepEqual(result, {
     checked: 1,
-    routed: 0,
-    kept: 1,
+    routed: 1,
+    kept: 0,
     capture_remembered: 0,
     capture_held: 0,
+    capture_shadowed: 1,
   });
   const queued = JSON.parse(fs.readFileSync(queueFile, "utf8").trim());
-  assert.equal(queued.status, "pending");
+  assert.equal(queued.status, "routed");
+  assert.equal(queued.route, "shadow");
   assert.equal(queued.crux_plain, "앞으로 이 결정을 계속 따를지 확인이 필요해요.");
   assert.equal(Object.hasOwn(queued, "context_plain"), false);
   assert.equal(queued.recommend, "remember");
@@ -396,6 +409,7 @@ test("capture triage failure leaves the card pending", async (t) => {
     kept: 1,
     capture_remembered: 0,
     capture_held: 0,
+    capture_shadowed: 0,
   });
   assert.deepEqual(JSON.parse(fs.readFileSync(queueFile, "utf8").trim()), capture);
 });

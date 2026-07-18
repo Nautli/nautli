@@ -386,6 +386,7 @@ export function recordAutoApply(home, {
   claim_b,
   claim,
   type,
+  newer,
 }) {
   const entry = {
     undo_id: undo_id || randomUUID(),
@@ -402,11 +403,97 @@ export function recordAutoApply(home, {
     ...(claim_a ? { claim_a } : {}),
     ...(claim_b ? { claim_b } : {}),
     ...(claim ? { claim } : {}),
+    // shadow 항목의 승자 방향 보존 — 마이크로 컨펌이 나중에 판정 방향을 알아야 적용 가능
+    ...(newer === "a" || newer === "b" ? { newer } : {}),
     applied_at: new Date().toISOString(),
     undone: false,
   };
   appendUndoEntry(home, entry);
   return entry;
+}
+
+// 마이크로 컨펌: shadow 항목을 유저가 열람 중 명시 승인하면 그 자리에서 적용한다 (pull형 — 밀지 않음).
+export function confirmShadowApply(store, home, undoId) {
+  return withReviewLock(home, () => {
+    const ledger = readUndoLedger(home);
+    const index = ledger.findIndex((e) => e.undo_id === undoId);
+    if (index < 0) throw codedError(ERR.E_NOT_FOUND);
+    const entry = ledger[index];
+    if (entry.undone) return { ok: false, reason: "already_undone" };
+    if (entry.action !== "shadow") return { ok: false, reason: "not_shadow" };
+    const now = new Date().toISOString();
+
+    if (entry.type === "capture") {
+      if (!entry.claim) return { ok: false, reason: "no_claim" };
+      const result = remember(store, {
+        claim: entry.claim,
+        scope: entry.scope ?? undefined,
+        confidence: entry.confidence ?? undefined,
+        source: "capture",
+      }, {});
+      if (result.status !== "added" && result.status !== "duplicate") {
+        return { ok: false, reason: result.status };
+      }
+      // duplicate면 result.id는 기존 active fact — fact_id로 기록하면 undo가 남의 fact를 archive한다
+      ledger[index] = {
+        ...entry,
+        action: "remember",
+        ...(result.status === "added" && result.id ? { fact_id: result.id } : {}),
+        confirmed_at: now,
+        confirmed_by: "user",
+      };
+      writeUndoLedger(home, ledger);
+      store.appendEvent({ ev: "shadow.confirmed", undo_id: undoId, action: "remember", at: now });
+      return { ok: true, action: "remember" };
+    }
+
+    const ids = Array.isArray(entry.fact_ids) ? entry.fact_ids : [];
+    const a = ids.length === 2 ? store.getFact(ids[0]) : null;
+    const b = ids.length === 2 ? store.getFact(ids[1]) : null;
+    if (a?.status !== STATUS.ACTIVE || b?.status !== STATUS.ACTIVE) {
+      return { ok: false, reason: "facts_not_active" };
+    }
+    // 명시됐는데 a/b가 아닌 오염값은 '부재'가 아니라 방향 불명 — 폴백 병합 금지
+    if (entry.newer != null && entry.newer !== "a" && entry.newer !== "b") {
+      return { ok: false, reason: "no_direction" };
+    }
+    const newerFact = entry.newer === "a" ? a : entry.newer === "b" ? b : null;
+    let winner;
+    let loser;
+    if (newerFact) {
+      winner = newerFact;
+      loser = winner.id === a.id ? b : a;
+    } else if (entry.verdict === "duplicate") {
+      // duplicate는 t_valid 폴백 허용, contradiction은 방향 없이 적용 금지
+      [loser, winner] = a.t_valid <= b.t_valid ? [a, b] : [b, a];
+    } else {
+      return { ok: false, reason: "no_direction" };
+    }
+    const beforeState = [
+      { id: loser.id, status: loser.status, claim: loser.claim },
+      { id: winner.id, status: winner.status, claim: winner.claim },
+    ];
+    let action;
+    if (entry.verdict === "duplicate") {
+      store.transition(loser.id, STATUS.SUPERSEDED, { superseded_by: winner.id }, "daemon");
+      action = "merge";
+    } else if (entry.verdict === "contradiction") {
+      store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon");
+      action = entry.newer === "a" ? "a_wins" : "b_wins";
+    } else {
+      return { ok: false, reason: "unsupported_verdict" };
+    }
+    ledger[index] = {
+      ...entry,
+      action,
+      before_state: beforeState,
+      confirmed_at: now,
+      confirmed_by: "user",
+    };
+    writeUndoLedger(home, ledger);
+    store.appendEvent({ ev: "shadow.confirmed", undo_id: undoId, action, at: now });
+    return { ok: true, action };
+  });
 }
 
 export function listUndoLedger(home) {
@@ -484,7 +571,8 @@ export function migratePendingToAutoApply(store, home) {
                 model: null,
                 before_state: [],
                 fact_ids: [],
-                fact_id: result.id ?? null,
+                // duplicate면 result.id는 기존 fact — undo가 그걸 archive하지 않게 added일 때만 기록
+                fact_id: result.status === "added" ? (result.id ?? null) : null,
                 claim: entry.claim,
                 type: "capture",
               });
@@ -531,11 +619,17 @@ export function migratePendingToAutoApply(store, home) {
       const b = ids.length === 2 ? store.getFact(ids[1]) : null;
       const confidence = Number(entry.confidence);
 
-      // T1: duplicate, conf≥0.9, scope≠person → auto-merge
+      // T1: duplicate, conf≥0.9, scope≠person(양쪽), human 판정(crux_plain) 아님, newer 오염값 아님 → auto-merge
       if (entry.verdict === "duplicate" && confidence >= 0.9
         && a?.status === STATUS.ACTIVE && b?.status === STATUS.ACTIVE
-        && a?.scope !== "person") {
-        const [older, newer] = a.t_valid <= b.t_valid ? [a, b] : [b, a];
+        && a?.scope !== "person" && b?.scope !== "person"
+        && !entry.crux_plain
+        && (entry.newer == null || entry.newer === "a" || entry.newer === "b")) {
+        // 승자 방향은 카드의 newer 필드가 정본, t_valid 비교는 폴백 (GO 조건 ③)
+        const newerFromEntry = entry.newer === "a" ? a : entry.newer === "b" ? b : null;
+        const [older, newer] = newerFromEntry
+          ? (newerFromEntry.id === a.id ? [b, a] : [a, b])
+          : (a.t_valid <= b.t_valid ? [a, b] : [b, a]);
         const beforeState = [
           { id: older.id, status: older.status, claim: older.claim },
           { id: newer.id, status: newer.status, claim: newer.claim },
@@ -576,6 +670,7 @@ export function migratePendingToAutoApply(store, home) {
         model: null,
         before_state: [],
         fact_ids: ids,
+        newer: entry.newer,
         claim_a: entry.claims?.a ?? a?.claim,
         claim_b: entry.claims?.b ?? b?.claim,
         type: "pair",
