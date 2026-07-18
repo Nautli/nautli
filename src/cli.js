@@ -577,6 +577,9 @@ export async function runDaemon(home, args, {
   }
 
   const config = configReader(home);
+  // 이 프로세스(소화 데몬) 안에서 일어나는 내부 remember는 스풀을 재적재하지 않는다 — 자가 재발사 방지.
+  const priorSuppress = process.env.NAUTLI_SUPPRESS_SPOOL;
+  process.env.NAUTLI_SUPPRESS_SPOOL = "1";
   try {
     let result;
     for (let cycle = 0; cycle < (eventRun ? 3 : 1); cycle += 1) {
@@ -604,6 +607,9 @@ export async function runDaemon(home, args, {
       notifier({ ok: false, trigger }, { home, locale, config });
     }
     throw error;
+  } finally {
+    if (priorSuppress === undefined) delete process.env.NAUTLI_SUPPRESS_SPOOL;
+    else process.env.NAUTLI_SUPPRESS_SPOOL = priorSuppress;
   }
 }
 

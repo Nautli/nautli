@@ -16,6 +16,9 @@ function markerNames(directory) {
 }
 
 export function touchSpool(home) {
+  // 소화 데몬 프로세스 내부의 remember(캡처 자동저장·리졸버 승격 등)는 스풀을 건드리지
+  // 않는다 — 자기 산출물로 자기를 재발사하는 피드백 루프 차단 (2026-07-18 실측에서 마커 84개 재적재).
+  if (process.env.NAUTLI_SUPPRESS_SPOOL === "1") return;
   try {
     const directory = spoolDirectory(home);
     fs.mkdirSync(directory, { recursive: true });

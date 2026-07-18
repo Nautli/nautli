@@ -181,3 +181,30 @@ test("daemon plist watches the escaped spool path with launchd throttling", (t) 
   assert.match(plist, /<key>StartCalendarInterval<\/key>/u);
   assert.match(plist, /<key>RunAtLoad<\/key><true\/>/u);
 });
+
+test("digestion-internal remembers do not re-arm the spool", async (t) => {
+  const home = isolatedHome(t);
+  const store = new Store(home);
+  t.after(() => store.close());
+
+  let insideSuppressed = null;
+  await runDaemon(home, [], {
+    configReader: () => config,
+    freshnessReader: () => ({ fresh: false, last_success_at: null, age_ms: null }),
+    digestRunner: async () => {
+      // 소화 파이프라인 내부의 자동 remember를 흉내낸다 — 스풀이 늘면 자가 재발사.
+      remember(store, { claim: "내부 캡처 자동 저장", scope: "project:spool" }, config);
+      insideSuppressed = readSpool(home).count;
+      return { ok: true, applied: 1 };
+    },
+    notifier: () => ({ notified: false }),
+  });
+
+  assert.equal(insideSuppressed, 0);
+  assert.equal(readSpool(home).count, 0);
+  assert.equal(process.env.NAUTLI_SUPPRESS_SPOOL, undefined); // finally 원복
+
+  // 데몬 밖(외부 세션)의 remember는 여전히 스풀을 적재한다.
+  remember(store, { claim: "외부 세션 저장", scope: "project:spool" }, config);
+  assert.equal(readSpool(home).count, 1);
+});
