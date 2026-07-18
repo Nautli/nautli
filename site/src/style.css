@@ -1565,6 +1565,11 @@ tbody th {
 
 .diagnose-page .small-note {
   max-width: 60ch;
+  margin-top: 20px;
+}
+
+.diagnose-page .trust-line {
+  margin-top: 20px;
 }
 
 .diagnose-page .primary-button {
