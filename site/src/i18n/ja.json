@@ -3,7 +3,7 @@
   "meta": {
     "index": {
       "title": "nautli | ディスクに置くAI共通メモリ",
-      "description": "Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。トークンを95%削減。説明は一度だけ。"
+      "description": "Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。メモリトークンを95%削減。説明は一度だけ。"
     },
     "manifesto": {
       "title": "マニフェスト | nautli",
@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "トークンを95%削減。説明は一度だけ。",
+    "h1": "メモリトークンを95%削減。説明は一度だけ。",
     "subline": "ディスクに置くプライベートメモリ。Claude、Codex、Cursorが共有し、毎晩整理されます。",
     "commands": [
       "npm i -g nautli",

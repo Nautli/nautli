@@ -3,7 +3,7 @@
   "meta": {
     "index": {
       "title": "nautli | 내 디스크에 사는 AI 공용 기억",
-      "description": "Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 토큰은 95% 아끼고, 설명은 한 번만."
+      "description": "Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 메모리 토큰은 95% 아끼고, 설명은 한 번만."
     },
     "manifesto": {
       "title": "신조 | nautli",
@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "토큰은 95% 아끼고, 설명은 한 번만.",
+    "h1": "메모리 토큰은 95% 아끼고, 설명은 한 번만.",
     "subline": "디스크에 사는 프라이빗 메모리. Claude, Codex, Cursor가 함께 읽고, 매일 밤 정리됩니다.",
     "commands": [
       "npm i -g nautli",

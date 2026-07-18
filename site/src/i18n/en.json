@@ -3,7 +3,7 @@
   "meta": {
     "index": {
       "title": "nautli | Cross-AI memory on your disk",
-      "description": "Local-first memory shared by Claude Code, Codex, and Cursor. Use 95% fewer tokens. Explain it once."
+      "description": "Local-first memory shared by Claude Code, Codex, and Cursor. Use 95% fewer memory tokens. Explain it once."
     },
     "manifesto": {
       "title": "Manifesto | nautli",
@@ -41,7 +41,7 @@
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
-    "h1": "Use 95% fewer tokens. Explain it once.",
+    "h1": "Use 95% fewer memory tokens. Explain it once.",
     "subline": "Private memory on your disk, shared across Claude, Codex, and Cursor, organized every night.",
     "commands": [
       "npm i -g nautli",
