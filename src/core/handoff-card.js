@@ -91,8 +91,8 @@ function inWindow(value, cutoff, now) {
 // ── Block ①: Representative delivered fact ─────────────────────────────
 // A fact is "전달됨" if it appears in `hits` of a recall event in the window.
 function findDeliveredFact(events, store, cutoff, now) {
-  const deliveredIds = new Map(); // factId -> count of sessions
-  const sessions = new Set();
+  const deliveredIds = new Map(); // factId -> delivery count
+  const factSessions = new Map(); // factId -> Set<sessionKey>
 
   for (const event of events) {
     if (event.type !== "recall"
@@ -102,11 +102,12 @@ function findDeliveredFact(events, store, cutoff, now) {
       || !inWindow(event.at, cutoff, now)) continue;
 
     const sessionKey = event.session_id || `bucket:${Math.floor(Date.parse(event.at) / 600000)}`;
-    sessions.add(sessionKey);
 
     for (const factId of event.hits) {
       if (typeof factId !== "string") continue;
       deliveredIds.set(factId, (deliveredIds.get(factId) || 0) + 1);
+      if (!factSessions.has(factId)) factSessions.set(factId, new Set());
+      factSessions.get(factId).add(sessionKey);
     }
   }
 
@@ -129,7 +130,7 @@ function findDeliveredFact(events, store, cutoff, now) {
     fact_id: bestId,
     claim,
     delivery_count: bestCount,
-    session_count: sessions.size,
+    session_count: factSessions.get(bestId)?.size ?? 1,
   };
 }
 
@@ -194,6 +195,7 @@ function findFactsDelta(events, store, cutoff, now) {
 
 // ── Block ④: Memory token measurement ─────────────────────────────────
 
+// Uses DB (sum of active claims) instead of instruction-file stat — always up-to-date regardless of sync state.
 function baselineTokens(store) {
   if (!store?.db?.open) return 0;
   try {

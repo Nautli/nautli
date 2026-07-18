@@ -222,6 +222,29 @@ test("renderHandoffCard includes baseline comparison when baseline > 0", (t) => 
   assert.ok(enText.includes("lighter"), "English should show percentage");
 });
 
+test("block 4 is skipped when delta exists but no recall (injected_tokens=0)", (t) => {
+  const { home, store } = isolatedStore(t);
+  const at = "2026-07-18T09:00:00.000Z";
+  // Only a fact.added event, no recall
+  store.appendEvent({
+    ev: "fact.added",
+    type: "remember",
+    source: "mcp",
+    at,
+    fact: { id: "fa_norecall", claim: "fact without recall", scope: "project:test", status: "active" },
+  }, { apply: false });
+
+  const card = buildHandoffCard(home, store, { now: NOW, days: 1 });
+  assert.ok(card, "card should exist (delta present)");
+  assert.equal(card.tokens.injected_tokens, 0, "no tokens injected");
+
+  const koText = renderHandoffCard(card, makeT("ko"));
+  // Block ④ should be absent (injected_tokens=0)
+  assert.ok(!koText.includes("주입"), "Block 4 should be skipped when injected_tokens=0");
+  // But delta block should be present
+  assert.ok(koText.includes("fact without recall"), "delta block should render");
+});
+
 // ── Causal language guard ──────────────────────────────────────────────
 
 test("assertNoCausalLanguage passes for observational text", () => {
