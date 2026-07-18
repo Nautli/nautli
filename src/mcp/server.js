@@ -13,6 +13,7 @@ import { undoStats } from "../core/review.js";
 import { ERR } from "../core/schema.js";
 import { Store } from "../core/store.js";
 import { makeT, resolveLocale } from "../i18n/strings.js";
+import { findPairs } from "../daemon/pair.js";
 import { runOnce } from "../daemon/pipeline.js";
 import { digestFreshness } from "../onboard/setup.js";
 
@@ -198,7 +199,7 @@ export function createServer(store, config) {
 
       if (!dry && !input.scope) {
         return jsonContent({
-          error: "E_INVALID_INPUT",
+          error: ERR.E_INVALID_INPUT,
           message: "apply=true requires a scope to limit blast radius. Use scope (e.g. 'person', 'project:nautli').",
         });
       }
@@ -211,17 +212,15 @@ export function createServer(store, config) {
       }
 
       try {
-        const pipelineOpts = { dry, scope: input.scope, subject: input.subject };
-        const result = await runOnce(store, store.home, config, pipelineOpts);
-
+        const pairOpts = {};
+        if (input.scope) pairOpts.scope = input.scope;
+        if (input.subject) pairOpts.subject = input.subject;
         const maxPairs = Math.min(input.max_pairs ?? MAX_ON_DEMAND_PAIRS, MAX_ON_DEMAND_PAIRS);
+
         if (dry) {
-          const { findPairs } = await import("../daemon/pair.js");
-          const pairOpts = {};
-          if (input.scope) pairOpts.scope = input.scope;
-          if (input.subject) pairOpts.subject = input.subject;
-          const pairs = findPairs(store, pairOpts).slice(0, maxPairs);
-          const candidates = pairs.map(({ a, b, sim }) => ({
+          // dry_run: findPairs only — no pipeline/capture side-effects
+          const allPairs = findPairs(store, pairOpts);
+          const candidates = allPairs.slice(0, maxPairs).map(({ a, b, sim }) => ({
             pair_id: `${a.id}:${b.id}`,
             claim_a: a.claim,
             claim_b: b.claim,
@@ -241,9 +240,14 @@ export function createServer(store, config) {
           return jsonContent({
             dry_run: true,
             candidates,
-            total_pairs: result.pairs,
+            total_pairs: allPairs.length,
           });
         }
+
+        const result = await runOnce(store, store.home, config, {
+          scope: input.scope,
+          subject: input.subject,
+        });
 
         recordConsolidateJournal(store.home, {
           mode: "apply",
