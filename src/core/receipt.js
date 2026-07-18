@@ -5,6 +5,31 @@ const DAY_MS = 86_400_000;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
 const ORGANIZED_STATUSES = new Set(["answered", "dismissed", "routed"]);
 
+function installDate(home) {
+  const evDir = path.join(home, "events");
+  let earliest = Infinity;
+  if (fs.existsSync(evDir)) {
+    const files = fs.readdirSync(evDir)
+      .filter((n) => /^\d{4}-\d{2}\.jsonl$/u.test(n))
+      .sort();
+    if (files.length > 0) {
+      const first = readJsonLines(path.join(evDir, files[0]));
+      for (const entry of first) {
+        const t = Date.parse(entry.at);
+        if (Number.isFinite(t) && t < earliest) { earliest = t; break; }
+      }
+    }
+  }
+  const dbFile = path.join(home, "index.sqlite");
+  if (fs.existsSync(dbFile)) {
+    try {
+      const birth = fs.statSync(dbFile).birthtimeMs;
+      if (Number.isFinite(birth) && birth < earliest) earliest = birth;
+    } catch { /* stat failure is non-fatal */ }
+  }
+  return Number.isFinite(earliest) ? earliest : null;
+}
+
 function readJsonLines(file) {
   if (!fs.existsSync(file)) return [];
   const values = [];
@@ -131,6 +156,19 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
     }
   }
 
+  let selfCorrected = 0;
+  for (const event of events) {
+    if (!inWindow(event.at, cutoff, nowTime)) continue;
+    if (event.ev === "fact.superseded" || event.ev === "fact.invalidated") {
+      selfCorrected += 1;
+    }
+  }
+
+  const installed = installDate(home);
+  const memoryAgeDays = installed != null
+    ? Math.max(0, Math.floor((nowTime - installed) / DAY_MS))
+    : null;
+
   const conversationCount = conversations.size;
   const organized = handledByPair.size;
   const factsActive = activeCount(store);
@@ -147,7 +185,38 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
     organized_by: organizedBy,
     facts_active: factsActive,
     facts_delta: factsDelta,
+    self_corrected: selfCorrected,
+    memory_age_days: memoryAgeDays,
+    installed_at: installed != null ? new Date(installed).toISOString() : null,
     sample_ok: conversationCount >= 3,
     activity,
+  };
+}
+
+const RECEIPT_WINDOWS = [2, 7, 30];
+
+export function buildReceiptMulti(home, store, { now } = {}) {
+  const clock = now === undefined ? new Date() : new Date(now);
+  const nowTime = clock.getTime();
+  const installed = installDate(home);
+  const lifetimeDays = installed != null
+    ? Math.max(1, Math.ceil((nowTime - installed) / DAY_MS))
+    : 30;
+
+  const windows = {};
+  for (const d of RECEIPT_WINDOWS) {
+    windows[`${d}d`] = buildReceipt(home, store, { days: d, now });
+  }
+  windows.lifetime = buildReceipt(home, store, { days: lifetimeDays, now });
+  windows.lifetime.days = lifetimeDays;
+  windows.lifetime.is_lifetime = true;
+
+  return {
+    windows,
+    installed_at: installed != null ? new Date(installed).toISOString() : null,
+    memory_age_days: installed != null
+      ? Math.max(0, Math.floor((nowTime - installed) / DAY_MS))
+      : null,
+    generated_at: clock.toISOString(),
   };
 }

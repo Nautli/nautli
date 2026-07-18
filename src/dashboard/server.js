@@ -5,7 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { recall } from "../core/recall.js";
-import { buildReceipt } from "../core/receipt.js";
+import { buildReceipt, buildReceiptMulti } from "../core/receipt.js";
 import { remember } from "../core/gate.js";
 import { applyCaptureCard, applyCard, confirmShadowApply, listCards, listSurfacedCards, listUndoLedger, migratePendingToAutoApply, undoAutoApply, undoStats } from "../core/review.js";
 import { ERR } from "../core/schema.js";
@@ -173,11 +173,21 @@ function statsFor(home) {
   }
 }
 
-function receiptFor(home) {
-  if (!fs.existsSync(path.join(home, "index.sqlite"))) return buildReceipt(home, null);
+function receiptFor(home, { days } = {}) {
+  if (!fs.existsSync(path.join(home, "index.sqlite"))) return buildReceipt(home, null, days != null ? { days } : undefined);
   const store = new Store(home);
   try {
-    return buildReceipt(home, store);
+    return buildReceipt(home, store, days != null ? { days } : undefined);
+  } finally {
+    store.close();
+  }
+}
+
+function receiptMultiFor(home) {
+  if (!fs.existsSync(path.join(home, "index.sqlite"))) return buildReceiptMulti(home, null);
+  const store = new Store(home);
+  try {
+    return buildReceiptMulti(home, store);
   } finally {
     store.close();
   }
@@ -781,7 +791,17 @@ export function createDashboardServer(home, options = {}) {
         request.method === "GET"
         && url.pathname === "/api/receipt"
       ) {
-        json(response, 200, receiptFor(home));
+        const daysParam = url.searchParams.get("days");
+        const days = daysParam != null ? Number(daysParam) : undefined;
+        json(response, 200, receiptFor(home, { days }));
+        return;
+      }
+
+      if (
+        request.method === "GET"
+        && url.pathname === "/api/receipt/multi"
+      ) {
+        json(response, 200, receiptMultiFor(home));
         return;
       }
 
