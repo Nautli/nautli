@@ -1,0 +1,29 @@
+{
+  "addon": {
+    "name": "nautli",
+    "display_name": "nautli",
+    "description": "One local brain for all your AI agents. Cross-AI memory with contradiction resolution and overnight digestion.",
+    "author": "nautli",
+    "homepage": "https://github.com/nautli/nautli",
+    "license": "MIT",
+    "categories": ["memory"],
+    "keywords": ["memory", "cross-ai", "local-first", "mcp", "knowledge-base", "contradiction-resolution"],
+    "min_lean_ctx": "3.8.0"
+  },
+  "mcp": {
+    "transport": "stdio",
+    "command": "nautli",
+    "args": ["mcp"]
+  },
+  "install": {
+    "manager": "npm",
+    "package": "nautli",
+    "version": "0.2.1",
+    "binary": "nautli"
+  },
+  "capabilities": {
+    "network": "full",
+    "filesystem": "read_write",
+    "env": ["NAUTLI_HOME"]
+  }
+}
