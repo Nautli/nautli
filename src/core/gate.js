@@ -49,7 +49,7 @@ function makeFact(input, scope, claim) {
       ...(input.source === undefined ? {} : { source: input.source }),
       ...(injectionFlagged ? { injection_flagged: "true" } : {}),
     },
-    t_valid: input.t_valid ?? new Date().toISOString().slice(0, 10),
+    t_valid: input.t_valid ?? new Date().toLocaleDateString("sv-SE"),
     t_invalid: null,
     t_expired: null,
     superseded_by: null,
