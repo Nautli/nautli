@@ -18,7 +18,7 @@
     "command": "nautli",
     "args": ["mcp"],
     "env": {},
-    "sha256": "",
+    "sha256": "a5c4f3f0fca3c34c612c9e573b066fb7674f7ef24d4818a99a23571010b9082f",
     "url": "",
     "headers": {}
   },
