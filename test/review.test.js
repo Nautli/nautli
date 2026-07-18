@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { Worker } from "node:worker_threads";
 import { remember } from "../src/core/gate.js";
-import { applyCard, confirmShadowApply, listCards, listSurfacedCards, listUndoLedger, migratePendingToAutoApply, recordAutoApply, undoAutoApply, undoStats } from "../src/core/review.js";
+import { allCaptureHashes, appendCards, applyCard, confirmShadowApply, listCards, listSurfacedCards, listUndoLedger, migratePendingToAutoApply, recordAutoApply, undoAutoApply, undoStats } from "../src/core/review.js";
 import { STATUS } from "../src/core/schema.js";
 import { Store } from "../src/core/store.js";
 
@@ -625,4 +625,83 @@ test("confirmShadowApply on duplicate capture never records existing fact for un
   const undone = undoAutoApply(store, home, shadowEntry.undo_id);
   assert.equal(undone.ok, true);
   assert.equal(store.getFact(existing.id).status, STATUS.ACTIVE); // 기존 fact 무사
+});
+
+// TASK-044: appendCards rejects capture cards with duplicate claim_hash
+test("appendCards rejects capture card with same claim_hash even if pair_id differs", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-dedup-"));
+  fs.mkdirSync(path.join(home, "review"), { recursive: true });
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const hash = "deadbeef1234567890abcdef12345678deadbeef";
+  const card1 = {
+    type: "capture",
+    pair_id: `cap:${hash}`,
+    claim: "test claim",
+    claim_hash: hash,
+    scope: "project:test",
+    confidence: 0.8,
+    status: "pending",
+    at: new Date().toISOString(),
+  };
+  assert.equal(appendCards(home, [card1]), 1);
+
+  // same claim_hash, different pair_id format — should be rejected
+  const card2 = { ...card1, pair_id: `cap2:${hash}` };
+  assert.equal(appendCards(home, [card2]), 0);
+});
+
+// TASK-044: appendCards rejects capture card when prior card was already handled
+test("appendCards rejects capture card whose claim_hash matches a handled card", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-dedup-handled-"));
+  fs.mkdirSync(path.join(home, "review"), { recursive: true });
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const hash = "aabbccdd1234567890abcdef12345678aabbccdd";
+  const card1 = {
+    type: "capture",
+    pair_id: `cap:${hash}`,
+    claim: "handled claim",
+    claim_hash: hash,
+    scope: "project:test",
+    confidence: 0.8,
+    status: "pending",
+    at: new Date().toISOString(),
+  };
+  assert.equal(appendCards(home, [card1]), 1);
+
+  // simulate card being handled (routed to shadow)
+  const queuePath = path.join(home, "review", "queue.jsonl");
+  const line = JSON.parse(fs.readFileSync(queuePath, "utf8").trim());
+  line.status = "routed";
+  line.route = "shadow";
+  fs.writeFileSync(queuePath, JSON.stringify(line) + "\n", "utf8");
+
+  // same claim re-extracted — should be rejected by claim_hash guard
+  const card2 = { ...card1, pair_id: `cap:${hash}`, status: "pending" };
+  assert.equal(appendCards(home, [card2]), 0);
+});
+
+// TASK-044: allCaptureHashes returns hashes across all statuses
+test("allCaptureHashes includes hashes from handled capture cards", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-allhash-"));
+  fs.mkdirSync(path.join(home, "review"), { recursive: true });
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+
+  const hash1 = "1111111111111111111111111111111111111111";
+  const hash2 = "2222222222222222222222222222222222222222";
+  const entries = [
+    { type: "capture", pair_id: `cap:${hash1}`, claim: "pending claim", claim_hash: hash1, status: "pending" },
+    { type: "capture", pair_id: `cap:${hash2}`, claim: "routed claim", claim_hash: hash2, status: "routed" },
+  ];
+  fs.writeFileSync(
+    path.join(home, "review", "queue.jsonl"),
+    entries.map((e) => JSON.stringify(e)).join("\n") + "\n",
+    "utf8",
+  );
+
+  const hashes = allCaptureHashes(home);
+  assert.equal(hashes.has(hash1), true);
+  assert.equal(hashes.has(hash2), true);
+  assert.equal(hashes.size, 2);
 });

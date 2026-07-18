@@ -177,6 +177,39 @@ test("checkpoint reset does not enqueue the same capture claim twice", (t) => {
   assert.equal(listCards(item.home).length, 1);
 });
 
+// TASK-044: drain skips duplicate claim even when prior card was routed (non-pending)
+test("drain skips duplicate claim when prior capture card is routed", async (t) => {
+  const item = fixture(t, "nautli-capture-drain-routed-dedup-");
+  assert.equal(runHook(item).status, 0);
+
+  // First drain: creates a pending capture card
+  const first = await drainOnce(item.home, { user_home: item.userHome }, {
+    extractor: async () => [{ claim: "배포 전에는 테스트를 실행한다.", scope: "procedure", confidence: 0.93 }],
+  });
+  assert.equal(first.candidates, 1);
+
+  // Simulate the card being routed to shadow (non-pending)
+  const queueFile = path.join(item.home, "review", "queue.jsonl");
+  const lines = fs.readFileSync(queueFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  lines[0].status = "routed";
+  lines[0].route = "shadow";
+  fs.writeFileSync(queueFile, lines.map((l) => JSON.stringify(l)).join("\n") + "\n", "utf8");
+
+  // Reset checkpoint so drain re-reads the same transcript
+  const checkpointFile = path.join(item.home, "capture", "checkpoints.json");
+  const checkpoints = JSON.parse(fs.readFileSync(checkpointFile, "utf8"));
+  const key = fs.realpathSync(item.transcript);
+  checkpoints[key] = { ...checkpoints[key], offset: 0, tail_hash: null, updated_at: null };
+  fs.writeFileSync(checkpointFile, `${JSON.stringify(checkpoints)}\n`, "utf8");
+
+  // Second drain: same claim should be skipped
+  const second = await drainOnce(item.home, { user_home: item.userHome }, {
+    extractor: async () => [{ claim: "배포 전에는 테스트를 실행한다.", scope: "procedure", confidence: 0.93 }],
+  });
+  assert.equal(second.skipped_duplicates, 1, "routed card의 claim_hash가 dedup에 걸려야 한다");
+  assert.equal(second.candidates, 0);
+});
+
 test("capture approval creates provenance and purgeByProvenance removes it", async (t) => {
   const item = fixture(t, "nautli-capture-drain-approval-");
   assert.equal(runHook(item).status, 0);

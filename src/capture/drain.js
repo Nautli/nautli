@@ -16,7 +16,7 @@ import {
   removeSpoolEntry,
 } from "./spool.js";
 import { formatDelta, parseTurns, readDelta, sizeStable } from "./transcript.js";
-import { appendCards, listCards } from "../core/review.js";
+import { allCaptureHashes, appendCards } from "../core/review.js";
 import { isSensitiveFilePath } from "../core/policy.js";
 import { ERR, claimHash, validScope } from "../core/schema.js";
 import { Store } from "../core/store.js";
@@ -182,11 +182,7 @@ export async function drainOnce(home, config = {}, {
         : new Set(store.query({ status: "active" }).map((fact) => fact.claim_hash));
       const pendingHashes = dry
         ? new Set()
-        : new Set(
-          listCards(home)
-            .filter((card) => card.type === "capture")
-            .map((card) => card.claim_hash ?? claimHash(card.claim)),
-        );
+        : allCaptureHashes(home);
 
       for (const candidate of candidates.values()) {
         if (typeof candidate.project !== "string") continue;

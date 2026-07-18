@@ -74,12 +74,23 @@ export function appendCards(home, entries) {
   return withReviewLock(home, () => {
     const queue = readQueue(home);
     const queuedPairs = new Set(queue.map((entry) => unorderedPairKey(entry.pair_id)));
+    const queuedCaptureHashes = new Set(
+      queue
+        .filter((entry) => entry.type === "capture" && typeof entry.claim_hash === "string")
+        .map((entry) => entry.claim_hash),
+    );
     let added = 0;
     for (const entry of entries) {
       const key = unorderedPairKey(entry?.pair_id);
       if (typeof entry?.pair_id !== "string" || queuedPairs.has(key)) continue;
+      if (entry.type === "capture"
+        && typeof entry.claim_hash === "string"
+        && queuedCaptureHashes.has(entry.claim_hash)) continue;
       queue.push(entry);
       queuedPairs.add(key);
+      if (entry.type === "capture" && typeof entry.claim_hash === "string") {
+        queuedCaptureHashes.add(entry.claim_hash);
+      }
       added += 1;
     }
     if (added > 0) writeQueue(home, queue);
@@ -111,6 +122,17 @@ function restoreDueDeferred(entry, today) {
   }
   const { surfaced_at: _surfaced, ...rest } = entry;
   return { ...rest, status: "pending" };
+}
+
+export function allCaptureHashes(home) {
+  return withReviewLock(home, () => {
+    const entries = readQueue(home);
+    return new Set(
+      entries
+        .filter((entry) => entry.type === "capture" && typeof entry.claim_hash === "string")
+        .map((entry) => entry.claim_hash),
+    );
+  });
 }
 
 export function listCards(home) {
