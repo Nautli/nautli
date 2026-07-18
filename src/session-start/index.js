@@ -17,6 +17,8 @@ const DAEMON_CWD_PATTERNS = [
 const SUBAGENT_SESSION_PATTERNS = [
   /^subagent-/i,
   /^agent-/i,
+  /^test-/i,
+  /^ci-/i,
 ];
 
 export function isExcludedSession(sessionId, cwd) {
@@ -61,6 +63,9 @@ function freshnessLabel(info) {
 }
 
 export function buildIndex(home, scope, { now } = {}) {
+  if (!scope || scope === "person" || scope.startsWith("person:")) {
+    return { index: "", facts: [], tokens: 0 };
+  }
   if (!fs.existsSync(path.join(home, "index.sqlite"))) {
     return { index: "", facts: [], tokens: 0 };
   }

@@ -5,8 +5,8 @@ import path from "node:path";
  * Judgment script for the SessionStart index switchback experiment.
  *
  * Reads events from ~/.nautli/events/ and computes:
- * - useful_consumption_rate: facts returned via recall that were subsequently used
- *   (no correction) / eligible sessions
+ * - useful_consumption_rate: proxy — recall with hits / eligible sessions
+ *   (correction signal unavailable; "used without correction" approximated by non-empty recall)
  * - call_rate: sessions with recall / eligible sessions
  * - non_empty_rate: recall calls with >0 hits / total recall calls
  * - wrong_scope_rate: recall calls that returned facts outside session scope
@@ -95,9 +95,8 @@ export function computeJudgment(home, { since } = {}) {
           // A recall with hits in the session's scope is considered useful consumption
           usefulConsumptions += 1;
         }
-        // Wrong scope: recall scope doesn't match session scope
-        if (recall.scope && session.scope && recall.scope !== session.scope
-          && recall.scope !== "person") {
+        // Wrong scope: recall scope doesn't match session scope (includes person — HOLD rule)
+        if (recall.scope && session.scope && recall.scope !== session.scope) {
           wrongScopeRecalls += 1;
         }
       }
@@ -142,6 +141,7 @@ export function computeJudgment(home, { since } = {}) {
     version: 1,
     kind: "session-start-judgment",
     generated_at: new Date().toISOString(),
+    proxy_note: "useful_consumption = recall with hits (correction signal unavailable)",
     since: since ?? null,
     control,
     treatment,

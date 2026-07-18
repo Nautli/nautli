@@ -103,6 +103,27 @@ test("buildIndex excludes person scope (only project scope)", (t) => {
   assert.ok(!result.facts.includes("person-fact-1"));
 });
 
+// --- Person scope defensive guard ---
+test("buildIndex rejects person scope directly", (t) => {
+  const home = isolatedHome(t);
+  const store = new Store(home);
+  store.addFact({
+    id: "person-fact-direct",
+    type: "assertion",
+    scope: "person",
+    subject: "",
+    claim: "Should never appear in index",
+    confidence: 0.9,
+    provenance: { source: "test" },
+    t_valid: "2026-07-18",
+  });
+  store.close();
+
+  const result = buildIndex(home, "person");
+  assert.equal(result.facts.length, 0);
+  assert.equal(result.index, "");
+});
+
 // --- Arm fixedness (deterministic) ---
 test("computeArm is deterministic for same salt+session", () => {
   const salt = "d09e7f72-ceba-4a91-9f5f-5caa9b65ec7b";
@@ -132,9 +153,11 @@ test("resumed session gets same arm", () => {
 });
 
 // --- Session exclusion ---
-test("isExcludedSession rejects subagent/daemon sessions", () => {
+test("isExcludedSession rejects subagent/daemon/test sessions", () => {
   assert.ok(isExcludedSession("subagent-xyz", "/tmp"));
   assert.ok(isExcludedSession("agent-foo", "/tmp"));
+  assert.ok(isExcludedSession("test-unit-abc", "/tmp"));
+  assert.ok(isExcludedSession("ci-pipeline-42", "/tmp"));
   assert.ok(isExcludedSession("normal-id", "/Users/x/.nautli/daemon"));
   assert.ok(!isExcludedSession("normal-session", "/Users/x/Desktop/myproject"));
 });
@@ -271,6 +294,29 @@ test("computeJudgment returns valid structure with no events", (t) => {
   assert.equal(result.control.eligible_sessions, 0);
   assert.equal(result.treatment.eligible_sessions, 0);
   assert.equal(result.decision, "CONTINUE");
+  assert.ok(result.proxy_note);
+});
+
+test("computeJudgment triggers HOLD on person-scope recall in treatment", (t) => {
+  const home = isolatedHome(t);
+  const eventsDir = path.join(home, "events");
+  fs.mkdirSync(eventsDir, { recursive: true });
+
+  const events = [
+    // session-start event for treatment arm
+    { ev: "session_start.index", session_id: "s1", cwd: "/tmp/proj", scope: "project:proj", experiment_arm: 1, fact_count: 3, tokens: 20, at: "2026-07-18T10:00:00.000Z" },
+    // recall with person scope (leak!)
+    { type: "recall", tool: "recall", query: "personal info", scope: "person", hits: ["f1"], session_id: "s1", at: "2026-07-18T10:01:00.000Z" },
+  ];
+  fs.writeFileSync(
+    path.join(eventsDir, "2026-07.jsonl"),
+    events.map((e) => JSON.stringify(e)).join("\n") + "\n",
+    "utf8",
+  );
+
+  const result = computeJudgment(home);
+  assert.equal(result.treatment.wrong_scope_recalls, 1);
+  assert.equal(result.decision, "HOLD");
 });
 
 // --- CLI integration ---
@@ -293,16 +339,17 @@ test("session-start-hook CLI outputs nothing for excluded session", (t) => {
 });
 
 // --- Privacy notice compliance ---
-test("output mentions topic/fact_id not full claim content", (t) => {
+test("topicOf truncates claims longer than 60 chars", (t) => {
   const home = isolatedHome(t);
-  const secretClaim = "API key is sk-secret-12345-do-not-leak";
+  const longSecret = "The database password for production server at db.internal.corp is xK9#mP2$vL7@nQ4wR8&jF1!cT6yB3hA5 and expires 2027-01-01";
+  assert.ok(longSecret.length > 60, "test claim must exceed 60 chars");
   const store = new Store(home);
   store.addFact({
     id: "secret-fact-001",
     type: "assertion",
     scope: "project:myapp",
     subject: "",
-    claim: secretClaim,
+    claim: longSecret,
     confidence: 0.9,
     provenance: { source: "test" },
     t_valid: "2026-07-18",
@@ -310,9 +357,9 @@ test("output mentions topic/fact_id not full claim content", (t) => {
   store.close();
 
   const result = buildIndex(home, "project:myapp");
-  // The index uses topicOf which truncates to 60 chars — but importantly
-  // should never include a full long claim verbatim with secrets
-  // (though in this case it fits in 60 chars, the test validates the structure uses topic)
   assert.ok(result.index.includes("secret-f")); // id prefix (8 chars)
   assert.ok(result.index.includes("2026-07-18")); // date
+  // Full claim must NOT appear (truncated with "...")
+  assert.ok(!result.index.includes(longSecret));
+  assert.ok(result.index.includes("..."), "truncated topic should end with ...");
 });
