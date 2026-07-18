@@ -1,4 +1,5 @@
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -11,12 +12,23 @@ const locales = ["en", "ko", "ja"];
 const pages = ["index", "manifesto", "install", "faq", "c"];
 const baseUrl = "https://nautli.ai";
 
+const assetHash = async (file) =>
+  createHash("sha256").update(await readFile(path.join(srcDir, file))).digest("hex").slice(0, 8);
+const assetVersions = {
+  style: await assetHash("style.css"),
+  script: await assetHash("main.js"),
+};
+
 const { renderPage, pagePath } = await import(
   pathToFileURL(path.join(srcDir, "template.mjs")).href
 );
 
 await rm(distDir, { recursive: true, force: true });
 await mkdir(distDir, { recursive: true });
+
+// dist/ is committed, and the wipe above removes this tracked file every build.
+// Recreate it so a build never silently drops the deploy ignores.
+await writeFile(path.join(distDir, ".gitignore"), ".vercel\n.env*\n", "utf8");
 
 const messages = {};
 for (const locale of locales) {
@@ -34,7 +46,7 @@ for (const locale of locales) {
     await mkdir(path.dirname(output), { recursive: true });
     await writeFile(
       output,
-      renderPage({ locale, page, copy: messages[locale], baseUrl }),
+      renderPage({ locale, page, copy: messages[locale], baseUrl, assetVersions }),
       "utf8",
     );
   }
@@ -42,6 +54,13 @@ for (const locale of locales) {
 
 await copyFile(path.join(srcDir, "style.css"), path.join(distDir, "style.css"));
 await copyFile(path.join(srcDir, "main.js"), path.join(distDir, "main.js"));
+
+const fontsOut = path.join(distDir, "fonts");
+await mkdir(fontsOut, { recursive: true });
+for (const name of await readdir(path.join(srcDir, "fonts"))) {
+  if (!name.endsWith(".woff2")) continue;
+  await copyFile(path.join(srcDir, "fonts", name), path.join(fontsOut, name));
+}
 
 const assetsOut = path.join(distDir, "assets");
 await mkdir(assetsOut, { recursive: true });

@@ -89,21 +89,80 @@ function sectionLabel(text) {
   return `<p class="section-label">${escapeHtml(text)}</p>`;
 }
 
+// Hand-built product window, not a screenshot: it stays sharp at every density,
+// localises with the rest of the page, and costs no image bytes. Decorative, so
+// the whole subtree is hidden from assistive tech and from snippet scrapers.
+function appMock(copy) {
+  const h = copy.home;
+  const m = h.mock;
+  const conflict = h.after[0]?.text ?? "";
+  const [left, right] = h.before;
+  const claim = h.fact.find((row) => row[0] === "claim")?.[1] ?? "";
+  const scopes = ["project:api", "person", "procedure"];
+  const sources = ["Claude Code", "Codex", "Cursor"];
+  const facts = m.facts.length ? m.facts : [[claim, "claude-code · project:api"]];
+  return `<div class="mock-overflow" aria-hidden="true" data-nosnippet>
+    <div class="app-window">
+      <div class="app-titlebar">
+        <div class="app-dots"><span></span><span></span><span></span></div>
+        <div class="app-tabs">
+          <div class="app-tab is-active">${escapeHtml(m.tabPrimary)}</div>
+          <div class="app-tab">${escapeHtml(m.tabSecondary)}</div>
+        </div>
+      </div>
+      <div class="app-body">
+        <div class="app-sidebar">
+          <p class="app-sidebar-label">${escapeHtml(m.scopesLabel)}</p>
+          ${scopes.map((scope, index) => `<div class="app-scope${index === 0 ? " is-active" : ""}">${escapeHtml(scope)}</div>`).join("")}
+          <p class="app-sidebar-label">${escapeHtml(m.sourcesLabel)}</p>
+          ${sources.map((source) => `<div class="app-scope">${escapeHtml(source)}</div>`).join("")}
+        </div>
+        <div class="app-main">
+          <div class="app-main-head">
+            <span class="app-badge">${escapeHtml(m.badge)}</span>
+            <span>${escapeHtml(m.meta)}</span>
+          </div>
+          <div class="app-review">
+            <p class="app-review-type">${escapeHtml(h.reviews[0].type)}</p>
+            <p class="app-review-q">${escapeHtml(conflict)}</p>
+            <div class="app-review-pair">
+              <div><code>fact 019</code><span>${escapeHtml(left.text)}</span></div>
+              <div><code>fact 042</code><span>${escapeHtml(right.text)}</span></div>
+            </div>
+            <div class="app-review-actions">
+              <div class="app-chip is-primary">${escapeHtml(m.resolve)}</div>
+              <div class="app-chip">${escapeHtml(m.keepBoth)}</div>
+              <div class="app-chip">${escapeHtml(m.later)}</div>
+            </div>
+          </div>
+          <div class="app-fact-list">
+            ${facts.map((row) => `<div class="app-fact"><span>${escapeHtml(row[0])}</span><em>${escapeHtml(row[1])}</em></div>`).join("")}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function homePage(locale, copy) {
   const h = copy.home;
   const commands = h.commands.map((text, index) => ({ text, id: `home-${index}` }));
   return `<main>
-    <section class="hero shell wide-shell">
+    <section class="hero shell wide-shell grain-surface">
       <svg class="spiral" viewBox="0 0 300 300" aria-hidden="true"><path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div class="hero-copy">
         <p class="eyebrow">${escapeHtml(h.eyebrow)}</p>
         <h1>${escapeHtml(h.h1)}</h1>
         <p class="hero-subline">${escapeHtml(h.subline)}</p>
       </div>
-      ${commandBlock(commands, copy, "hero-commands")}
+      <div class="hero-actions">
+        ${commandBlock(commands, copy, "hero-commands")}
+        ${Array.isArray(h.stats) && h.stats.length ? `<ul class="stats-strip">${h.stats.map((st) => `<li><strong>${escapeHtml(st[0])}</strong><span>${escapeHtml(st[1])}</span></li>`).join("")}</ul>` : ""}
+      </div>
       <p class="trust-line">🔒 ${escapeHtml(h.trustLine)}</p>
-      ${Array.isArray(h.stats) && h.stats.length ? `<ul class="stats-strip">${h.stats.map((st) => `<li><strong>${escapeHtml(st[0])}</strong><span>${escapeHtml(st[1])}</span></li>`).join("")}</ul>` : ""}
     </section>
+
+    <div class="hero-mock-band">${appMock(copy)}</div>
 
     <section class="creed-banner">
       <div class="shell wide-shell creed-inner">
@@ -221,7 +280,7 @@ function pageContent(locale, page, copy) {
   return sharePage(copy);
 }
 
-export function renderPage({ locale, page, copy, baseUrl }) {
+export function renderPage({ locale, page, copy, baseUrl, assetVersions = {} }) {
   const meta = copy.meta[page];
   const canonical = `${baseUrl}${pagePath(locale, page)}`;
   const alternateLinks = [
@@ -259,9 +318,9 @@ export function renderPage({ locale, page, copy, baseUrl }) {
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css${assetVersions.style ? `?v=${assetVersions.style}` : ""}">
   <script type="application/ld+json">${JSON.stringify(schema).replaceAll("<", "\\u003c")}</script>
-  <script src="/main.js" defer></script>
+  <script src="/main.js${assetVersions.script ? `?v=${assetVersions.script}` : ""}" defer></script>
 </head>
 <body class="${bodyClass}" data-page="${page}" data-copy-success="${escapeHtml(copy.common.copySuccess)}" data-copy-failure="${escapeHtml(copy.common.copyFailure)}" data-copy-prompt="${escapeHtml(copy.common.copyPrompt)}">
   <a class="skip-link" href="#main-content">${escapeHtml(copy.common.skip)}</a>

@@ -20,9 +20,9 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=3ccc828c">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Local-first memory shared by Claude Code, Codex, and Cursor. Use 95% fewer memory tokens. Explain it once.","url":"https://nautli.ai/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/faq.html"}</script>
-  <script src="/main.js" defer></script>
+  <script src="/main.js?v=c53def60" defer></script>
 </head>
 <body class="" data-page="index" data-copy-success="Copied" data-copy-failure="Copy failed. Select the command and copy it manually." data-copy-prompt="Copy this command manually:">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -45,14 +45,15 @@
     </div>
   </header>
   <div id="main-content"><main>
-    <section class="hero shell wide-shell">
+    <section class="hero shell wide-shell grain-surface">
       <svg class="spiral" viewBox="0 0 300 300" aria-hidden="true"><path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div class="hero-copy">
         <p class="eyebrow">Open source · MIT · Local-first</p>
         <h1>Use 95% fewer memory tokens. Explain it once.</h1>
         <p class="hero-subline">Private memory on your disk, shared across Claude, Codex, and Cursor, organized every night.</p>
       </div>
-      <div class="command-block hero-commands">
+      <div class="hero-actions">
+        <div class="command-block hero-commands">
     <div class="command-row">
       <code id="command-home-0">npm i -g nautli</code>
       <button class="copy-button" type="button" data-copy="npm i -g nautli" aria-describedby="copy-status-home-0">Copy</button>
@@ -70,9 +71,52 @@
 nautli init
 nautli checkup ~/notes" aria-describedby="copy-status-all">Copy all</button><span class="copy-status" id="copy-status-all" role="status" aria-live="polite"></span></div>
   </div>
+        <ul class="stats-strip"><li><strong>95%</strong><span>fewer memory tokens per session</span></li><li><strong>11% → 0.3%</strong><span>memory&#39;s share of your context window</span></li></ul>
+      </div>
       <p class="trust-line">🔒 Your notes never reach our servers · No silent rewrites · MIT · macOS</p>
-      <ul class="stats-strip"><li><strong>95%</strong><span>fewer memory tokens per session</span></li><li><strong>11% → 0.3%</strong><span>memory&#39;s share of your context window</span></li></ul>
     </section>
+
+    <div class="hero-mock-band"><div class="mock-overflow" aria-hidden="true" data-nosnippet>
+    <div class="app-window">
+      <div class="app-titlebar">
+        <div class="app-dots"><span></span><span></span><span></span></div>
+        <div class="app-tabs">
+          <div class="app-tab is-active">Overnight digest</div>
+          <div class="app-tab">Facts</div>
+        </div>
+      </div>
+      <div class="app-body">
+        <div class="app-sidebar">
+          <p class="app-sidebar-label">Scopes</p>
+          <div class="app-scope is-active">project:api</div><div class="app-scope">person</div><div class="app-scope">procedure</div>
+          <p class="app-sidebar-label">Sources</p>
+          <div class="app-scope">Claude Code</div><div class="app-scope">Codex</div><div class="app-scope">Cursor</div>
+        </div>
+        <div class="app-main">
+          <div class="app-main-head">
+            <span class="app-badge">2 to review</span>
+            <span>~/.nautli · nightly digest</span>
+          </div>
+          <div class="app-review">
+            <p class="app-review-type">Contradiction</p>
+            <p class="app-review-q">PostgreSQL and SQLite conflict. Did the decision change?</p>
+            <div class="app-review-pair">
+              <div><code>fact 019</code><span>Local development uses PostgreSQL.</span></div>
+              <div><code>fact 042</code><span>Local development uses SQLite.</span></div>
+            </div>
+            <div class="app-review-actions">
+              <div class="app-chip is-primary">SQLite is current</div>
+              <div class="app-chip">Keep both</div>
+              <div class="app-chip">Ask later</div>
+            </div>
+          </div>
+          <div class="app-fact-list">
+            <div class="app-fact"><span>auth uses RS256 JWT, rotates 30d</span><em>claude-code · project:api</em></div><div class="app-fact"><span>Deploys run from main only</span><em>codex · procedure</em></div><div class="app-fact"><span>Prefers short, direct answers</span><em>cursor · person</em></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
 
     <section class="creed-banner">
       <div class="shell wide-shell creed-inner">

@@ -20,9 +20,9 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=3ccc828c">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code、Codex、Cursorが共有するローカルファーストのメモリ。メモリトークンを95%削減。説明は一度だけ。","url":"https://nautli.ai/ja/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ja/faq.html"}</script>
-  <script src="/main.js" defer></script>
+  <script src="/main.js?v=c53def60" defer></script>
 </head>
 <body class="" data-page="index" data-copy-success="コピーしました" data-copy-failure="コピーできませんでした。コマンドを選択して手動でコピーしてください。" data-copy-prompt="このコマンドを手動でコピーしてください:">
   <a class="skip-link" href="#main-content">本文へ移動</a>
@@ -45,14 +45,15 @@
     </div>
   </header>
   <div id="main-content"><main>
-    <section class="hero shell wide-shell">
+    <section class="hero shell wide-shell grain-surface">
       <svg class="spiral" viewBox="0 0 300 300" aria-hidden="true"><path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div class="hero-copy">
         <p class="eyebrow">Open source · MIT · Local-first</p>
         <h1>メモリトークンを95%削減。説明は一度だけ。</h1>
         <p class="hero-subline">ディスクに置くプライベートメモリ。Claude、Codex、Cursorが共有し、毎晩整理されます。</p>
       </div>
-      <div class="command-block hero-commands">
+      <div class="hero-actions">
+        <div class="command-block hero-commands">
     <div class="command-row">
       <code id="command-home-0">npm i -g nautli</code>
       <button class="copy-button" type="button" data-copy="npm i -g nautli" aria-describedby="copy-status-home-0">コピー</button>
@@ -70,9 +71,52 @@
 nautli init
 nautli checkup ~/notes" aria-describedby="copy-status-all">すべてコピー</button><span class="copy-status" id="copy-status-all" role="status" aria-live="polite"></span></div>
   </div>
+        <ul class="stats-strip"><li><strong>95%</strong><span>セッションあたりのメモリトークン削減</span></li><li><strong>11% → 0.3%</strong><span>メモリが占めていたコンテキスト</span></li></ul>
+      </div>
       <p class="trust-line">🔒 ノートがnautliのサーバーへ送られることはありません · 無断で書き換えない · MIT · macOS</p>
-      <ul class="stats-strip"><li><strong>95%</strong><span>セッションあたりのメモリトークン削減</span></li><li><strong>11% → 0.3%</strong><span>メモリが占めていたコンテキスト</span></li></ul>
     </section>
+
+    <div class="hero-mock-band"><div class="mock-overflow" aria-hidden="true" data-nosnippet>
+    <div class="app-window">
+      <div class="app-titlebar">
+        <div class="app-dots"><span></span><span></span><span></span></div>
+        <div class="app-tabs">
+          <div class="app-tab is-active">夜間の整理</div>
+          <div class="app-tab">事実</div>
+        </div>
+      </div>
+      <div class="app-body">
+        <div class="app-sidebar">
+          <p class="app-sidebar-label">範囲</p>
+          <div class="app-scope is-active">project:api</div><div class="app-scope">person</div><div class="app-scope">procedure</div>
+          <p class="app-sidebar-label">出典</p>
+          <div class="app-scope">Claude Code</div><div class="app-scope">Codex</div><div class="app-scope">Cursor</div>
+        </div>
+        <div class="app-main">
+          <div class="app-main-head">
+            <span class="app-badge">確認2件</span>
+            <span>~/.nautli · 毎晩の整理</span>
+          </div>
+          <div class="app-review">
+            <p class="app-review-type">本当の矛盾</p>
+            <p class="app-review-q">PostgreSQLとSQLiteが競合しています。判断を変更しましたか?</p>
+            <div class="app-review-pair">
+              <div><code>fact 019</code><span>ローカル開発ではPostgreSQLを使います。</span></div>
+              <div><code>fact 042</code><span>ローカル開発ではSQLiteを使います。</span></div>
+            </div>
+            <div class="app-review-actions">
+              <div class="app-chip is-primary">SQLiteが現在</div>
+              <div class="app-chip">両方残す</div>
+              <div class="app-chip">あとで</div>
+            </div>
+          </div>
+          <div class="app-fact-list">
+            <div class="app-fact"><span>認証はRS256 JWTを使い、鍵は30日ごとに更新する</span><em>claude-code · project:api</em></div><div class="app-fact"><span>デプロイはmainブランチからのみ実行する</span><em>codex · procedure</em></div><div class="app-fact"><span>短く直接的な回答を好む</span><em>cursor · person</em></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
 
     <section class="creed-banner">
       <div class="shell wide-shell creed-inner">

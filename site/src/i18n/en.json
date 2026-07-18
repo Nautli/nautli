@@ -229,7 +229,32 @@
         "11% → 0.3%",
         "memory's share of your context window"
       ]
-    ]
+    ],
+    "mock": {
+      "tabPrimary": "Overnight digest",
+      "tabSecondary": "Facts",
+      "scopesLabel": "Scopes",
+      "sourcesLabel": "Sources",
+      "badge": "2 to review",
+      "meta": "~/.nautli · nightly digest",
+      "resolve": "SQLite is current",
+      "keepBoth": "Keep both",
+      "later": "Ask later",
+      "facts": [
+        [
+          "auth uses RS256 JWT, rotates 30d",
+          "claude-code · project:api"
+        ],
+        [
+          "Deploys run from main only",
+          "codex · procedure"
+        ],
+        [
+          "Prefers short, direct answers",
+          "cursor · person"
+        ]
+      ]
+    }
   },
   "manifesto": {
     "eyebrow": "Manifesto",

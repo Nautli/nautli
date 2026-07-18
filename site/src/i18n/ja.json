@@ -229,7 +229,32 @@
         "11% → 0.3%",
         "メモリが占めていたコンテキスト"
       ]
-    ]
+    ],
+    "mock": {
+      "tabPrimary": "夜間の整理",
+      "tabSecondary": "事実",
+      "scopesLabel": "範囲",
+      "sourcesLabel": "出典",
+      "badge": "確認2件",
+      "meta": "~/.nautli · 毎晩の整理",
+      "resolve": "SQLiteが現在",
+      "keepBoth": "両方残す",
+      "later": "あとで",
+      "facts": [
+        [
+          "認証はRS256 JWTを使い、鍵は30日ごとに更新する",
+          "claude-code · project:api"
+        ],
+        [
+          "デプロイはmainブランチからのみ実行する",
+          "codex · procedure"
+        ],
+        [
+          "短く直接的な回答を好む",
+          "cursor · person"
+        ]
+      ]
+    }
   },
   "manifesto": {
     "eyebrow": "マニフェスト",

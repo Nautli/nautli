@@ -20,9 +20,9 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=3ccc828c">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 메모리 토큰은 95% 아끼고, 설명은 한 번만.","url":"https://nautli.ai/ko/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
-  <script src="/main.js" defer></script>
+  <script src="/main.js?v=c53def60" defer></script>
 </head>
 <body class="" data-page="index" data-copy-success="복사했습니다" data-copy-failure="복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요." data-copy-prompt="이 명령을 직접 복사해 주세요:">
   <a class="skip-link" href="#main-content">본문으로 건너뛰기</a>
@@ -45,14 +45,15 @@
     </div>
   </header>
   <div id="main-content"><main>
-    <section class="hero shell wide-shell">
+    <section class="hero shell wide-shell grain-surface">
       <svg class="spiral" viewBox="0 0 300 300" aria-hidden="true"><path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div class="hero-copy">
         <p class="eyebrow">Open source · MIT · Local-first</p>
         <h1>메모리 토큰은 95% 아끼고, 설명은 한 번만.</h1>
         <p class="hero-subline">디스크에 사는 프라이빗 메모리. Claude, Codex, Cursor가 함께 읽고, 매일 밤 정리됩니다.</p>
       </div>
-      <div class="command-block hero-commands">
+      <div class="hero-actions">
+        <div class="command-block hero-commands">
     <div class="command-row">
       <code id="command-home-0">npm i -g nautli</code>
       <button class="copy-button" type="button" data-copy="npm i -g nautli" aria-describedby="copy-status-home-0">복사</button>
@@ -70,9 +71,52 @@
 nautli init
 nautli checkup ~/notes" aria-describedby="copy-status-all">모두 복사</button><span class="copy-status" id="copy-status-all" role="status" aria-live="polite"></span></div>
   </div>
+        <ul class="stats-strip"><li><strong>95%</strong><span>세션당 메모리 토큰 절감</span></li><li><strong>11% → 0.3%</strong><span>메모리가 차지하던 컨텍스트 창</span></li></ul>
+      </div>
       <p class="trust-line">🔒 당신의 노트는 nautli 서버에 닿지 않습니다 · 몰래 고치지 않음 · MIT · macOS</p>
-      <ul class="stats-strip"><li><strong>95%</strong><span>세션당 메모리 토큰 절감</span></li><li><strong>11% → 0.3%</strong><span>메모리가 차지하던 컨텍스트 창</span></li></ul>
     </section>
+
+    <div class="hero-mock-band"><div class="mock-overflow" aria-hidden="true" data-nosnippet>
+    <div class="app-window">
+      <div class="app-titlebar">
+        <div class="app-dots"><span></span><span></span><span></span></div>
+        <div class="app-tabs">
+          <div class="app-tab is-active">밤사이 정리</div>
+          <div class="app-tab">사실</div>
+        </div>
+      </div>
+      <div class="app-body">
+        <div class="app-sidebar">
+          <p class="app-sidebar-label">범위</p>
+          <div class="app-scope is-active">project:api</div><div class="app-scope">person</div><div class="app-scope">procedure</div>
+          <p class="app-sidebar-label">출처</p>
+          <div class="app-scope">Claude Code</div><div class="app-scope">Codex</div><div class="app-scope">Cursor</div>
+        </div>
+        <div class="app-main">
+          <div class="app-main-head">
+            <span class="app-badge">검토 2건</span>
+            <span>~/.nautli · 매일 밤 정리</span>
+          </div>
+          <div class="app-review">
+            <p class="app-review-type">진짜 모순</p>
+            <p class="app-review-q">PostgreSQL과 SQLite가 충돌합니다. 결정이 바뀌었나요?</p>
+            <div class="app-review-pair">
+              <div><code>fact 019</code><span>로컬 개발은 PostgreSQL을 씁니다.</span></div>
+              <div><code>fact 042</code><span>로컬 개발은 SQLite를 씁니다.</span></div>
+            </div>
+            <div class="app-review-actions">
+              <div class="app-chip is-primary">SQLite가 현재</div>
+              <div class="app-chip">둘 다 보존</div>
+              <div class="app-chip">나중에</div>
+            </div>
+          </div>
+          <div class="app-fact-list">
+            <div class="app-fact"><span>인증은 RS256 JWT를 쓰며 30일마다 키를 교체함</span><em>claude-code · project:api</em></div><div class="app-fact"><span>배포는 main 브랜치에서만 실행함</span><em>codex · procedure</em></div><div class="app-fact"><span>짧고 직접적인 답을 선호함</span><em>cursor · person</em></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
 
     <section class="creed-banner">
       <div class="shell wide-shell creed-inner">

@@ -109,6 +109,16 @@
     }
   });
 
+  // Sticky header keeps its bottom border only once content scrolls under it.
+  const siteHeader = document.querySelector(".site-header");
+  if (siteHeader) {
+    const syncHeader = () => {
+      siteHeader.classList.toggle("is-scrolled", window.scrollY > 8);
+    };
+    syncHeader();
+    window.addEventListener("scroll", syncHeader, { passive: true });
+  }
+
   if (body.dataset.page === "c") {
     const params = new URLSearchParams(window.location.search);
     const valueNodes = [...document.querySelectorAll("[data-share-value]")];
