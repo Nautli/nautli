@@ -125,6 +125,7 @@ export function recall(store, task, opts = {}) {
     ? { briefing: "", facts: [], tokens_used: 0, warning: ERR.W_EMPTY }
     : { briefing: lines.join("\n"), facts, tokens_used: tokensUsed };
   store.appendRecall({
+    tool: opts.tool ?? "recall",
     query: queryText,
     scope,
     hits: facts.map((fact) => fact.id),
@@ -141,5 +142,7 @@ export function briefing(store, context = "", scope, config = {}) {
     scope: scope ?? config.default_scope,
     source: config.source ?? "core",
     ttl_days: config.ttl_days,
+    tool: "briefing",
+    session_id: config.session_id,
   });
 }

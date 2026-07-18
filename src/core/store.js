@@ -419,6 +419,7 @@ export class Store {
   }
 
   appendRecall({
+    tool,
     query = "",
     scope,
     hits = [],
@@ -429,6 +430,7 @@ export class Store {
   } = {}) {
     return this.appendEvent({
       type: "recall",
+      tool: typeof tool === "string" && tool.trim() !== "" ? tool.trim() : "recall",
       query: typeof query === "string" ? query : "",
       scope: scope ?? null,
       hits: Array.isArray(hits) ? hits.filter((id) => typeof id === "string") : [],

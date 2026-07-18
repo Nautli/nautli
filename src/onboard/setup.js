@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { remember } from "../core/gate.js";
 import { withReviewLock } from "../core/review-lock.js";
 import { ERR, STATUS } from "../core/schema.js";
+import { DEFAULT_PATROL } from "../core/spool.js";
 import { Store } from "../core/store.js";
 import { runOnce } from "../daemon/pipeline.js";
 import { makeT, resolveLocale } from "../i18n/strings.js";
@@ -32,6 +33,7 @@ const MENUBAR_SWIFT_SRC = fileURLToPath(
 const DEFAULT_CONFIG = Object.freeze({
   default_scope: "person",
   judge_cmd: null,
+  patrol: DEFAULT_PATROL,
 });
 const ALLOWED_COMMANDS = new Set([
   "claude",
@@ -131,9 +133,14 @@ function userPaths(userHome) {
 export function readConfig(home) {
   const file = path.join(home, "config.json");
   if (!fs.existsSync(file)) return { ...DEFAULT_CONFIG };
+  const saved = JSON.parse(fs.readFileSync(file, "utf8"));
   return {
     ...DEFAULT_CONFIG,
-    ...JSON.parse(fs.readFileSync(file, "utf8")),
+    ...saved,
+    patrol: {
+      ...DEFAULT_PATROL,
+      ...(saved.patrol && typeof saved.patrol === "object" ? saved.patrol : {}),
+    },
   };
 }
 
@@ -718,6 +725,7 @@ function launchdPath() {
 
 function daemonPlist(home) {
   const health = path.join(home, "daemon", "health.log");
+  const spool = path.join(home, "daemon", "spool");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -726,6 +734,8 @@ function daemonPlist(home) {
   <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string><key>PATH</key><string>${xml(launchdPath())}</string></dict>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>30</integer></dict>
   <key>RunAtLoad</key><true/>
+  <key>WatchPaths</key><array><string>${xml(spool)}</string></array>
+  <key>ThrottleInterval</key><integer>60</integer>
   <key>StandardOutPath</key><string>${xml(health)}</string>
   <key>StandardErrorPath</key><string>${xml(path.join(home, "daemon", "error.log"))}</string>
 </dict></plist>
@@ -1046,7 +1056,61 @@ function appendHealth(home, value) {
 // 소화 결과를 macOS 알림으로 푸시 — 유일한 능동 채널(대시보드·리포트는 pull).
 // 인젝션 방지: 문자열을 osascript 스크립트에 보간하지 않고 argv로 넘긴다.
 // 알림 실패는 소화 결과에 영향을 주면 안 된다(전부 삼킴).
-export function notifyDigestResult(result, { runner = defaultRunner, locale, config = {} } = {}) {
+function localDay(now) {
+  const date = now instanceof Date ? now : new Date(now);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function readNotifyState(home) {
+  try {
+    if (typeof home !== "string" || home.length === 0) throw new Error("missing home");
+    const value = JSON.parse(fs.readFileSync(path.join(home, "daemon", "notify-state.json"), "utf8"));
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("invalid state");
+    return {
+      ok: true,
+      state: {
+        last_success_day: typeof value.last_success_day === "string" ? value.last_success_day : null,
+        last_failure_day: typeof value.last_failure_day === "string" ? value.last_failure_day : null,
+        accum_applied: Number.isFinite(value.accum_applied) && value.accum_applied >= 0
+          ? value.accum_applied
+          : 0,
+      },
+    };
+  } catch {
+    return {
+      ok: false,
+      state: { last_success_day: null, last_failure_day: null, accum_applied: 0 },
+    };
+  }
+}
+
+function writeNotifyState(home, state) {
+  let temporary;
+  try {
+    const file = path.join(home, "daemon", "notify-state.json");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    temporary = `${file}.tmp-${process.pid}-${Date.now()}`;
+    fs.writeFileSync(temporary, `${JSON.stringify(state)}\n`, "utf8");
+    fs.renameSync(temporary, file);
+    return true;
+  } catch {
+    try {
+      if (temporary) fs.rmSync(temporary, { force: true });
+    } catch {
+      // 상태 정리 실패도 알림 결과에는 영향을 주지 않는다.
+    }
+    return false;
+  }
+}
+
+export function notifyDigestResult(result, {
+  runner = defaultRunner,
+  locale,
+  config = {},
+  home,
+  now = new Date(),
+} = {}) {
   if (process.platform !== "darwin") return { notified: false, reason: "platform" };
   if (config.notifications === false) return { notified: false, reason: "disabled" };
   if (!result || result.skipped_run) return { notified: false, reason: "skipped_run" };
@@ -1054,14 +1118,40 @@ export function notifyDigestResult(result, { runner = defaultRunner, locale, con
   const failed = result.ok === false;
   const applied = result.applied ?? 0;
   const held = result.shadowed ?? 0;
+  const today = localDay(now);
+  const guard = readNotifyState(home);
+  let notificationApplied = applied;
+
+  if (failed && guard.ok && guard.state.last_failure_day === today) {
+    return { notified: false, reason: "daily_cap" };
+  }
+  if (!failed && applied <= 0) return { notified: false, reason: "no_changes" };
+  if (!failed) {
+    notificationApplied = guard.state.accum_applied + applied;
+    if (guard.ok && guard.state.last_success_day === today) {
+      const saved = writeNotifyState(home, {
+        ...guard.state,
+        accum_applied: notificationApplied,
+      });
+      if (saved) return { notified: false, reason: "daily_cap" };
+    }
+  }
+
   // 카피 선택: 순찰 공식(잡았다→막았다). 질문 큐 폐지 후라 pending/answer CTA는 없다.
   let body;
   if (failed) body = t("daemon.notify.failed_body");
   else if (result.partial === true) body = t("daemon.notify.partial_body");
   else if (applied > 0 && held > 0) {
-    body = t("daemon.notify.caught_held_body", { applied, held, mem: applied === 1 ? "memory" : "memories" });
+    body = t("daemon.notify.caught_held_body", {
+      applied: notificationApplied,
+      held,
+      mem: notificationApplied === 1 ? "memory" : "memories",
+    });
   } else if (applied > 0) {
-    body = t("daemon.notify.caught_body", { applied, mem: applied === 1 ? "memory" : "memories" });
+    body = t("daemon.notify.caught_body", {
+      applied: notificationApplied,
+      mem: notificationApplied === 1 ? "memory" : "memories",
+    });
   } else if (held > 0) {
     body = t("daemon.notify.held_body", { held, chg: held === 1 ? "change" : "changes" });
   } else {
@@ -1075,16 +1165,36 @@ export function notifyDigestResult(result, { runner = defaultRunner, locale, con
       "-e", "end run",
       body, title,
     ]);
+    if (failed) {
+      writeNotifyState(home, {
+        ...guard.state,
+        last_failure_day: today,
+      });
+    } else {
+      writeNotifyState(home, {
+        ...guard.state,
+        last_success_day: today,
+        accum_applied: 0,
+      });
+    }
     return { notified: true };
   } catch {
+    if (!failed && guard.ok) {
+      writeNotifyState(home, { ...guard.state, accum_applied: notificationApplied });
+    }
     return { notified: false, reason: "osascript_failed" };
   }
 }
 
 // 스킵도 health.log에 1줄 남긴다. exit 필드를 일부러 넣지 않는다 —
 // digestFreshness가 이 기록을 성공으로 오인해 게이트를 연장하면 안 된다.
-export function recordDigestSkip(home, reason) {
-  appendHealth(home, { at: new Date().toISOString(), skipped_run: true, reason });
+export function recordDigestSkip(home, reason, trigger) {
+  appendHealth(home, {
+    at: new Date().toISOString(),
+    skipped_run: true,
+    ...(trigger ? { trigger } : {}),
+    reason,
+  });
 }
 
 const DIGEST_LOCK_STALE_MS = 3 * 60 * 60 * 1000;
@@ -1111,7 +1221,7 @@ function acquireDigestLock(file) {
   return false;
 }
 
-export async function runDigestOnce(home, { dry = false, locale } = {}) {
+export async function runDigestOnce(home, { dry = false, locale, trigger } = {}) {
   const t = translator(locale);
   initStore(home);
   const lockFile = path.join(home, "daemon", "run.lock");
@@ -1130,7 +1240,7 @@ export async function runDigestOnce(home, { dry = false, locale } = {}) {
       const reason = batchReason
         ? t("setup.digest_judge_failed", { reason: batchReason })
         : t("setup.digest_no_result");
-      const failure = { ok: false, reason, ...result };
+      const failure = { ok: false, reason, ...result, ...(trigger ? { trigger } : {}) };
 
       appendHealth(home, {
         at: new Date().toISOString(),
@@ -1145,6 +1255,7 @@ export async function runDigestOnce(home, { dry = false, locale } = {}) {
     const success = {
       ok: true,
       ...result,
+      ...(trigger ? { trigger } : {}),
       ...(judgeErrors.length > 0 ? { partial: true, judge_errors: judgeErrors } : {}),
     };
     appendHealth(home, {
@@ -1157,6 +1268,7 @@ export async function runDigestOnce(home, { dry = false, locale } = {}) {
     appendHealth(home, {
       at: new Date().toISOString(),
       exit: 1,
+      ...(trigger ? { trigger } : {}),
       error: error?.code ?? error?.message ?? String(error),
     });
     throw error;

@@ -26,6 +26,11 @@ import { remember } from "./core/gate.js";
 import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
+import {
+  DEFAULT_PATROL,
+  consumeSpool,
+  readSpool,
+} from "./core/spool.js";
 import { Store } from "./core/store.js";
 import { isTelemetryEnabled } from "./daemon/telemetry.js";
 import { makeT, resolveLocale } from "./i18n/strings.js";
@@ -57,6 +62,7 @@ import {
 const DEFAULT_CONFIG = Object.freeze({
   default_scope: "person",
   judge_cmd: null,
+  patrol: DEFAULT_PATROL,
 });
 
 const ERROR_CODES = new Set(Object.values(ERR));
@@ -94,7 +100,15 @@ function errorPayload(error) {
 function readConfig(home) {
   const file = path.join(home, "config.json");
   if (!fs.existsSync(file)) return { ...DEFAULT_CONFIG };
-  return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(file, "utf8")) };
+  const saved = JSON.parse(fs.readFileSync(file, "utf8"));
+  return {
+    ...DEFAULT_CONFIG,
+    ...saved,
+    patrol: {
+      ...DEFAULT_PATROL,
+      ...(saved.patrol && typeof saved.patrol === "object" ? saved.patrol : {}),
+    },
+  };
 }
 
 function writeConfig(home, config) {
@@ -485,7 +499,49 @@ function dashboardPort(value) {
   return port;
 }
 
-async function runDaemon(home, args) {
+function patrolTiming(config) {
+  const value = config?.patrol && typeof config.patrol === "object" ? config.patrol : {};
+  const nonnegative = (candidate, fallback) => (
+    Number.isFinite(candidate) && candidate >= 0 ? candidate : fallback
+  );
+  return {
+    settle_ms: nonnegative(value.settle_ms, DEFAULT_PATROL.settle_ms),
+    max_wait_ms: nonnegative(value.max_wait_ms, DEFAULT_PATROL.max_wait_ms),
+  };
+}
+
+async function dwellForSpool(home, config, {
+  spoolReader,
+  now,
+  sleeper,
+}) {
+  const { settle_ms: settleMs, max_wait_ms: maxWaitMs } = patrolTiming(config);
+  let waited = 0;
+  while (waited < maxWaitMs) {
+    const spool = spoolReader(home);
+    if (spool.count === 0 || spool.newest_at === null) return;
+    const remainingSettle = settleMs - (now() - spool.newest_at);
+    if (remainingSettle <= 0) return;
+    const delay = Math.min(20_000, remainingSettle, maxWaitMs - waited);
+    if (delay <= 0) return;
+    await sleeper(delay);
+    waited += delay;
+  }
+}
+
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function runDaemon(home, args, {
+  configReader = readConfig,
+  digestRunner = runDigestOnce,
+  freshnessReader = digestFreshness,
+  notifier = notifyDigestResult,
+  skipRecorder = recordDigestSkip,
+  spoolReader = readSpool,
+  spoolConsumer = consumeSpool,
+  now = Date.now,
+  sleeper = defaultSleep,
+} = {}) {
   const parsed = parseCommand(args, {
     dry: { type: "boolean", default: false },
     force: { type: "boolean", default: false },
@@ -497,17 +553,22 @@ async function runDaemon(home, args) {
     return { missing: true, result: { error: t("cli.daemon.not_built") } };
   }
 
-  // catch-up 게이트: 3:30 정기 실행과 RunAtLoad(부팅/로그인) 실행이 공유한다.
-  if (!parsed.values.dry && !parsed.values.force) {
-    const freshness = digestFreshness(home);
+  const initialSpool = spoolReader(home);
+  const trigger = initialSpool.count > 0 ? "spool" : "patrol";
+  const eventRun = trigger === "spool" && !parsed.values.dry && !parsed.values.force;
+
+  // 스풀 이벤트가 없을 때만 3:30 정기 실행과 RunAtLoad의 catch-up 게이트를 적용한다.
+  if (!parsed.values.dry && !parsed.values.force && initialSpool.count === 0) {
+    const freshness = freshnessReader(home);
     if (freshness.fresh) {
       const reason = t("cli.daemon.skipped_fresh", { last: freshness.last_success_at });
-      recordDigestSkip(home, reason);
+      skipRecorder(home, reason, trigger);
       return {
         missing: false,
         result: {
           ok: true,
           skipped_run: true,
+          trigger,
           reason,
           last_success_at: freshness.last_success_at,
         },
@@ -515,13 +576,31 @@ async function runDaemon(home, args) {
     }
   }
 
+  const config = configReader(home);
   try {
-    const result = await runDigestOnce(home, { dry: parsed.values.dry, locale });
-    if (!parsed.values.dry) notifyDigestResult(result, { locale, config: readConfig(home) });
+    let result;
+    for (let cycle = 0; cycle < (eventRun ? 3 : 1); cycle += 1) {
+      if (eventRun) {
+        await dwellForSpool(home, config, { spoolReader, now, sleeper });
+      }
+
+      const runStart = now();
+      const digestResult = await digestRunner(home, {
+        dry: parsed.values.dry,
+        locale,
+        trigger,
+      });
+      result = { ...digestResult, trigger };
+      if (!parsed.values.dry) notifier(result, { home, locale, config });
+
+      const succeeded = result.ok === true && !result.skipped_run;
+      if (eventRun && succeeded) spoolConsumer(home, runStart);
+      if (!eventRun || !succeeded || spoolReader(home).count === 0) break;
+    }
     return { missing: false, result };
   } catch (error) {
     if (!parsed.values.dry) {
-      notifyDigestResult({ ok: false }, { locale, config: readConfig(home) });
+      notifier({ ok: false, trigger }, { home, locale, config });
     }
     throw error;
   }

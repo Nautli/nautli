@@ -109,6 +109,7 @@ export function createServer(store, config) {
   const server = new McpServer({ name: BRAND, version: "0.2.1" });
 
   server.registerTool("remember", {
+    description: "Store one durable, verified fact for future conversations. When the user explicitly asks you to remember something, or a stable decision, preference, workflow, verified lesson, or project state has just been established and is likely to matter again, call this after it is confirmed. Store one atomic claim with the narrowest applicable scope and appropriate type. Do not store secrets, small talk, speculation, unverified conclusions, transient progress, raw conversation summaries, or information already represented by an existing fact. Use supersedes when replacing an older fact.",
     inputSchema: {
       claim: z.string(),
       type: z.enum(["episodic", "semantic", "procedural"]).optional(),
@@ -121,6 +122,7 @@ export function createServer(store, config) {
   }, safe((input) => remember(store, { ...input, source: "mcp" }, config)));
 
   server.registerTool("recall", {
+    description: "Search durable memories for facts relevant to the current task. When a past decision, preference, workflow, project state, or prior outcome could affect the answer and is not already clear in the current context, call this before answering or acting. Pass a concise description of the task and the narrowest applicable scope. Do not call for self-contained questions, facts already available in the current conversation or repository, or when prior context cannot change the result. Check freshness markers and never treat memories from an unrelated project as current facts.",
     inputSchema: {
       task: z.string(),
       budget_tokens: z.number().int().optional(),
@@ -130,6 +132,7 @@ export function createServer(store, config) {
   }, safe(({ task, ...options }) => recall(store, task, { ...options, source: "mcp" })));
 
   server.registerTool("briefing", {
+    description: "Get compact starting context from durable memory for a new or resumed task. When beginning a top-level conversation or resuming work and relevant user or project context is not already available, call this before planning or answering. Provide the current context and the narrowest applicable scope. Do not call in short-lived subagents, daemons, tests, or self-contained sessions, and do not call again in the same session unless the task or scope materially changes. Treat stale or expired items cautiously.",
     inputSchema: {
       context: z.string().optional(),
       scope: z.string().optional(),

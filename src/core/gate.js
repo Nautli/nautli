@@ -6,6 +6,7 @@ import {
   validScope,
 } from "./schema.js";
 import { isInjectionLike } from "./policy.js";
+import { touchSpool } from "./spool.js";
 
 const FACT_TYPES = new Set(["episodic", "semantic", "procedural"]);
 
@@ -84,6 +85,7 @@ export function remember(store, input, config) {
       superseded_by: fact.id,
       t_invalid: fact.t_valid,
     }, "client");
+    touchSpool(store.home);
     return { id: fact.id, status: "added" };
   }
 
@@ -102,5 +104,6 @@ export function remember(store, input, config) {
 
   const fact = makeFact(input, scope, claim);
   store.addFact(fact);
+  touchSpool(store.home);
   return { id: fact.id, status: "added" };
 }
