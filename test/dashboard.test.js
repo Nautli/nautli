@@ -40,7 +40,10 @@ test("dashboard serves the official brand favicons", async (t) => {
   const svgResponse = await fetch(`${target.url}/favicon.svg`);
   assert.equal(svgResponse.status, 200);
   assert.equal(svgResponse.headers.get("content-type"), "image/svg+xml");
-  assert.match(await svgResponse.text(), /#087A6B/);
+  const svg = await svgResponse.text();
+  // 브랜드 킷 v2(2026-07-19): 액센트 Neon Green + 다크 라운드 그라운드.
+  assert.match(svg, /#00E6A1/);
+  assert.match(svg, /fill="#141414"/);
 
   const icoResponse = await fetch(`${target.url}/favicon.ico`);
   assert.equal(icoResponse.status, 200);
