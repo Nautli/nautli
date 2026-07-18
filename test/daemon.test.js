@@ -279,6 +279,23 @@ test("judge batch failure includes stderr in errors array for health.log diagnos
   assert.equal(result.judgments[0].failed, true);
 });
 
+test("judge parse-failure path (exit 0, parsedCount 0) includes stderr in errors", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const emptyOutputJudge = path.join(root, "test", "fixtures", "empty-output-judge.js");
+  const a = add(store, "파싱실패 stderr 왼쪽", "project:parse-fail", "2025-01-01");
+  const b = add(store, "파싱실패 stderr 오른쪽", "project:parse-fail", "2025-02-01");
+
+  const result = await judgePairs([{ a: store.getFact(a.id), b: store.getFact(b.id) }], store, {
+    judge_cmd: [process.execPath, emptyOutputJudge],
+  }, home);
+
+  assert.equal(result.parsedCount, 0);
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0].reason, /해석하지 못했습니다/u);
+  assert.ok(result.errors[0].stderr, "stderr should be present on parse-failure path");
+  assert.match(result.errors[0].stderr, /model refused/u);
+});
+
 test("judge_cmd ending with bare -p gets the default prompt injected (config specifies binary/model only)", async () => {
   const { command, JUDGE_PROMPT } = await import("../src/daemon/judge.js");
   const resolved = command({ judge_cmd: ["claude-patched", "--model", "sonnet", "-p"] });
