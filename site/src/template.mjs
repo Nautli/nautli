@@ -168,6 +168,8 @@ function diagnosePage(locale, copy) {
     "scoreLabel", "scoreNote", "evidenceToggle", "evidenceMore", "restToggle",
     "boundaryTitle", "boundaryBody", "ctaTitle", "ctaTitleClean", "ctaBody",
     "ctaButton", "ctaNote",
+    "wordFileOne", "wordFileMany", "wordMarkerOne", "wordMarkerMany",
+    "wordSignalOne", "wordSignalMany",
     "findAlwaysLoadedTitle", "findAlwaysLoadedMeasure", "findAlwaysLoadedWhy",
     "findRepeatedTitle", "findRepeatedMeasure", "findRepeatedWhy",
     "findLargeTitle", "findLargeMeasure", "findLargeWhy",

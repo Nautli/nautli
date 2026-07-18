@@ -30,6 +30,12 @@
     return copy[key] ?? key;
   }
 
+  // 영어는 단복수가 갈리고 한국어·일본어는 안 갈린다.
+  // 숫자 옆 명사를 문자열에 박아두면 "1 files"가 나온다 — 이 함수를 거쳐라.
+  function word(count, key) {
+    return text(count === 1 ? `word${key}One` : `word${key}Many`);
+  }
+
   function fmt(template, values) {
     return String(template).replace(/\{(\w+)\}/g, (_, k) => String(values[k] ?? ""));
   }
@@ -167,7 +173,10 @@
       findings.push({
         group: "repeated",
         weight: block.where.length >= 4 ? 3 : 2,
-        title: fmt(text("findRepeatedTitle"), { count: block.where.length }),
+        title: fmt(text("findRepeatedTitle"), {
+          count: block.where.length,
+          fileWord: word(block.where.length, "File"),
+        }),
         measure: fmt(text("findRepeatedMeasure"), { chars: block.sample.length }),
         why: text("findRepeatedWhy"),
         files: block.where,
@@ -197,7 +206,10 @@
       findings.push({
         group: "debris",
         weight: 1,
-        title: fmt(text("findEmptyTitle"), { count: empties.length }),
+        title: fmt(text("findEmptyTitle"), {
+          count: empties.length,
+          fileWord: word(empties.length, "File"),
+        }),
         measure: fmt(text("findEmptyMeasure"), { count: empties.length }),
         why: text("findEmptyWhy"),
         files: empties.map((d) => d.path).slice(0, 20),
@@ -218,8 +230,14 @@
       findings.push({
         group: "debris",
         weight: 1,
-        title: fmt(text("findTodoTitle"), { count: todoHits }),
-        measure: fmt(text("findTodoMeasure"), { files: todoFiles.length }),
+        title: fmt(text("findTodoTitle"), {
+          count: todoHits,
+          markerWord: word(todoHits, "Marker"),
+        }),
+        measure: fmt(text("findTodoMeasure"), {
+          files: todoFiles.length,
+          fileWord: word(todoFiles.length, "File"),
+        }),
         why: text("findTodoWhy"),
         files: todoFiles.slice(0, 20),
       });
@@ -232,8 +250,14 @@
       findings.push({
         group: "stale",
         weight: 0,
-        title: fmt(text("findStaleTitle"), { count: stale.length }),
-        measure: fmt(text("findStaleMeasure"), { count: stale.length }),
+        title: fmt(text("findStaleTitle"), {
+          count: stale.length,
+          fileWord: word(stale.length, "File"),
+        }),
+        measure: fmt(text("findStaleMeasure"), {
+          count: stale.length,
+          fileWord: word(stale.length, "File"),
+        }),
         why: text("findStaleWhy"),
         files: stale.map((d) => d.path).slice(0, 20),
       });
@@ -292,6 +316,8 @@
     lede.append(el("span", null, fmt(text("resultSignals"), {
       affected,
       scanned: meta.scanned,
+      signalWord: word(counted.length, "Signal"),
+      fileWord: word(meta.scanned, "File"),
     })));
     out.append(lede);
 
@@ -299,6 +325,8 @@
       scanned: meta.scanned,
       size: bytes(meta.totalBytes),
       skipped: meta.skippedBinary,
+      fileWord: word(meta.scanned, "File"),
+      skippedWord: word(meta.skippedBinary, "File"),
     }));
     out.append(meta2);
 
