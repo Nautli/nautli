@@ -1,6 +1,7 @@
 # nautli.ai 랜딩 DESIGN 토큰 v2 (웹사이트 비주얼 SSOT — 토큰 외 색/폰트 발명 금지)
 
 > v2(2026-07-19): obsidian.md 코드 해부 결과를 이식. 해부 근거·미채택 항목은 `OBSIDIAN-TEARDOWN.md`.
+> v2.1(2026-07-19): 메인 액센트를 Teal에서 **Neon Green**으로 교체(유저 지시). 색상은 172도→162도로 8도만 옮겨 기존 나선 마크와 같은 계열을 유지한다.
 
 > 대상: 공개 마케팅/온보딩 웹사이트(nautli.ai). 로컬 대시보드(docs/DESIGN-dashboard.md, 다크 Orca)와 별개 표면 — 단 브랜드 킷은 공유.
 > 브랜드 정본 = `assets/brand/` (원본: ~/Desktop/brand-logos/FINAL/nautli/). ⛔ warm clay-orange/cream 절대 금지.
@@ -14,12 +15,14 @@
 - --bg-card: #FFFFFF
 - --text: #141414 (Ink)
 - --text-dim: #5c5c58
-- --accent: #087A6B (Teal — 링크·주 CTA·마크. **틸 액센트 하나만**, 보조 액센트 금지)
-- --accent-soft: #087A6B14 (배경 틴트)
+- --neon: #00E6A1 (**메인 컬러, Neon Green**)
+- --accent: #007A58 (링크·본문 강조. `#F7F7F5` 위 4.99:1 AA)
+- --accent-fill: #00E6A1 / --accent-on-fill: #141414 (버튼·칩 채움 + 그 위 글자, 11.26:1 AAA)
+- --accent-soft: #007A5814 (배경 틴트)
 - --border: #e3e3df
 다크(prefers-color-scheme):
 - --bg: #141414 / --bg-card: #1c1c1a / --text: #F7F7F5 / --text-dim: #a3a39e
-- --accent: #12A88F (다크에선 bright teal) / --border: #2a2a27
+- --accent: #00E6A1 (다크에선 네온 그대로, `#141414` 위 11.26:1 AAA) / --accent-soft: #00E6A11f / --border: #2a2a27
 
 ## 타이포 (3개어)
 - 본문 스택: Inter, Pretendard, "Noto Sans JP", -apple-system, sans-serif
@@ -29,6 +32,15 @@
 - **서브헤드는 크게**: 히어로 서브라인 clamp(19px, 2.2vw, 26px), 섹션 인트로 clamp(18px, 2vw, 23px), 둘 다 --text-dim. 제목/서브헤드 2단으로 위계를 끝낸다
 - `text-wrap: pretty`를 루트에, `balance`를 h1/h2에. 히어로 h1은 모바일에서 뷰포트 비례(11vw)로 커진다
 - 신조는 영어 원문이 주, 현지어 번역이 서브 (3개어 공통 규칙)
+
+### ⛔ 네온은 채움색이다 (불변식)
+`--neon`/`--accent-fill`을 **라이트 배경 위 텍스트 색으로 쓰지 마라** — `#F7F7F5` 위 대비 1.55:1로 안 읽힌다. 규칙:
+- 텍스트·링크·아이콘 = `--accent` (테마별로 라이트는 깊은 초록, 다크는 네온)
+- 채워진 표면(버튼·칩·skip-link) = `--accent-fill` 배경 + `--accent-on-fill` 글자. 흰 글자 금지
+- 액센트는 **하나만**. 보조 액센트 색을 추가하지 마라
+
+### 브랜드 자산 동기화
+`assets/brand/`(파비콘·OG)는 아직 구 Teal(#087A6B/#12A88F)이다. 색상 계열이 같아 당장 튀지는 않지만 **정본 킷(`~/Desktop/brand-logos/FINAL/nautli/`) 재생성 전까지는 사이트가 앞서 있는 상태**임을 알고 있어라. ⛔ warm clay-orange/cream 금지는 그대로 유효.
 
 ## 형태
 - radius: 카드 12px, 버튼 8px, 코드블록 8px (제품 대시보드와 통일)
