@@ -2,20 +2,20 @@
   "ogLocale": "ko_KR",
   "meta": {
     "index": {
-      "title": "nautli | 내 디스크에 사는 AI 공용 기억",
+      "title": "nautli | 내 컴퓨터에 남는 AI 공용 메모리",
       "description": "Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 메모리 토큰은 95% 아끼고, 설명은 한 번만."
     },
     "manifesto": {
-      "title": "신조 | nautli",
-      "description": "AI 기억이 내 디스크에 남아야 하는 이유와 기록을 지키는 nautli의 원칙을 설명합니다."
+      "title": "원칙 | nautli",
+      "description": "AI 기억이 내 디스크에 남아야 하는 이유, 그리고 기록을 지키기 위해 nautli가 따르는 원칙입니다."
     },
     "install": {
       "title": "설치 | nautli",
-      "description": "macOS에 nautli를 설치하고, 바뀌는 파일을 확인하고, 빈 폴더에서 기억 검진을 시험합니다."
+      "description": "macOS에 nautli를 설치하고, 어떤 파일이 바뀌는지 확인하고, 빈 폴더로 안전하게 테스트합니다."
     },
     "faq": {
       "title": "자주 묻는 질문 | nautli",
-      "description": "전송 범위, Claude 판정, 옵시디언 안전, 제거, 가격과 Supporter에 답합니다."
+      "description": "무엇이 전송되는지, Claude 판정, 옵시디언 안전성, 삭제 방법, 가격과 후원까지 답합니다."
     },
     "c": {
       "title": "기억 건강검진 | nautli",
@@ -23,17 +23,17 @@
     },
     "diagnose": {
       "title": "무료 기억 진단 | nautli",
-      "description": "노트와 에이전트 지침 파일을 브라우저에서 스캔한다. 반복 문단, 비대해진 상시 로드 파일, 잔해를 보여준다. 업로드 없음."
+      "description": "노트와 에이전트 지침 파일을 브라우저에서 스캔합니다. 반복 문단, 비대해진 상시 로드 파일, 남은 흔적을 보여줍니다. 업로드 없음."
     }
   },
   "common": {
     "home": "홈",
     "primaryNav": "주요 메뉴",
     "footerNav": "하단 메뉴",
-    "manifesto": "신조",
+    "manifesto": "원칙",
     "install": "설치",
     "faq": "자주 묻는 질문",
-    "license": "MIT 라이선스 오픈 소스",
+    "license": "MIT 라이선스 오픈소스",
     "copy": "복사",
     "copyAll": "모두 복사",
     "copySuccess": "복사했습니다",
@@ -44,10 +44,10 @@
     "menuToggle": "메뉴"
   },
   "home": {
-    "eyebrow": "Open source · MIT · Local-first",
-    "h1": "당신의 AI 기억, 얼마나 더러울까?",
-    "subline": "브라우저에서 30초면 무료로 확인한다. 그다음은 깨끗하게: 디스크에 사는 프라이빗 메모리를 Claude, Codex, Cursor가 함께 읽고, 매일 밤 정리된다.",
-    "ctaPrimary": "내 AI 기억 무료 진단",
+    "eyebrow": "오픈소스 · MIT · 로컬 우선",
+    "h1": "내 AI 기억, 얼마나 엉켜 있을까?",
+    "subline": "30초면 브라우저에서 무료로 확인합니다. 설치 후 연결하면 Claude, Codex, Cursor가 같은 로컬 기억을 읽고, 매일 밤 정리됩니다.",
+    "ctaPrimary": "30초 무료 진단 시작",
     "ctaSecondary": "설치하기",
     "ctaNote": "무료 · 설치 없음 · 업로드 없음",
     "commands": [
@@ -55,15 +55,15 @@
       "nautli init",
       "nautli checkup ~/notes"
     ],
-    "trustLine": "당신의 노트는 nautli 서버에 닿지 않습니다 · 몰래 고치지 않음 · MIT · macOS",
-    "creedLocal": "모델은 스쳐가도, 당신의 기억은 남는다",
-    "boundaryLabel": "데이터 경계",
+    "trustLine": "노트 업로드 없음 · 원본 노트 수정 없음 · MIT 오픈소스 · macOS",
+    "creedLocal": "모델은 스쳐가도, 기억은 남는다",
+    "boundaryLabel": "데이터 취급 범위",
     "boundaryTitle": "nautli가 읽는 것, 쓰는 것, 보내는 것",
     "boundaries": [
       {
         "title": "읽는 것",
         "lines": [
-          "당신이 고른 폴더만",
+          "직접 고른 폴더만",
           "선택한 범위의 마크다운 노트",
           "최상위 폴더는 제외 가능",
           "건강검진은 원본 노트를 수정하지 않음"
@@ -73,8 +73,8 @@
         "title": "쓰는 것",
         "lines": [
           "~/.nautli 아래 기억 파일",
-          "켰을 때만 표시된 지시문 블록 하나",
-          "켰을 때만 MCP와 launchd 설정",
+          "연결을 켰을 때만, 표시가 붙은 지시문 블록 하나",
+          "연결을 켰을 때만 MCP·launchd 설정",
           "연결마다 제거 방법 제공"
         ],
         "link": {
@@ -85,25 +85,25 @@
       {
         "title": "보내는 것",
         "lines": [
-          "nautli 서버로 보내는 노트 내용: 없음",
-          "본인 Claude 구독을 거쳐 Anthropic으로 가는 판정 프롬프트",
-          "선택 수집은 기본으로 꺼짐",
+          "노트 내용은 nautli 서버로 보내지 않음",
+          "판정 프롬프트만 내 Claude 구독을 통해 Anthropic으로 전송",
+          "사용 통계 수집은 기본으로 꺼져 있음",
           "공유 검진에는 노트가 아닌 숫자만 포함"
         ]
       }
     ],
     "trustLabel": "직접 확인하기",
-    "trustTitle": "눈으로 확인할 수 있는 신뢰 경계",
+    "trustTitle": "말이 아니라 명령어로 확인하세요",
     "trustCards": [
       {
         "title": "노트는 nautli 서버로 가지 않습니다",
         "body": "로컬 저장소, 이벤트 로그, 리포트는 ~/.nautli에 남습니다. nautli 실행 중 연결을 직접 확인할 수 있습니다.",
         "command": "lsof -i -n -P | grep -i nautli",
         "href": "https://github.com/Nautli/nautli#data-boundary",
-        "link": "데이터 경계 읽기"
+        "link": "데이터 취급 범위 보기"
       },
       {
-        "title": "파일이 정본으로 남습니다",
+        "title": "파일이 원본으로 남습니다",
         "body": "사실과 변경 이력은 로컬 파일에 남습니다. 검색 인덱스는 그 파일로 다시 만들 수 있습니다.",
         "command": "find ~/.nautli -maxdepth 2 -type f | sort",
         "href": "https://github.com/Nautli/nautli#architecture",
@@ -111,7 +111,7 @@
       },
       {
         "title": "애매하면 질문이 됩니다",
-        "body": "모순은 리뷰 대기열에 올라갑니다. 당신이 답해야 결정이 현재 사실로 반영됩니다.",
+        "body": "모순은 리뷰 대기열에 올라갑니다. 직접 답해야 결정이 현재 사실로 반영됩니다.",
         "command": "nautli review",
         "href": "https://github.com/Nautli/nautli/tree/main/src/daemon",
         "link": "리뷰 흐름 확인하기"
@@ -137,8 +137,8 @@
       ]
     ],
     "howLabel": "작동 방식",
-    "howTitle": "AI는 물을 수 있습니다. 기록을 정하는 건 당신입니다.",
-    "howIntro": "밤새 nautli가 모순을 질문으로 올립니다. Claude Code, Codex, Cursor는 승인된 같은 기억을 읽습니다. 당신이 정하기 전에는 어떤 기록도 몰래 바꾸지 않습니다.",
+    "howTitle": "AI는 물을 수 있습니다. 기록을 정하는 건 나입니다.",
+    "howIntro": "밤사이 nautli가 발견한 모순을 질문으로 올립니다. Claude Code, Codex, Cursor는 승인된 같은 기억을 읽습니다. 직접 정하기 전에는 어떤 기록도 몰래 바꾸지 않습니다.",
     "beforeTitle": "nautli가 없을 때",
     "before": [
       {
@@ -150,7 +150,7 @@
         "text": "로컬 개발은 SQLite를 씁니다."
       },
       {
-        "speaker": "당신",
+        "speaker": "나",
         "text": "지금 결정은 어느 쪽이지?"
       }
     ],
@@ -162,7 +162,7 @@
         "added": true
       },
       {
-        "speaker": "당신",
+        "speaker": "나",
         "text": "네. SQLite가 PostgreSQL을 대체합니다.",
         "added": true
       },
@@ -173,15 +173,15 @@
       }
     ],
     "checkLabel": "기억 건강검진",
-    "checkTitle": "네 볼트, 몇 점?",
-    "checkIntro": "아무것도 가져오기 전에 실제 모순, 시간이 지나 바뀐 결정, 중복을 확인하세요.",
+    "checkTitle": "내 AI 기억은 몇 점일까요?",
+    "checkIntro": "설치하기 전에 진짜 모순, 바뀐 결정, 중복부터 확인해 보세요.",
     "emptyState": "nautli checkup을 실행하면 이 카드가 채워집니다.",
     "reviews": [
       {
         "type": "진짜 모순",
         "title": "현재 포트가 두 개",
         "body": "한 노트에는 API 포트가 3000, 다른 노트에는 4000이라고 적혀 있습니다.",
-        "note": "nautli가 어느 주장이 현재인지 묻습니다. 스스로 어느 쪽도 반영하지 않습니다."
+        "note": "nautli가 어느 주장이 현재인지 묻습니다. 어느 쪽도 마음대로 반영하지 않습니다."
       },
       {
         "type": "바뀐 결정",
@@ -198,34 +198,34 @@
     ],
     "formula": "점수 산식 보기",
     "compareLabel": "비교",
-    "compareTitle": "호스팅 기억 계층과 nautli",
+    "compareTitle": "클라우드 AI 메모리와 무엇이 다를까요?",
     "compareHeaders": [
       "",
-      "호스팅 기억 계층",
+      "클라우드 AI 메모리",
       "nautli"
     ],
     "compareRows": [
       [
         "전송",
-        "기억이 호스팅 서비스로 전송될 수 있음",
+        "기억이 클라우드 서비스로 전송될 수 있음",
         "노트는 nautli 서버로 가지 않음"
       ],
       [
-        "정본",
+        "기준 저장소",
         "서비스가 관리하는 저장소",
         "~/.nautli 아래 파일"
       ],
       [
         "판정 주체",
         "서비스 정책 또는 모델",
-        "리뷰 질문에 답하는 당신"
+        "리뷰 질문에 답하는 사용자 본인"
       ]
     ],
-    "supporterTitle": "작업을 후원하기",
-    "supporterBody": "코어는 MIT 라이선스로 남습니다. 후원자 이름은 명시적으로 동의했을 때만 공개합니다.",
-    "supporterLink": "Supporter 되기",
-    "discordTitle": "관리자와 이야기하기",
-    "discordBody": "구현 질문과 프로젝트 논의는 Discord에서 나눌 수 있습니다.",
+    "supporterTitle": "프로젝트 후원",
+    "supporterBody": "코어는 계속 MIT 라이선스로 남습니다. 후원자 이름은 본인이 동의했을 때만 공개합니다.",
+    "supporterLink": "후원자 되기",
+    "discordTitle": "만든 사람에게 직접 물어보기",
+    "discordBody": "궁금한 점이나 제안은 Discord에서 바로 이야기할 수 있습니다.",
     "discordLink": "Discord 열기",
     "stats": [
       [
@@ -264,15 +264,15 @@
     }
   },
   "manifesto": {
-    "eyebrow": "신조",
-    "creedLocal": "모델은 스쳐가도, 당신의 기억은 남는다",
-    "tableLabel": "우리가 지키는 경계",
+    "eyebrow": "원칙",
+    "creedLocal": "모델은 스쳐가도, 기억은 남는다",
+    "tableLabel": "우리가 지키는 약속",
     "doTitle": "우리가 하는 것",
     "dontTitle": "우리가 하지 않는 것",
     "rows": [
       [
         "출처와 함께 사실을 덧붙입니다",
-        "원본 노트를 대신 바꾸지 않습니다"
+        "원본 노트를 건드리지 않습니다"
       ],
       [
         "모순을 리뷰 질문으로 올립니다",
@@ -283,22 +283,22 @@
         "인덱스를 정리하려고 과거를 지우지 않습니다"
       ],
       [
-        "저장소를 당신의 디스크에 둡니다",
-        "호스팅 계정을 정본으로 만들지 않습니다"
+        "저장소를 사용자 디스크에 둡니다",
+        "호스팅 계정을 기준으로 삼지 않습니다"
       ]
     ],
     "essay": [
-      "AI 모델은 6개월마다 바뀝니다. 당신의 결정은 그렇지 않습니다.",
+      "AI 모델은 6개월마다 바뀝니다. 그 안에서 내린 결정은 바뀌지 않습니다.",
       "모델은 바꿔 쓸 수 있는 도구입니다. 일의 배경과 제약, 그 안에서 내린 결정은 당신의 것입니다. 새 모델과 새 편집기, 새 구독 뒤에도 남아야 합니다.",
       "nautli는 연결된 AI들에게 하나의 로컬 기록을 제공합니다. 사실마다 출처가 남습니다. 두 주장이 어긋나면 과거를 조용히 고치는 대신 질문을 올립니다.",
       "당신의 답이 현재 사실이 됩니다. 이전 사실도 이력에 남기 때문에 바뀐 결정은 오류가 아니라 과정으로 읽힙니다.",
-      "기억은 옮길 수 있고, 들여다볼 수 있고, 그 기억이 가리키는 일을 한 사람이 다스릴 수 있어야 합니다. nautli는 이 경계를 지킵니다."
+      "기억은 옮길 수 있고, 들여다볼 수 있고, 그 기억이 가리키는 일을 한 사람이 통제할 수 있어야 합니다. nautli는 이 경계를 지킵니다."
     ]
   },
   "install": {
     "eyebrow": "설치",
-    "title": "눈으로 확인할 수 있는 로컬 저장소부터",
-    "intro": "저장소를 만든 다음, 다른 연결을 켜기 전에 고른 폴더를 먼저 검진할 수 있습니다.",
+    "title": "무엇이 바뀌는지 전부 보이는 설치",
+    "intro": "먼저 로컬 저장소를 만들고, AI 연결을 켜기 전에 고른 폴더를 검진해 볼 수 있습니다.",
     "requirementsLabel": "요구사항",
     "requirements": [
       [
@@ -307,15 +307,15 @@
       ],
       [
         "운영체제",
-        "자동 야간 launchd 작업은 macOS 지원"
+        "야간 자동 정리는 macOS에서 지원"
       ],
       [
         "Claude Code CLI",
-        "중복과 모순 판정을 위해 설치와 로그인 필요"
+        "중복·모순 판정에 필요 (설치와 로그인)"
       ],
       [
         "Python 3",
-        "기억 건강검진 단계에 필요"
+        "기억 건강검진에 필요"
       ],
       [
         "다른 운영체제",
@@ -330,7 +330,7 @@
       "nautli checkup ~/notes"
     ],
     "changesLabel": "변경 사항",
-    "changesTitle": "당신이 통제하는 파일과 설정",
+    "changesTitle": "바뀌는 파일과 되돌리는 법",
     "fileHeader": "파일 또는 설정",
     "changeHeader": "바뀌는 것",
     "undoHeader": "되돌리는 법",
@@ -347,7 +347,7 @@
       ],
       [
         "~/.claude/CLAUDE.md",
-        "켰을 때만 표시가 있는 nautli 지시문 블록 하나 추가",
+        "연결을 켰을 때만, 표시가 붙은 nautli 지시문 블록 하나 추가",
         "nautli setup --step remove-instructions"
       ],
       [
@@ -363,23 +363,23 @@
     ],
     "undoNote": "위 세 명령은 ~/.nautli만 만듭니다. AI 연결과 야간 작업은 별도 설정 단계에서 동의해야 추가됩니다.",
     "testLabel": "안전한 시험",
-    "testTitle": "먼저 빈 폴더로 시험하세요",
-    "testBody": "개인 노트나 업무 노트를 가리키기 전에 빈 폴더에서 결과 형태부터 확인할 수 있습니다.",
-    "helpTitle": "막히는 곳이 있다면",
-    "helpBody": "nautli doctor를 실행한 뒤 민감하지 않은 결과를 GitHub Issues에 올리거나 Discord에서 물어보세요."
+    "testTitle": "빈 폴더로 먼저 테스트하세요",
+    "testBody": "개인 노트나 업무 노트를 연결하기 전에, 빈 폴더로 결과가 어떻게 나오는지 먼저 볼 수 있습니다.",
+    "helpTitle": "막히면",
+    "helpBody": "nautli doctor를 실행한 뒤, 민감하지 않은 결과를 GitHub Issues에 올리거나 Discord에서 물어보세요."
   },
   "faq": {
     "eyebrow": "자주 묻는 질문",
     "title": "설치 전에 물어볼 만한 것들",
-    "intro": "짧게 말하면 저장소는 로컬에 있고, 판정은 눈에 보이며, 모든 연결은 제거할 수 있습니다.",
+    "intro": "요약하면: 데이터는 내 컴퓨터에 있고, 판정 과정은 눈에 보이고, 언제든 깨끗하게 지울 수 있습니다.",
     "items": [
       {
         "question": "95%와 '동전 던지기'라는 숫자는 어디서 나왔나요?",
-        "answer": "창업자의 606개 노트 볼트 실측입니다. 상시 로딩되는 지시 파일은 세션마다 약 22,000토큰을 쓰는데, nautli recall은 로그 기준 질문당 평균 570토큰이라 통상 세션에서 메모리 토큰이 약 95% 줄어듭니다. 검진에서 서로 부딪히는 노트 49쌍이 발견됐고, 부딪히는 두 기록이 함께 모델에 들어가면 그 주제의 답은 사실상 동전 던지기입니다. 질문 카드에 답하고 나면 당신이 고른 기록만 전달됩니다. 볼트마다 숫자는 다르니 검진으로 직접 확인해 보세요."
+        "answer": "창업자의 606개 노트 볼트 실측입니다. 상시 로딩되는 지시 파일은 세션마다 약 22,000토큰을 쓰는데, nautli recall은 로그 기준 질문당 평균 570토큰이라 통상 세션에서 메모리 토큰이 약 95% 줄어듭니다. 검진에서 서로 부딪히는 노트 49쌍이 발견됐고, 부딪히는 두 기록이 함께 모델에 들어가면 그 주제의 답은 사실상 동전 던지기입니다. 질문 카드에 답하고 나면 직접 고른 기록만 전달됩니다. 볼트마다 숫자는 다르니 검진으로 직접 확인해 보세요."
       },
       {
         "question": "내 컴퓨터 밖으로 무엇이 나가나요?",
-        "answer": "노트는 nautli 서버로 가지 않습니다. 중복과 모순을 판정하는 프롬프트는 본인의 Claude 구독을 거쳐 Anthropic으로 갑니다. 선택 수집은 기본으로 꺼져 있습니다."
+        "answer": "노트는 nautli 서버로 가지 않습니다. 중복과 모순을 판정하는 프롬프트는 본인의 Claude 구독을 거쳐 Anthropic으로 갑니다. 사용 통계 수집은 기본으로 꺼져 있습니다."
       },
       {
         "question": "판정할 때 Claude로 무엇을 보내나요?",
@@ -387,15 +387,15 @@
       },
       {
         "question": "건강검진이 옵시디언 볼트를 바꾸나요?",
-        "answer": "아니요. 건강검진은 당신이 고른 폴더의 마크다운 노트를 읽지만 원본을 수정하지 않습니다. 시작 전에 최상위 폴더를 제외할 수 있습니다. 발견 내용을 가져와도 ~/.nautli에 쓸 뿐 볼트에 되쓰지 않습니다."
+        "answer": "아니요. 건강검진은 직접 고른 폴더의 마크다운 노트를 읽지만 원본을 수정하지 않습니다. 시작 전에 최상위 폴더를 제외할 수 있습니다. 발견 내용을 가져와도 ~/.nautli에 쓸 뿐 볼트에 되쓰지 않습니다."
       },
       {
         "question": "nautli를 어떻게 제거하나요?",
         "answer": "nautli setup --step remove-instructions로 표시된 지시문 블록을 지우고, nautli setup --step uninstall-daemon으로 야간 작업을 제거한 다음 MCP 등록을 지우세요. 로컬 기억이 더 필요 없다면 백업 후 ~/.nautli를 삭제할 수 있습니다."
       },
       {
-        "question": "가격과 Supporter는 어떻게 되나요?",
-        "answer": "코어는 MIT 라이선스 오픈 소스입니다. Supporter 후원은 유지보수에 쓰입니다. 이름 공개는 선택이며 명시적으로 동의하기 전에는 꺼져 있습니다."
+        "question": "가격과 후원은 어떻게 되나요?",
+        "answer": "코어는 MIT 라이선스 오픈소스입니다. 후원금은 유지보수에 쓰입니다. 후원자 이름 공개는 선택이며, 본인이 동의하기 전에는 꺼져 있습니다."
       }
     ]
   },
@@ -425,9 +425,9 @@
       }
     ],
     "resultNote": "이 카드에는 숫자만 있습니다. 노트 내용은 소유자의 컴퓨터에 남습니다.",
-    "turnLabel": "당신 차례",
+    "turnLabel": "다음은 내 차례",
     "turnTitle": "내 기억을 직접 확인하세요",
-    "turnBody": "건강검진은 로컬에서 실행됩니다. 폴더도, 가져올 내용도 당신이 고릅니다.",
+    "turnBody": "건강검진은 로컬에서 실행됩니다. 폴더도, 가져올 내용도 직접 고릅니다.",
     "commands": [
       "npm i -g nautli",
       "nautli init",
@@ -436,66 +436,70 @@
   },
   "diagnose": {
     "eyebrow": "무료 · 브라우저에서 바로 실행",
-    "title": "당신의 AI가 읽고 있는 기억을 진단한다",
-    "intro": "옵시디언 볼트, 노트 폴더, 또는 어시스턴트가 매 세션 통째로 읽는 CLAUDE.md·AGENTS.md를 지정하면 된다. 브라우저 안에서 읽어서 무엇이 반복되고, 무엇이 지나치게 크고, 무엇이 남겨져 있는지 보여준다. 아무것도 업로드하지 않는다.",
+    "title": "AI가 읽고 있는 내 기억을 진단합니다",
+    "intro": "옵시디언 볼트, 노트 폴더, 또는 어시스턴트가 매 세션 통째로 읽는 CLAUDE.md·AGENTS.md를 지정하면 됩니다. 브라우저 안에서 읽어서 무엇이 반복되고, 무엇이 지나치게 크고, 무엇이 남겨져 있는지 보여줍니다. 아무것도 업로드하지 않습니다.",
     "button": "폴더 스캔하기",
-    "note": "설치도 계정도 업로드도 없다. 파일은 당신 기기에 그대로 있다.",
+    "note": "설치도 계정도 업로드도 없습니다. 파일은 기기에 그대로 남습니다.",
     "metaTitle": "무료 기억 진단 | nautli",
-    "metaDescription": "노트와 에이전트 지침 파일을 브라우저에서 스캔한다. 반복 문단, 비대해진 상시 로드 파일, 잔해를 보여준다. 업로드 없음.",
-    "pageTitle": "당신의 AI는 실제로 무엇을 읽고 있나",
-    "pageIntro": "어시스턴트가 읽는 폴더를 고르면 된다. 전부 이 탭 안에서 처리된다. 파일도 파일명도 본문 조각도 기기를 떠나지 않는다.",
-    "pageExpect": "약 30초. 스캔은 보통 이런 걸 찾아낸다:",
-    "exampleItems": ["매 세션 통째로 다시 읽히는 ~12,000토큰짜리 CLAUDE.md", "4개 파일에 복사된 같은 문단", "결정처럼 읽히는 낡은 TODO 마커"],
-    "pickLabel": "폴더 선택하고 무료 진단",
-    "fallbackHint": "크롬·엣지는 폴더 선택창이 열린다. 사파리·파이어폭스는 폴더 업로드 컨트롤을 쓰는데, 이것도 읽기는 로컬에서 한다.",
-    "unsupported": "이 브라우저는 로컬 폴더를 읽지 못한다. 크롬·엣지·사파리로 열거나, 설치 후 커맨드라인으로 진행해라.",
+    "metaDescription": "노트와 에이전트 지침 파일을 브라우저에서 스캔합니다. 반복 문단, 비대해진 상시 로드 파일, 남은 흔적을 보여줍니다. 업로드 없음.",
+    "pageTitle": "내 AI는 실제로 무엇을 읽고 있을까?",
+    "pageIntro": "어시스턴트가 읽는 폴더를 고르면 됩니다. 전부 이 탭 안에서 처리됩니다. 파일도 파일명도 본문 조각도 기기를 떠나지 않습니다.",
+    "pageExpect": "약 30초. 스캔은 보통 이런 걸 찾아냅니다:",
+    "exampleItems": [
+      "매 세션 통째로 다시 읽히는 ~12,000토큰짜리 CLAUDE.md",
+      "4개 파일에 복사된 같은 문단",
+      "결정처럼 읽히는 낡은 TODO 마커"
+    ],
+    "pickLabel": "폴더 선택해 무료 진단 시작",
+    "fallbackHint": "크롬·엣지는 폴더 선택창이 열립니다. 사파리·파이어폭스는 폴더 업로드 컨트롤을 쓰는데, 이것도 읽기는 로컬에서 합니다.",
+    "unsupported": "이 브라우저는 로컬 폴더를 읽지 못합니다. 크롬·엣지·사파리로 열거나, 설치 후 커맨드라인으로 진행하면 됩니다.",
     "scanningTitle": "로컬에서 읽는 중",
     "scanningProgress": "{total}개 중 {done}개",
-    "errorTitle": "스캔을 끝내지 못했다",
-    "errorGeneric": "폴더를 읽지 못했다.",
-    "errorNoMarkdown": "그 폴더에서 마크다운이나 텍스트 파일을 찾지 못했다.",
+    "errorTitle": "스캔을 끝내지 못했습니다",
+    "errorGeneric": "폴더를 읽지 못했습니다.",
+    "errorNoMarkdown": "그 폴더에서 마크다운이나 텍스트 파일을 찾지 못했습니다.",
     "retry": "다른 폴더 고르기",
     "folderFallbackLabel": "선택한 폴더",
     "resultEyebrow": "{folder} 표면 스캔",
-    "resultSignals": "{signalWord}, {scanned}개 파일 중 {affected}개에 걸쳐 있다",
+    "resultSignals": "{signalWord}, {scanned}개 파일 중 {affected}개에 걸쳐 있습니다",
     "resultMeta": "텍스트 {scanned}{fileWord} 읽음 · {size} · 텍스트 아닌 {skipped}{skippedWord} 건너뜀",
-    "resultPartial": "이 스캔은 상한에 걸려 일부만 봤다. 부분 스캔에는 표면 점수를 내지 않는다.",
-    "resultClean": "확도 높은 표면 신호는 찾지 못했다. 내용끼리 서로 맞는다는 뜻은 아니다.",
-    "scoreLabel": "표면 정리 상태",
-    "scoreNote": "실측된 신호만 반영한다. 오래됐다는 이유로는 깎지 않는다.",
+    "resultPartial": "이 스캔은 상한에 걸려 일부만 봤습니다. 부분 스캔에는 표면 점수를 내지 않습니다.",
+    "resultClean": "뚜렷한 표면 신호는 찾지 못했습니다. 내용끼리 서로 맞는다는 뜻은 아닙니다.",
+    "scoreLabel": "표면 점검 결과",
+    "scoreNote": "실측된 신호만 반영합니다. 오래됐다는 이유로는 깎지 않습니다.",
     "evidenceToggle": "근거 보기 ({count})",
     "evidenceMore": "외 {count}개",
     "restToggle": "발견 항목 전체 ({count}개 더)",
-    "boundaryTitle": "브라우저는 여기까지다",
-    "boundaryBody": "위의 것들은 전부 표면 신호다. 크기, 반복되는 문자열, 수정 시각. 두 노트가 같은 결정을 말하는지, 그중 어느 쪽이 현재인지는 이 페이지가 판단할 수 없다.",
+    "boundaryTitle": "브라우저는 여기까지입니다",
+    "boundaryBody": "위의 것들은 전부 표면 신호입니다. 크기, 반복되는 문자열, 수정 시각. 두 노트가 같은 결정을 말하는지, 그중 어느 쪽이 현재인지는 이 페이지가 판단할 수 없습니다.",
     "ctaTitle": "이 중 뭐가 진짜인지 확인하기",
     "ctaTitleClean": "브라우저가 못 보는 층을 확인하기",
-    "ctaBody": "nautli checkup은 같은 폴더를 Claude Code에 태워, 후보들이 중복인지 대체된 결정인지 진짜 모순인지 묻는다. 보고만 하고, 노트를 스스로 고쳐 쓰지 않는다.",
+    "ctaBody": "nautli checkup은 같은 폴더를 Claude Code로 분석해 중복, 바뀐 결정, 진짜 모순을 구분합니다. 결과만 보여주며 원본 노트는 수정하지 않습니다.",
     "ctaButton": "설치 방법 보기",
     "ctaNote": "macOS · Node 20+ · Claude Code CLI 설치·로그인 필요 · MIT",
-    "findAlwaysLoadedTitle": "{name} — 매 세션 통째로 올라간다",
+    "findAlwaysLoadedTitle": "{name} — 매 세션 통째로 올라갑니다",
     "findAlwaysLoadedMeasure": "약 {tokens} 토큰 · {size}",
-    "findAlwaysLoadedWhy": "이런 지침 파일은 대화마다 전문이 읽히므로 그 용량을 매번 다시 지불한다. 항상 필요한 규칙과 참고 자료를 분리하는 게 보통 가장 싼 개선이다.",
-    "findRepeatedTitle": "같은 문단이 {count}{fileWord}에 있다",
+    "findAlwaysLoadedWhy": "이런 지침 파일은 대화마다 전문이 읽혀서 그 분량만큼 토큰을 매번 다시 씁니다. 항상 필요한 규칙과 참고 자료를 분리하는 게 보통 가장 싼 개선입니다.",
+    "findRepeatedTitle": "같은 문단이 {count}{fileWord}에 있습니다",
     "findRepeatedMeasure": "{chars}자, 반복됨",
-    "findRepeatedWhy": "의도한 템플릿일 수도 있다. 브라우저는 어느 사본이 기준인지 모르고, 텍스트가 일치한다는 것만 안다.",
+    "findRepeatedWhy": "의도한 템플릿일 수도 있습니다. 브라우저는 어느 사본이 기준인지 모르고, 텍스트가 일치한다는 것만 압니다.",
     "findLargeTitle": "{name} — 가장 큰 단일 파일",
     "findLargeMeasure": "{size} · 약 {tokens} 토큰",
-    "findLargeWhy": "큰 단일 파일은 필요한 부분만 정확히 꺼내기 어렵다. 오류가 아니라 구조 후보다.",
-    "findEmptyTitle": "사실상 빈 파일이 {count}개 있다",
+    "findLargeWhy": "큰 단일 파일은 필요한 부분만 정확히 꺼내기 어렵습니다. 오류가 아니라 구조를 다시 볼 지점입니다.",
+    "findEmptyTitle": "사실상 빈 파일이 {count}개 있습니다",
     "findEmptyMeasure": "본문 20자 미만",
-    "findEmptyWhy": "빈 노트는 대개 템플릿이나 중단된 기록의 잔해다.",
-    "findTodoTitle": "TODO·FIXME 표시가 {count}{markerWord} 남아 있다",
+    "findEmptyWhy": "빈 노트는 대개 템플릿이거나 쓰다 만 기록입니다.",
+    "findTodoTitle": "TODO·FIXME 표시가 {count}{markerWord} 남아 있습니다",
     "findTodoMeasure": "{files}{fileWord}에 걸쳐",
-    "findTodoWhy": "어시스턴트가 읽는 노트에 남은 표시는 결정처럼 집어갈 수 있다.",
-    "findStaleTitle": "1년 넘게 안 바뀐 파일이 {count}개다",
+    "findTodoWhy": "어시스턴트가 읽는 노트에 남은 표시는 결정처럼 집어갈 수 있습니다.",
+    "findStaleTitle": "1년 넘게 안 바뀐 파일이 {count}개입니다",
     "findStaleMeasure": "파일 수정 시각 기준 {count}{fileWord}",
-    "findStaleWhy": "오래됐다는 것 자체는 문제가 아니라서 점수에 넣지 않는다. 대체된 결정이 숨어 있기 쉬운 자리라 목록에만 올린다.",
+    "findStaleWhy": "오래됐다는 것 자체는 문제가 아니라서 점수에 넣지 않습니다. 대체된 결정이 숨어 있기 쉬운 자리라 목록에만 올립니다.",
     "wordFileOne": "개 파일",
     "wordFileMany": "개 파일",
     "wordMarkerOne": "개",
     "wordMarkerMany": "개",
-    "wordSignalOne": "개의 신호",
-    "wordSignalMany": "개의 신호"
+    "wordSignalOne": "개 신호",
+    "wordSignalMany": "개 신호"
   }
 }
