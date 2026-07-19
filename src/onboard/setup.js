@@ -1143,7 +1143,8 @@ export function notifyDigestResult(result, {
 
   // 카피 선택: 순찰 공식(잡았다→막았다). 질문 큐 폐지 후라 pending/answer CTA는 없다.
   let body;
-  if (failed) body = t("daemon.notify.failed_body");
+  if (result.limit_wait) body = t("daemon.notify.limit_wait_body");
+  else if (failed) body = t("daemon.notify.failed_body");
   else if (result.partial === true) body = t("daemon.notify.partial_body");
   else if (applied > 0 && held > 0) {
     body = t("daemon.notify.caught_held_body", {
@@ -1238,6 +1239,40 @@ export async function runDigestOnce(home, { dry = false, locale, trigger } = {})
 
   try {
     const result = await runOnce(store, home, readConfig(home), { dry });
+
+    // Rate limit: distinct from general failure — schedule deferred retry
+    if (!dry && result.rate_limited) {
+      const retryAt = result.retry_at instanceof Date ? result.retry_at : null;
+      const retryAtIso = retryAt ? retryAt.toISOString() : null;
+      const fallbackMs = 90 * 60_000; // 1.5h backoff if no reset time parsed
+      const delayMs = retryAt
+        ? Math.max(60_000, retryAt.getTime() - Date.now() + 60_000) // 1min after reset
+        : fallbackMs;
+
+      const limitResult = {
+        ok: false,
+        limit_wait: true,
+        retry_at: retryAtIso,
+        retry_delay_ms: delayMs,
+        reason: t("setup.digest_rate_limited", { retry_at: retryAtIso ?? "~1.5h" }),
+        ...result,
+        ...(trigger ? { trigger } : {}),
+      };
+
+      appendHealth(home, {
+        at: new Date().toISOString(),
+        exit: 1,
+        limit_wait: true,
+        retry_at: retryAtIso,
+        result: limitResult,
+      });
+
+      // Schedule deferred spool touch to re-trigger daemon after limit resets
+      scheduleRetryTouch(home, delayMs);
+
+      return limitResult;
+    }
+
     const failed = !dry && result.pairs > 0 && result.judgments === 0;
 
     if (failed) {
@@ -1280,6 +1315,24 @@ export async function runDigestOnce(home, { dry = false, locale, trigger } = {})
   } finally {
     store.close();
     fs.rmSync(lockFile, { force: true });
+  }
+}
+
+// Touch spool after delay to re-trigger launchd daemon (WatchPaths).
+// Spawns a detached shell process so the main daemon can exit.
+function scheduleRetryTouch(home, delayMs) {
+  const spoolDir = path.join(home, "daemon", "spool");
+  const delaySec = Math.ceil(delayMs / 1000);
+  const markerPath = path.join(spoolDir, `${Date.now() + delayMs}-retry.marker`);
+  try {
+    // Use /bin/sh detached — sleep then touch marker to trigger WatchPaths
+    const child = execFile("/bin/sh", [
+      "-c",
+      `sleep ${delaySec} && mkdir -p "${spoolDir}" && touch "${markerPath}"`,
+    ], { stdio: "ignore", detached: true });
+    if (child.unref) child.unref();
+  } catch {
+    // Best-effort: if scheduling fails, next 3:30 cron will still run
   }
 }
 

@@ -45,7 +45,7 @@ test("stale digestion adds an action-needed status line", (t) => {
   const status = daemonStatusHeader(home, makeT("en"));
 
   assert.equal(status.lines.length, 1);
-  assert.match(status.lines[0], /digestion/u);
+  assert.match(status.lines[0], /Patrol/u);
 });
 
 test("zero-touch: pending review cards no longer produce push status lines", (t) => {

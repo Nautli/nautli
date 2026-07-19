@@ -32,6 +32,46 @@ const RAW_LOG_LIMIT = 10 * 1024 * 1024;
 const ALLOWED_JUDGE_COMMANDS = new Set(["claude", "claude-patched"]);
 export const RETRY_DELAY_MS = 15_000;
 
+// Rate limit detection — Claude CLI outputs this when account hits usage cap
+const RATE_LIMIT_PATTERNS = [
+  /you[''\u2019]ve hit your limit/iu,
+  /rate limit/iu,
+  /usage limit/iu,
+  /too many requests/iu,
+];
+
+// "resets Jul 20, 4pm (Asia/Seoul)" → absolute Date or null
+const RESET_TIME_RE = /resets?\s+(\w+)\s+(\d{1,2})(?:,?\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?)?/iu;
+
+export function detectRateLimit(stdout, stderr) {
+  const combined = `${stdout ?? ""}\n${stderr ?? ""}`;
+  const hit = RATE_LIMIT_PATTERNS.some((pattern) => pattern.test(combined));
+  if (!hit) return { limited: false, retry_at: null };
+
+  // Try to parse reset time
+  const match = RESET_TIME_RE.exec(combined);
+  if (match) {
+    const [, monthStr, dayStr, hourStr, minuteStr, ampm] = match;
+    const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+    const month = months[monthStr.toLowerCase().slice(0, 3)];
+    if (month !== undefined) {
+      const now = new Date();
+      let hour = parseInt(hourStr || "0", 10);
+      if (ampm?.toLowerCase() === "pm" && hour < 12) hour += 12;
+      if (ampm?.toLowerCase() === "am" && hour === 12) hour = 0;
+      const minute = parseInt(minuteStr || "0", 10);
+      const day = parseInt(dayStr, 10);
+      const candidate = new Date(now.getFullYear(), month, day, hour, minute, 0, 0);
+      // If parsed date is in the past by more than 1 day, assume next year
+      if (candidate.getTime() < now.getTime() - 86_400_000) {
+        candidate.setFullYear(candidate.getFullYear() + 1);
+      }
+      return { limited: true, retry_at: candidate };
+    }
+  }
+  return { limited: true, retry_at: null };
+}
+
 function retryDelayMs() {
   const configured = Number(process.env.NAUTLI_JUDGE_RETRY_DELAY_MS);
   return process.env.NAUTLI_JUDGE_RETRY_DELAY_MS !== undefined
@@ -285,11 +325,22 @@ export async function judgePairs(pairs, store, config, home) {
   const judgments = [];
   const errors = [];
   let parsedCount = 0;
+  let rateLimited = null; // { limited, retry_at }
   const rawLog = home ? path.join(home, "daemon", "judge-raw.log") : null;
   // judge CLI 격리 실행장: 빈 디렉토리 (프로젝트 컨텍스트·CLAUDE.md 오염 차단)
   const sandbox = path.join(home ?? process.env.TMPDIR ?? "/tmp", "daemon", "judge-sandbox");
   fs.mkdirSync(sandbox, { recursive: true });
   for (let offset = 0; offset < pairs.length; offset += BATCH_SIZE) {
+    // Rate limit detected in earlier batch — skip remaining (no point retrying)
+    if (rateLimited) {
+      const batch = pairs.slice(offset, offset + BATCH_SIZE);
+      judgments.push(...batch.map((pair) => safeJudgment(
+        pairId(pair),
+        "skipped: rate limit",
+        { failed: true },
+      )));
+      continue;
+    }
     const batch = pairs.slice(offset, offset + BATCH_SIZE);
     try {
       let result;
@@ -297,6 +348,24 @@ export async function judgePairs(pairs, store, config, home) {
       try {
         result = await runBatch(batch, config, sandbox);
       } catch (error) {
+        // Check for rate limit BEFORE retrying — no point retrying a limit
+        const limitCheck = detectRateLimit(error.rawStdout, error.rawStderr);
+        if (limitCheck.limited) {
+          rateLimited = limitCheck;
+          if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} RATE_LIMITED\nstdout:\n${error.rawStdout ?? ""}\nstderr:\n${error.rawStderr ?? ""}\n`);
+          errors.push({
+            offset,
+            count: batch.length,
+            reason: "rate_limited",
+            ...(limitCheck.retry_at ? { retry_at: limitCheck.retry_at.toISOString() } : {}),
+          });
+          judgments.push(...batch.map((pair) => safeJudgment(
+            pairId(pair),
+            "rate limited",
+            { failed: true },
+          )));
+          continue;
+        }
         retried = true;
         if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} RETRY (${error.message})\nstdout:\n${error.rawStdout ?? ""}\nstderr:\n${error.rawStderr ?? ""}\n`);
         await new Promise((resolve) => setTimeout(resolve, retryDelayMs()));
@@ -319,6 +388,24 @@ export async function judgePairs(pairs, store, config, home) {
       }
       judgments.push(...result.judgments);
     } catch (error) {
+      // Check for rate limit on final failure too
+      const limitCheck = detectRateLimit(error.rawStdout, error.rawStderr);
+      if (limitCheck.limited) {
+        rateLimited = limitCheck;
+        if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} RATE_LIMITED\nstdout:\n${error.rawStdout ?? ""}\nstderr:\n${error.rawStderr ?? ""}\n`);
+        errors.push({
+          offset,
+          count: batch.length,
+          reason: "rate_limited",
+          ...(limitCheck.retry_at ? { retry_at: limitCheck.retry_at.toISOString() } : {}),
+        });
+        judgments.push(...batch.map((pair) => safeJudgment(
+          pairId(pair),
+          "rate limited",
+          { failed: true },
+        )));
+        continue;
+      }
       // 배치 하나의 실패(스폰 에러·타임아웃)가 밤 전체를 날리지 않게 격리 — 해당 쌍은 안전 no-op
       if (rawLog) appendRawLog(rawLog, `--- ${new Date().toISOString()} batch@${offset} FAILED: ${error.message}\nstdout:\n${error.rawStdout ?? ""}\nstderr:\n${error.rawStderr ?? ""}\n`);
       errors.push({
@@ -334,5 +421,5 @@ export async function judgePairs(pairs, store, config, home) {
       )));
     }
   }
-  return { judgments, parsedCount, errors };
+  return { judgments, parsedCount, errors, ...(rateLimited ? { rate_limited: true, retry_at: rateLimited.retry_at } : {}) };
 }

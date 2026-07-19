@@ -93,6 +93,7 @@ mcp        MCP 서버를 실행해요.
   "setup.app_darwin_only": { en: "The desktop app launcher is only supported on macOS for now.", ko: "데스크탑 앱 런처는 아직 macOS에서만 지원해요." },
   "setup.digest_judge_failed": { en: "Sample digestion failed: {reason}", ko: "체험 소화 판정에 실패했어요: {reason}" },
   "setup.digest_no_result": { en: "Found memories to digest but received no judgment. Check the Claude CLI connection", ko: "체험 소화할 기억은 찾았지만 판정 결과를 받지 못했어요. Claude CLI 연결을 확인해 주세요." },
+  "setup.digest_rate_limited": { en: "Usage limit hit. Retry scheduled after reset ({retry_at}).", ko: "사용량 한도 도달. 리셋 후 재시도 예정 ({retry_at})." },
   "setup.digest_already_running": { en: "Another patrol is already running; skipping this run", ko: "다른 순찰이 이미 실행 중이라 이번 실행은 건너뛰어요." },
 
   "daemon.notify.title": { en: "nautli", ko: "nautli" },
@@ -102,6 +103,7 @@ mcp        MCP 서버를 실행해요.
   "daemon.notify.clear_body": { en: "Your nautli kept watch. Nothing found that could disrupt your next session.", ko: "nautli가 기억을 지켰어요. 다음 세션을 방해할 문제는 없었어요." },
   "daemon.notify.partial_body": { en: "Patrol finished. Some judgments will be retried on the next patrol.", ko: "nautli 순찰이 끝났어요. 일부 판정은 다음 순찰에서 다시 시도할게요." },
   "daemon.notify.failed_body": { en: "Patrol was interrupted. Run npx nautli checkup to inspect.", ko: "순찰이 중단됐어요. npx nautli checkup으로 점검해 주세요." },
+  "daemon.notify.limit_wait_body": { en: "Usage limit reached. Will retry automatically after reset.", ko: "사용량 한도 대기 중. 리셋 후 자동 재시도합니다." },
 
   "checkup.harness_claude": { en: "Claude harness (~/.claude)", ko: "Claude 하네스 (~/.claude)" },
   "checkup.harness_codex": { en: "Codex harness (~/.codex)", ko: "Codex 하네스 (~/.codex)" },

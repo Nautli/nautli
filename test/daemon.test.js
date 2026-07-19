@@ -178,7 +178,7 @@ test("report renders approval cards and machine oracle summary", (t) => {
   const report = fs.readFileSync(result.file, "utf8");
 
   assert.match(report, /요약: 적용 0건, 리뷰 대기 추가 2건, 건너뜀 0건, 기술 기록 보류 1건\./u);
-  assert.match(report, /\(판정 2쌍은 일시 오류로 건너뜀: 다음 소화 때 다시 시도해요\)/u);
+  assert.match(report, /\(판정 2쌍은 일시 오류로 건너뜀: 다음 순찰 때 다시 시도해요\)/u);
   assert.match(report, /\(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요\)/u);
   assert.match(report, /\*\*npm 발행이 끝났는지가 갈려요\.\*\*/u);
   assert.match(report, /질문: 지금은 어느 쪽이 맞나요\? \(A \/ B \/ 둘 다 \/ 모름\)/u);
@@ -274,7 +274,7 @@ test("judge batch failure includes stderr in errors array for health.log diagnos
   assert.equal(result.errors.length, 1);
   assert.match(result.errors[0].reason, /Judge exited with 1/u);
   assert.ok(result.errors[0].stderr, "stderr field should be present in error");
-  assert.match(result.errors[0].stderr, /rate limit exceeded/u);
+  assert.match(result.errors[0].stderr, /internal error: judge model unavailable/u);
   assert.equal(result.judgments.length, 1);
   assert.equal(result.judgments[0].failed, true);
 });
@@ -294,6 +294,51 @@ test("judge parse-failure path (exit 0, parsedCount 0) includes stderr in errors
   assert.match(result.errors[0].reason, /해석하지 못했습니다/u);
   assert.ok(result.errors[0].stderr, "stderr should be present on parse-failure path");
   assert.match(result.errors[0].stderr, /model refused/u);
+});
+
+test("judge detects rate limit and skips remaining batches", async (t) => {
+  const { home, store } = isolatedStore(t);
+  const rateLimitJudge = path.join(root, "test", "fixtures", "rate-limit-judge.js");
+  const a = add(store, "한도검증 왼쪽", "project:rate-limit", "2025-01-01");
+  const b = add(store, "한도검증 오른쪽", "project:rate-limit", "2025-02-01");
+  const c = add(store, "한도검증 세번째", "project:rate-limit", "2025-03-01");
+
+  const pairs = [
+    { a: store.getFact(a.id), b: store.getFact(b.id) },
+    { a: store.getFact(a.id), b: store.getFact(c.id) },
+  ];
+
+  const result = await judgePairs(pairs, store, {
+    judge_cmd: [process.execPath, rateLimitJudge],
+  }, home);
+
+  assert.equal(result.rate_limited, true);
+  assert.ok(result.retry_at instanceof Date);
+  assert.equal(result.errors.length, 1);
+  assert.equal(result.errors[0].reason, "rate_limited");
+  assert.ok(result.errors[0].retry_at);
+  // All judgments should be safe no-ops (failed)
+  assert.equal(result.judgments.length, 2);
+  assert.equal(result.judgments[0].failed, true);
+  assert.equal(result.judgments[1].failed, true);
+  // Raw log should show RATE_LIMITED, not RETRY
+  const rawLog = fs.readFileSync(path.join(home, "daemon", "judge-raw.log"), "utf8");
+  assert.match(rawLog, /RATE_LIMITED/u);
+  assert.ok(!rawLog.includes("RETRY"), "should NOT retry when rate limited");
+});
+
+test("detectRateLimit parses reset time from Claude CLI output", async () => {
+  const { detectRateLimit } = await import("../src/daemon/judge.js");
+  const result = detectRateLimit("You\u2019ve hit your limit \u00b7 resets Jul 20, 4pm (Asia/Seoul)", "");
+  assert.equal(result.limited, true);
+  assert.ok(result.retry_at instanceof Date);
+  assert.equal(result.retry_at.getMonth(), 6); // July = 6
+  assert.equal(result.retry_at.getDate(), 20);
+  assert.equal(result.retry_at.getHours(), 16); // 4pm
+
+  const noLimit = detectRateLimit("some other error", "connection refused");
+  assert.equal(noLimit.limited, false);
+  assert.equal(noLimit.retry_at, null);
 });
 
 test("judge_cmd ending with bare -p gets the default prompt injected (config specifies binary/model only)", async () => {
