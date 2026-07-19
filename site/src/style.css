@@ -72,6 +72,7 @@
   --grain-blend: screen;
   --grain-opacity: 0.35;
   --header-height: 64px;
+  --header-border: 1px;
 }
 
 *,
@@ -197,7 +198,7 @@ code {
   top: 0;
   z-index: 20;
   min-height: var(--header-height);
-  border-bottom: 1px solid transparent;
+  border-bottom: var(--header-border) solid transparent;
   background: color-mix(in srgb, var(--bg) 88%, transparent);
   backdrop-filter: saturate(140%) blur(12px);
   transition: border-color 0.25s ease, background-color 0.25s ease;
@@ -786,7 +787,8 @@ tbody th {
 .share-page {
   display: grid;
   grid-template-columns: 65fr 35fr;
-  height: calc(100dvh - 64px);
+  /* header total height = --header-height + --header-border (border-bottom) */
+  height: calc(100dvh - var(--header-height) - var(--header-border));
 }
 
 .share-result-panel,

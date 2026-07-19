@@ -87,7 +87,7 @@ function activeCount(store) {
   }
 }
 
-export function buildReceipt(home, store, { days = 7, now } = {}) {
+export function buildReceipt(home, store, { days = 7, now, installed: installedOpt } = {}) {
   const windowDays = Number.isFinite(Number(days)) && Number(days) > 0
     ? Number(days)
     : 7;
@@ -97,6 +97,7 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
   const cutoff = nowTime - windowDays * DAY_MS;
   const events = eventsFor(home, cutoff, nowTime);
   const conversations = new Set();
+  const recallSamples = [];
   let approx = false;
   let tokensDelivered = 0;
 
@@ -107,6 +108,7 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
       || event.hits.length === 0
       || !inWindow(event.at, cutoff, nowTime)) continue;
 
+    recallSamples.push(event);
     const id = sessionId(event);
     if (id) {
       conversations.add(`session:${id}`);
@@ -164,7 +166,23 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
     }
   }
 
-  const installed = installDate(home);
+  // 큰 숫자를 실물로 뒷받침하는 표본: 윈도우 내 최근 recall 3건 + 사용된 기억 원문 일부
+  const evidence = recallSamples
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+    .slice(0, 3)
+    .map((event) => {
+      const firstFactId = event.hits.find((factId) => typeof factId === "string");
+      const fact = firstFactId ? store?.getFact?.(firstFactId) : null;
+      const claim = typeof fact?.claim === "string" ? fact.claim : null;
+      return {
+        at: event.at,
+        scope: typeof event.scope === "string" && event.scope !== "" ? event.scope : null,
+        hits: event.hits.length,
+        sample_claim: claim ? (claim.length > 80 ? `${claim.slice(0, 80)}…` : claim) : null,
+      };
+    });
+
+  const installed = installedOpt !== undefined ? installedOpt : installDate(home);
   const memoryAgeDays = installed != null
     ? Math.max(1, Math.ceil((nowTime - installed) / DAY_MS))
     : null;
@@ -188,6 +206,7 @@ export function buildReceipt(home, store, { days = 7, now } = {}) {
     facts_active_at_start: factsActiveAtStart,
     facts_delta: factsDelta,
     self_corrected: selfCorrected,
+    evidence,
     memory_age_days: memoryAgeDays,
     installed_at: installed != null ? new Date(installed).toISOString() : null,
     sample_ok: conversationCount >= 3,
@@ -215,10 +234,9 @@ export function buildReceiptMulti(home, store, { now } = {}) {
 
   const windows = {};
   for (const d of RECEIPT_WINDOWS) {
-    windows[`${d}d`] = buildReceipt(home, store, { days: d, now });
+    windows[`${d}d`] = buildReceipt(home, store, { days: d, now, installed });
   }
-  windows.lifetime = buildReceipt(home, store, { days: lifetimeDays, now });
-  windows.lifetime.days = lifetimeDays;
+  windows.lifetime = buildReceipt(home, store, { days: lifetimeDays, now, installed });
   windows.lifetime.is_lifetime = true;
 
   const memoryAgeDays = installed != null ? lifetimeDays : null;

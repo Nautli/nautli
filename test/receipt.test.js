@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildReceipt } from "../src/core/receipt.js";
+import { buildReceipt, buildReceiptMulti } from "../src/core/receipt.js";
 import { Store } from "../src/core/store.js";
 import { makeT } from "../src/i18n/strings.js";
 import { receiptHeader } from "../src/mcp/server.js";
@@ -80,6 +80,61 @@ test("weekly fact change keeps a negative value", (t) => {
   }, { apply: false });
 
   assert.equal(buildReceipt(home, store, { now: NOW }).facts_delta, -2);
+});
+
+test("buildReceiptMulti returns four windows with lifetime flag and milestone", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 40,
+    at: "2026-07-09T10:00:00.000Z",
+  });
+
+  const multi = buildReceiptMulti(home, store, { now: NOW });
+
+  assert.deepEqual(Object.keys(multi.windows).sort(), ["2d", "30d", "7d", "lifetime"]);
+  assert.equal(multi.windows.lifetime.is_lifetime, true);
+  assert.equal(multi.windows["2d"].days, 2);
+  assert.ok(multi.installed_at !== undefined);
+  // 설치 직후(기억 나이 < 7일)면 아직 도달한 챔버가 없거나 첫 방이어야 한다
+  if (multi.memory_age_days != null && multi.memory_age_days < 7) {
+    assert.equal(multi.milestone, null);
+  }
+  if (multi.milestone) assert.ok(multi.memory_age_days >= multi.milestone.days);
+});
+
+test("lifetime window uses install date so memory_age_days matches lifetime.days", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 40,
+    at: "2026-07-10T12:00:00.000Z",
+  });
+
+  const multi = buildReceiptMulti(home, store, { now: NOW });
+
+  assert.equal(multi.memory_age_days, multi.windows.lifetime.days);
+  assert.equal(multi.windows.lifetime.memory_age_days, multi.memory_age_days);
+});
+
+test("receipt evidence lists recent recalls with hit counts, newest first, capped at 3", (t) => {
+  const { home, store } = isolatedStore(t);
+  for (let i = 1; i <= 4; i++) {
+    store.appendRecall({
+      hits: ["fa_a", "fa_b"],
+      session_id: `session-${i}`,
+      returned_chars: 8,
+      at: `2026-07-1${i}T10:00:00.000Z`,
+    });
+  }
+
+  const receipt = buildReceipt(home, store, { now: NOW });
+
+  assert.equal(receipt.evidence.length, 3);
+  assert.equal(receipt.evidence[0].at, "2026-07-14T10:00:00.000Z");
+  assert.equal(receipt.evidence[0].hits, 2);
 });
 
 test("receipt wording contains no long dash characters", () => {
