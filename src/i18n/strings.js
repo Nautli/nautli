@@ -72,7 +72,7 @@ mcp        MCP 서버를 실행해요.
   "cli.daemon.not_built": { en: "daemon not built", ko: "데몬이 빌드되지 않았어요." },
   "cli.daemon.skipped_fresh": { en: "Digestion already succeeded for the current 03:30 slot ({last}); skipping this run", ko: "이번 03:30 슬롯의 소화가 이미 성공해서({last}) 이번 실행은 건너뛰어요." },
   "cli.setup.unknown_step": { en: "Unknown setup step: {name}", ko: "알 수 없는 설치 단계: {name}" },
-  "cli.review.empty": { en: "No questions to answer. The next digestion runs at 3:30 AM", ko: "답할 질문이 없어요. 다음 소화는 오늘 새벽 3:30이에요." },
+  "cli.review.empty": { en: "No questions to answer. As memories build up, the patrol will create them.", ko: "답할 질문이 없어요. 새 기억이 쌓이면 순찰이 질문을 만들어요." },
   "cli.review.duplicate": { en: "Duplicate", ko: "중복 정리" },
   "cli.review.contradiction": { en: "Contradiction", ko: "모순 발견" },
   "cli.review.duplicate_prompt": { en: "[O] Merge / [X] Keep separate / [L] Review tomorrow: ", ko: "[O] 합치기 / [X] 따로 유지 / [L] 내일 다시 보기: " },
