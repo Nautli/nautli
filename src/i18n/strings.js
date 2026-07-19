@@ -93,7 +93,7 @@ mcp        MCP 서버를 실행해요.
   "setup.app_darwin_only": { en: "The desktop app launcher is only supported on macOS for now.", ko: "데스크탑 앱 런처는 아직 macOS에서만 지원해요." },
   "setup.digest_judge_failed": { en: "Sample digestion failed: {reason}", ko: "체험 소화 판정에 실패했어요: {reason}" },
   "setup.digest_no_result": { en: "Found memories to digest but received no judgment. Check the Claude CLI connection", ko: "체험 소화할 기억은 찾았지만 판정 결과를 받지 못했어요. Claude CLI 연결을 확인해 주세요." },
-  "setup.digest_already_running": { en: "Another digestion is already running; skipping this run", ko: "다른 소화가 이미 실행 중이라 이번 실행은 건너뛰어요." },
+  "setup.digest_already_running": { en: "Another patrol is already running; skipping this run", ko: "다른 순찰이 이미 실행 중이라 이번 실행은 건너뛰어요." },
 
   "daemon.notify.title": { en: "nautli", ko: "nautli" },
   "daemon.notify.caught_body": { en: "Your nautli caught {applied} duplicate {mem}. No more tokens wasted on repeats.", ko: "nautli가 중복 기억 {applied}건을 잡았어요. 같은 내용이 두 번 로드되는 토큰 낭비를 막았어요." },
@@ -138,7 +138,7 @@ mcp        MCP 서버를 실행해요.
   "report.summary_oracle_resolved": { en: "{count} resolved by AI investigation", ko: "AI가 조사해 판결 {count}건" },
   "report.summary_oracle_promoted": { en: "{count} promoted to human", ko: "사람으로 승격 {count}건" },
   "report.summary_prefix": { en: "Summary: {text}.", ko: "요약: {text}." },
-  "report.failed_pairs": { en: "({count} pair(s) skipped due to a temporary error; will retry next digestion)", ko: "(판정 {count}쌍은 일시 오류로 건너뜀: 다음 소화 때 다시 시도해요)" },
+  "report.failed_pairs": { en: "({count} pair(s) skipped due to a temporary error; will retry at next patrol)", ko: "(판정 {count}쌍은 일시 오류로 건너뜀: 다음 순찰 때 다시 시도해요)" },
   "report.machine_oracle_note": { en: "(Technical record held: the answer is in the repo or logs, so the user was not asked)", ko: "(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요)" },
   "report.triage_routed_note": { en: "(Handled by AI: questions that do not need a human answer were held)", ko: "(AI가 대신 맡음: 사람이 답할 필요 없는 질문이라 보류해 뒀어요)" },
   "report.capture_held_note": { en: "(Held: uncertain automatic findings were kept on record without deleting)", ko: "(보류: 확정하기 어려운 자동 발견은 지우지 않고 기록에 남겼어요)" },
