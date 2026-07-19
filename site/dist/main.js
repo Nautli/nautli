@@ -73,17 +73,30 @@
   const mobileMenuToggle = document.querySelector(".mobile-menu-toggle");
   const mobileMenu = document.getElementById("mobile-menu");
 
+  function closeMobileMenu() {
+    if (!mobileMenu || mobileMenu.hidden) return;
+    mobileMenu.hidden = true;
+    mobileMenuToggle.setAttribute("aria-expanded", "false");
+  }
+
   mobileMenuToggle?.addEventListener("click", () => {
     if (!mobileMenu) return;
-    const willOpen = mobileMenu.hidden;
-    mobileMenu.hidden = !willOpen;
-    mobileMenuToggle.setAttribute("aria-expanded", String(willOpen));
+    const isHidden = mobileMenu.hidden;
+    mobileMenu.hidden = !isHidden;
+    mobileMenuToggle.setAttribute("aria-expanded", String(isHidden));
+  });
+
+  document.addEventListener("click", (event) => {
+    if (mobileMenu && !mobileMenu.hidden &&
+        !mobileMenu.contains(event.target) &&
+        !mobileMenuToggle.contains(event.target)) {
+      closeMobileMenu();
+    }
   });
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && mobileMenu && !mobileMenu.hidden) {
-      mobileMenu.hidden = true;
-      mobileMenuToggle.setAttribute("aria-expanded", "false");
+      closeMobileMenu();
       mobileMenuToggle.focus();
     }
   });
