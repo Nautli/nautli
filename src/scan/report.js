@@ -29,7 +29,9 @@ const COPY = Object.freeze({
     pngError: "Could not save PNG",
     copied: "Link copied",
     ready: "Share link ready",
-    footer: "Sent: only 7 anonymous fields (score, tools, tokens, alTokens, findings, os, v). File names and contents never leave this device.",
+    footerSent: "Sent: only 7 anonymous fields (score, tools, tokens, alTokens, findings, os, v). File names and contents never leave this device.",
+    footerFailed: "Sending failed. No scan aggregate was sent. File names and contents never leave this device.",
+    footerDisabled: "Ping disabled. No scan aggregate was sent. File names and contents never leave this device.",
     install: "Install nautli",
     cardStats: (tools, tokens, findings) => `AI ${tools} · memory ${tokens}tok · signals ${findings}`,
     partial: "The scan reached its safety cap, so this is a partial result.",
@@ -58,7 +60,9 @@ const COPY = Object.freeze({
     pngError: "PNG를 저장하지 못했습니다",
     copied: "링크를 복사했습니다",
     ready: "공유 링크가 준비됐습니다",
-    footer: "전송된 것: 숫자 7개뿐(score, tools, tokens, alTokens, findings, os, v). 파일명과 내용은 기기를 떠나지 않습니다.",
+    footerSent: "전송됨: 숫자 7개뿐(score, tools, tokens, alTokens, findings, os, v). 파일명과 내용은 기기를 떠나지 않습니다.",
+    footerFailed: "전송 실패: 진단 집계를 보내지 못했습니다. 파일명과 내용은 기기를 떠나지 않습니다.",
+    footerDisabled: "핑 비활성화: 진단 집계를 보내지 않았습니다. 파일명과 내용은 기기를 떠나지 않습니다.",
     install: "nautli 설치",
     cardStats: (tools, tokens, findings) => `AI ${tools}개 · 기억 ${tokens}tok · 신호 ${findings}건`,
     partial: "안전 제한에 도달해 일부만 진단한 결과입니다.",
@@ -89,11 +93,6 @@ function jsonForScript(value) {
     .replaceAll("&", "\\u0026");
 }
 
-function timestamp(date = new Date()) {
-  const part = (value) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}${part(date.getMonth() + 1)}${part(date.getDate())}-${part(date.getHours())}${part(date.getMinutes())}${part(date.getSeconds())}`;
-}
-
 function toolRows(result, text) {
   return result.tools.map((tool) => `
     <tr>
@@ -118,11 +117,16 @@ function findingCards(result, text) {
     </article>`).join("");
 }
 
-export function renderReportHtml(result, { lang = "en", percentile } = {}) {
+export function renderReportHtml(result, { lang = "en", percentile, pingStatus = "disabled" } = {}) {
   const selectedLang = lang === "ko" ? "ko" : "en";
   const text = COPY[selectedLang];
   const accent = GRADE_COLORS[result.grade] ?? GRADE_COLORS.F;
   const topPercent = Number.isInteger(percentile) ? Math.max(1, 100 - percentile) : null;
+  const footer = pingStatus === "sent"
+    ? text.footerSent
+    : pingStatus === "failed"
+      ? text.footerFailed
+      : text.footerDisabled;
   const safeShareBase = buildSharePayload(result);
   const browserData = {
     payload: safeShareBase,
@@ -187,7 +191,7 @@ export function renderReportHtml(result, { lang = "en", percentile } = {}) {
         </div>
       </div>
     </section>
-    <footer class="privacy"><div class="privacy-inner"><p>${escapeHtml(text.footer)}</p><a class="install primary" href="https://nautli.ai/install">${escapeHtml(text.install)}</a></div></footer>
+    <footer class="privacy"><div class="privacy-inner"><p>${escapeHtml(footer)}</p><a class="install primary" href="https://nautli.ai/install">${escapeHtml(text.install)}</a></div></footer>
   </main>
   <script>
     (() => {
@@ -261,8 +265,13 @@ export function renderReportHtml(result, { lang = "en", percentile } = {}) {
 }
 
 export function writeReport(result, options = {}) {
-  const file = path.join(options.tmpdir ?? os.tmpdir(), `nautli-scan-${timestamp(options.date)}.html`);
-  fs.writeFileSync(file, renderReportHtml(result, options), { encoding: "utf8", mode: 0o600 });
+  const directory = fs.mkdtempSync(path.join(options.tmpdir ?? os.tmpdir(), "nautli-scan-"));
+  const file = path.join(directory, "report.html");
+  fs.writeFileSync(file, renderReportHtml(result, options), {
+    encoding: "utf8",
+    mode: 0o600,
+    flag: "wx",
+  });
   return file;
 }
 
@@ -272,7 +281,7 @@ export function openReport(file, platform = process.platform) {
   if (platform === "darwin") {
     command = "open"; args = [file];
   } else if (platform === "win32") {
-    command = "cmd"; args = ["/c", "start", "", file];
+    command = "explorer.exe"; args = [file];
   } else {
     command = "xdg-open"; args = [file];
   }

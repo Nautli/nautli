@@ -43,6 +43,27 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://nautli.ai/diagnose.html" />
   </url>
   <url>
+    <loc>https://nautli.ai/gallery.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://nautli.ai/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://nautli.ai/ja/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://nautli.ai/gallery.html" />
+  </url>
+  <url>
+    <loc>https://nautli.ai/ko/gallery.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://nautli.ai/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://nautli.ai/ja/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://nautli.ai/gallery.html" />
+  </url>
+  <url>
+    <loc>https://nautli.ai/ja/gallery.html</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://nautli.ai/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="ja" href="https://nautli.ai/ja/gallery.html" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://nautli.ai/gallery.html" />
+  </url>
+  <url>
     <loc>https://nautli.ai/manifesto.html</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://nautli.ai/manifesto.html" />
     <xhtml:link rel="alternate" hreflang="ko" href="https://nautli.ai/ko/manifesto.html" />

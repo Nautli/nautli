@@ -24,7 +24,8 @@
   <link rel="alternate icon" href="/assets/favicon.ico">
   <link rel="stylesheet" href="/style.css?v=4c45d328">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"무엇이 전송되는지, Claude 판정, 옵시디언 안전성, 삭제 방법, 가격과 후원까지 답합니다.","url":"https://nautli.ai/ko/faq.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
-  <script src="/main.js?v=1ca6cff5" defer></script>
+  <script src="/main.js?v=5835d527" defer></script>
+  
   
 </head>
 <body class="" data-page="faq" data-copy-success="복사했습니다" data-copy-failure="복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요." data-copy-prompt="이 명령을 직접 복사해 주세요:">
@@ -34,6 +35,7 @@
       <a class="wordmark" href="/ko/" aria-label="nautli 홈">nautli</a>
       <nav class="primary-links" aria-label="주요 메뉴">
         <a class="text-nav" href="/ko/diagnose.html">진단</a>
+        <a class="text-nav" href="/ko/gallery.html">갤러리</a>
         <a class="text-nav" href="/ko/manifesto.html">원칙</a>
         <a class="text-nav" href="/ko/install.html">설치</a>
         <a class="icon-link" href="https://github.com/Nautli/nautli" aria-label="GitHub" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.82a9.5 9.5 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg></a>
@@ -51,6 +53,7 @@
     </div>
     <nav class="mobile-menu" id="mobile-menu" aria-label="주요 메뉴" hidden>
       <a href="/ko/diagnose.html">진단</a>
+      <a href="/ko/gallery.html">갤러리</a>
       <a href="/ko/manifesto.html">원칙</a>
       <a href="/ko/install.html">설치</a>
       <a href="/ko/faq.html" aria-current="page">자주 묻는 질문</a>
@@ -58,7 +61,7 @@
       <a href="https://discord.gg/nautli" rel="noreferrer">Discord</a>
     </nav>
   </header>
-  <div id="main-content"><main class="subpage shell"><header class="subpage-lead"><p class="eyebrow">자주 묻는 질문</p><h1>설치 전에 물어볼 만한 것들</h1><p>요약하면: 데이터는 내 컴퓨터에 있고, 판정 과정은 눈에 보이고, 언제든 깨끗하게 지울 수 있습니다.</p></header><section class="faq-list"><details open><summary>메모리 토큰 95% 절감, 어디서 나온 숫자인가요?</summary><p>창업자의 606개 노트 볼트 실측입니다. 상시 로딩되는 지시 파일은 세션마다 약 22,000토큰을 쓰는데, nautli recall은 로그 기준 질문당 평균 570토큰이라 통상 세션에서 메모리 토큰이 약 95% 줄어듭니다. 검진에서 서로 부딪히는 노트 49쌍이 발견됐고, 부딪히는 두 기록이 함께 모델에 들어가면 그 주제의 답은 사실상 동전 던지기입니다. 질문 카드에 답하고 나면 직접 고른 기록만 전달됩니다. 볼트마다 숫자는 다르니 검진으로 직접 확인해 보세요.</p></details><details><summary>내 컴퓨터 밖으로 무엇이 나가나요?</summary><p>노트는 nautli 서버로 가지 않습니다. 중복과 모순을 판정하는 프롬프트는 본인의 Claude 구독을 거쳐 Anthropic으로 갑니다. 사용 통계 수집은 기본으로 꺼져 있습니다.</p></details><details><summary>판정할 때 Claude로 무엇을 보내나요?</summary><p>중복과 모순 후보 사실을 비교하는 데 필요한 텍스트를 보냅니다. 볼트 전체를 보내지 않습니다. 판정에 실패하거나 애매하면 아무것도 하지 않거나 리뷰 질문으로 올립니다.</p></details><details><summary>건강검진이 옵시디언 볼트를 바꾸나요?</summary><p>아니요. 건강검진은 직접 고른 폴더의 마크다운 노트를 읽지만 원본을 수정하지 않습니다. 시작 전에 최상위 폴더를 제외할 수 있습니다. 발견 내용을 가져와도 ~/.nautli에 쓸 뿐 볼트에 되쓰지 않습니다.</p></details><details><summary>nautli를 어떻게 제거하나요?</summary><p>nautli setup --step remove-instructions로 표시된 지시문 블록을 지우고, nautli setup --step uninstall-daemon으로 야간 작업을 제거한 다음 MCP 등록을 지우세요. 로컬 기억이 더 필요 없다면 백업 후 ~/.nautli를 삭제할 수 있습니다.</p></details><details><summary>가격과 후원은 어떻게 되나요?</summary><p>코어는 MIT 라이선스 오픈소스입니다. 후원금은 유지보수에 쓰입니다. 후원자 이름 공개는 선택이며, 본인이 동의하기 전에는 꺼져 있습니다.</p></details></section></main></div>
+  <div id="main-content"><main class="subpage shell"><header class="subpage-lead"><p class="eyebrow">자주 묻는 질문</p><h1>설치 전에 물어볼 만한 것들</h1><p>요약하면: 데이터는 내 컴퓨터에 있고, 판정 과정은 눈에 보이고, 언제든 깨끗하게 지울 수 있습니다.</p></header><section class="faq-list"><details open><summary>메모리 토큰 95% 절감, 어디서 나온 숫자인가요?</summary><p>창업자의 606개 노트 볼트 실측입니다. 상시 로딩되는 지시 파일은 세션마다 약 22,000토큰을 쓰는데, nautli recall은 로그 기준 질문당 평균 570토큰이라 통상 세션에서 메모리 토큰이 약 95% 줄어듭니다. 검진에서 서로 부딪히는 노트 49쌍이 발견됐고, 부딪히는 두 기록이 함께 모델에 들어가면 그 주제의 답은 일관되기 어렵습니다. 질문 카드에 답하고 나면 직접 고른 기록만 전달됩니다. 볼트마다 숫자는 다르니 검진으로 직접 확인해 보세요.</p></details><details><summary>내 컴퓨터 밖으로 무엇이 나가나요?</summary><p>노트는 nautli 서버로 가지 않습니다. 중복과 모순을 판정하는 프롬프트는 본인의 Claude 구독을 거쳐 Anthropic으로 갑니다. 사용 통계 수집은 기본으로 꺼져 있습니다.</p></details><details><summary>판정할 때 Claude로 무엇을 보내나요?</summary><p>중복과 모순 후보 사실을 비교하는 데 필요한 텍스트를 보냅니다. 볼트 전체를 보내지 않습니다. 판정에 실패하거나 애매하면 아무것도 하지 않거나 리뷰 질문으로 올립니다.</p></details><details><summary>건강검진이 옵시디언 볼트를 바꾸나요?</summary><p>아니요. 건강검진은 직접 고른 폴더의 마크다운 노트를 읽지만 원본을 수정하지 않습니다. 시작 전에 원치 않는 하위 폴더를 제외할 수 있습니다. 발견 내용을 가져와도 ~/.nautli에 쓸 뿐 볼트에 되쓰지 않습니다.</p></details><details><summary>nautli를 어떻게 제거하나요?</summary><p>nautli setup --step remove-instructions로 표시된 지시문 블록을 지우고, nautli setup --step uninstall-daemon으로 야간 작업을 제거한 다음, 각 도구의 MCP 등록을 지우세요. Claude Code는 claude mcp remove -s user nautli 한 줄입니다. 마지막으로 npm uninstall -g nautli로 패키지를 지우고, 로컬 기억이 더 필요 없다면 백업 후 ~/.nautli를 삭제하면 됩니다.</p></details><details><summary>가격과 후원은 어떻게 되나요?</summary><p>코어는 MIT 라이선스 오픈소스입니다. 후원금은 유지보수에 쓰입니다. 후원자 이름 공개는 선택이며, 본인이 동의하기 전에는 꺼져 있습니다.</p></details></section></main></div>
   <footer class="site-footer shell">
     <div><a class="wordmark" href="/ko/">nautli</a><span>MIT 라이선스 오픈소스</span></div>
     <nav aria-label="하단 메뉴">

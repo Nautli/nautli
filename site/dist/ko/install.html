@@ -24,7 +24,8 @@
   <link rel="alternate icon" href="/assets/favicon.ico">
   <link rel="stylesheet" href="/style.css?v=4c45d328">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"macOS에 nautli를 설치하고, 어떤 파일이 바뀌는지 확인하고, 빈 폴더로 안전하게 테스트합니다.","url":"https://nautli.ai/ko/install.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
-  <script src="/main.js?v=1ca6cff5" defer></script>
+  <script src="/main.js?v=5835d527" defer></script>
+  
   
 </head>
 <body class="" data-page="install" data-copy-success="복사했습니다" data-copy-failure="복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요." data-copy-prompt="이 명령을 직접 복사해 주세요:">
@@ -34,6 +35,7 @@
       <a class="wordmark" href="/ko/" aria-label="nautli 홈">nautli</a>
       <nav class="primary-links" aria-label="주요 메뉴">
         <a class="text-nav" href="/ko/diagnose.html">진단</a>
+        <a class="text-nav" href="/ko/gallery.html">갤러리</a>
         <a class="text-nav" href="/ko/manifesto.html">원칙</a>
         <a class="text-nav" href="/ko/install.html" aria-current="page">설치</a>
         <a class="icon-link" href="https://github.com/Nautli/nautli" aria-label="GitHub" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.82a9.5 9.5 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg></a>
@@ -51,6 +53,7 @@
     </div>
     <nav class="mobile-menu" id="mobile-menu" aria-label="주요 메뉴" hidden>
       <a href="/ko/diagnose.html">진단</a>
+      <a href="/ko/gallery.html">갤러리</a>
       <a href="/ko/manifesto.html">원칙</a>
       <a href="/ko/install.html" aria-current="page">설치</a>
       <a href="/ko/faq.html">자주 묻는 질문</a>
@@ -79,7 +82,7 @@
 nautli init
 nautli checkup ~/notes" aria-describedby="copy-status-all">모두 복사</button><span class="copy-status" id="copy-status-all" role="status" aria-live="polite"></span></div>
   </div></section>
-    <section class="section"><p class="section-label">변경 사항</p><h2>바뀌는 파일과 되돌리는 법</h2><div class="table-wrap"><table><thead><tr><th scope="col">파일 또는 설정</th><th scope="col">바뀌는 것</th><th scope="col">되돌리는 법</th></tr></thead><tbody><tr><th scope="row"><code>~/.nautli/</code></th><td>init이 로컬 저장소, 설정, 인덱스, 리포트를 이곳에 만듦</td><td>필요한 내용을 백업한 뒤 이 폴더 제거</td></tr><tr><th scope="row"><code>~/.claude.json</code></th><td>Claude Code 연결을 켰을 때만 MCP 등록 추가</td><td>claude mcp remove -s user nautli</td></tr><tr><th scope="row"><code>~/.claude/CLAUDE.md</code></th><td>연결을 켰을 때만, 표시가 붙은 nautli 지시문 블록 하나 추가</td><td>nautli setup --step remove-instructions</td></tr><tr><th scope="row"><code>~/Library/LaunchAgents/com.nautli.daemon.plist</code></th><td>켰을 때만 macOS 야간 작업 추가</td><td>nautli setup --step uninstall-daemon</td></tr><tr><th scope="row"><code>Cursor mcp.json</code></th><td>nautli는 설정 조각만 제공하며 직접 붙여넣어야 함</td><td>직접 넣은 nautli 항목 제거</td></tr></tbody></table></div><p class="small-note">위 세 명령은 ~/.nautli만 만듭니다. AI 연결과 야간 작업은 별도 설정 단계에서 동의해야 추가됩니다.</p></section>
+    <section class="section"><p class="section-label">변경 사항</p><h2>바뀌는 파일과 되돌리는 법</h2><div class="table-wrap"><table><thead><tr><th scope="col">파일 또는 설정</th><th scope="col">바뀌는 것</th><th scope="col">되돌리는 법</th></tr></thead><tbody><tr><th scope="row"><code>~/.nautli/</code></th><td>init이 로컬 저장소, 설정, 인덱스, 리포트를 이곳에 만듦</td><td>필요한 내용을 백업한 뒤 이 폴더 제거</td></tr><tr><th scope="row"><code>~/.claude.json</code></th><td>Claude Code 연결을 켰을 때만 MCP 등록 추가</td><td>claude mcp remove -s user nautli</td></tr><tr><th scope="row"><code>~/.claude/CLAUDE.md</code></th><td>연결을 켰을 때만, 표시가 붙은 nautli 지시문 블록 하나 추가</td><td>nautli setup --step remove-instructions</td></tr><tr><th scope="row"><code>~/Library/LaunchAgents/com.nautli.daemon.plist</code></th><td>켰을 때만 macOS 야간 작업 추가</td><td>nautli setup --step uninstall-daemon</td></tr><tr><th scope="row"><code>Cursor mcp.json</code></th><td>nautli는 설정 조각만 제공하며 직접 붙여넣어야 함</td><td>직접 넣은 nautli 항목 제거</td></tr></tbody></table></div><p class="small-note">위 세 명령 중 npm은 전역에 nautli 패키지를 설치하고, init·checkup은 ~/.nautli에 저장소와 리포트를 만듭니다. AI 연결과 야간 작업은 별도 설정 단계에서 동의해야 추가됩니다.</p></section>
     <section class="section test-block"><p class="section-label">안전한 시험</p><h2>빈 폴더로 먼저 테스트하세요</h2><code>nautli checkup ./empty-test</code><p>개인 노트나 업무 노트를 연결하기 전에, 빈 폴더로 결과가 어떻게 나오는지 먼저 볼 수 있습니다.</p></section>
     <section class="section help-block"><h2>막히면</h2><p>nautli doctor를 실행한 뒤, 민감하지 않은 결과를 GitHub Issues에 올리거나 Discord에서 물어보세요.</p><p><a href="https://github.com/Nautli/nautli/issues" rel="noreferrer">GitHub Issues</a> · <a href="https://discord.gg/nautli" rel="noreferrer">Discord</a></p></section>
   </main></div>

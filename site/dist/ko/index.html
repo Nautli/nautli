@@ -24,7 +24,8 @@
   <link rel="alternate icon" href="/assets/favicon.ico">
   <link rel="stylesheet" href="/style.css?v=4c45d328">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Claude Code, Codex, Cursor가 함께 읽는 로컬 우선 기억. 메모리 토큰은 95% 아끼고, 설명은 한 번만.","url":"https://nautli.ai/ko/","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
-  <script src="/main.js?v=1ca6cff5" defer></script>
+  <script src="/main.js?v=5835d527" defer></script>
+  
   
 </head>
 <body class="" data-page="index" data-copy-success="복사했습니다" data-copy-failure="복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요." data-copy-prompt="이 명령을 직접 복사해 주세요:">
@@ -34,6 +35,7 @@
       <a class="wordmark" href="/ko/" aria-label="nautli 홈">nautli</a>
       <nav class="primary-links" aria-label="주요 메뉴">
         <a class="text-nav" href="/ko/diagnose.html">진단</a>
+        <a class="text-nav" href="/ko/gallery.html">갤러리</a>
         <a class="text-nav" href="/ko/manifesto.html">원칙</a>
         <a class="text-nav" href="/ko/install.html">설치</a>
         <a class="icon-link" href="https://github.com/Nautli/nautli" aria-label="GitHub" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.82a9.5 9.5 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg></a>
@@ -51,6 +53,7 @@
     </div>
     <nav class="mobile-menu" id="mobile-menu" aria-label="주요 메뉴" hidden>
       <a href="/ko/diagnose.html">진단</a>
+      <a href="/ko/gallery.html">갤러리</a>
       <a href="/ko/manifesto.html">원칙</a>
       <a href="/ko/install.html">설치</a>
       <a href="/ko/faq.html">자주 묻는 질문</a>
@@ -75,7 +78,7 @@
       <div class="hero-copy">
         <p class="eyebrow">오픈소스 · MIT · 로컬 우선</p>
         <h1>내 AI 기억, 얼마나 엉켜 있을까?</h1>
-        <p class="hero-subline">내 노트와 CLAUDE.md가 얼마나 엉켰는지 30초면 브라우저에서 무료로 확인합니다. 설치 후 연결하면 Claude, Codex, Cursor가 같은 로컬 기억을 읽습니다. 정리는 매일 밤 자동, 결정은 언제나 내 몫입니다.</p>
+        <p class="hero-subline">내 노트와 CLAUDE.md가 얼마나 엉켰는지 30초면 브라우저에서 무료로 훑어봅니다. 설치 후 연결하면 Claude, Codex, Cursor가 같은 로컬 기억을 읽습니다. 정리는 매일 밤 자동, 결정은 언제나 내 몫입니다.</p>
       </div>
       <div class="hero-actions">
         <div class="hero-cta-row">
@@ -85,7 +88,7 @@
         <p class="hero-cta-note">무료 · 설치 없음 · 업로드 없음</p>
         <ul class="stats-strip"><li><strong>95%</strong><span>세션당 메모리 토큰 절감</span></li><li><strong>11% → 0.3%</strong><span>메모리가 차지하던 컨텍스트 창</span></li></ul>
       </div>
-      <p class="trust-line">🔒 노트 업로드 없음 · 원본 노트 수정 없음 · MIT 오픈소스 · macOS</p>
+      <p class="trust-line">🔒 노트는 nautli 서버로 가지 않음 · 원본 노트 수정 없음 · MIT 오픈소스 · macOS</p>
     </section>
 
     <section class="diagnose-band">
@@ -151,7 +154,7 @@
       <p class="section-label">데이터 취급 범위</p>
       <h2>nautli가 읽는 것, 쓰는 것, 보내는 것</h2>
       <div class="boundary-grid">
-        <article class="boundary-card"><h3>읽는 것</h3><ul><li>직접 고른 폴더만</li><li>선택한 범위의 마크다운 노트</li><li>최상위 폴더는 제외 가능</li><li>건강검진은 원본 노트를 수정하지 않음</li></ul></article><article class="boundary-card"><h3>쓰는 것</h3><ul><li>~/.nautli 아래 기억 파일</li><li>연결을 켰을 때만, 표시가 붙은 지시문 블록 하나</li><li>연결을 켰을 때만 MCP·launchd 설정</li><li>연결마다 제거 방법 제공</li></ul><a href="/ko/install.html" rel="noreferrer">파일 목록과 제거 방법 보기</a></article><article class="boundary-card"><h3>보내는 것</h3><ul><li>노트 내용은 nautli 서버로 보내지 않음</li><li>판정 프롬프트만 내 Claude 구독을 통해 Anthropic으로 전송</li><li>사용 통계 수집은 기본으로 꺼져 있음</li><li>공유 검진에는 노트가 아닌 숫자만 포함</li></ul></article>
+        <article class="boundary-card"><h3>읽는 것</h3><ul><li>직접 고른 폴더만</li><li>선택한 범위의 마크다운 노트</li><li>원치 않는 하위 폴더는 시작 전에 제외 가능</li><li>건강검진은 원본 노트를 수정하지 않음</li></ul></article><article class="boundary-card"><h3>쓰는 것</h3><ul><li>~/.nautli 아래 기억 파일</li><li>연결을 켰을 때만, 표시가 붙은 지시문 블록 하나</li><li>연결을 켰을 때만 MCP·launchd 설정</li><li>연결마다 제거 방법 제공</li></ul><a href="/ko/install.html" rel="noreferrer">파일 목록과 제거 방법 보기</a></article><article class="boundary-card"><h3>보내는 것</h3><ul><li>노트 내용은 nautli 서버로 보내지 않음</li><li>판정에 필요한 후보 텍스트만 내 Claude 구독을 통해 Anthropic으로 전송</li><li>사용 통계 수집은 기본으로 꺼져 있음</li><li>공유 검진에는 노트가 아닌 숫자만 포함</li></ul></article>
       </div>
     </section>
 
@@ -170,7 +173,7 @@
     <section class="section shell wide-shell">
       <p class="section-label">작동 방식</p>
       <h2>AI는 몰래 고치지 않고, 물어봅니다. 정하는 건 나입니다.</h2>
-      <p class="section-intro">밤사이 nautli가 발견한 모순을 질문으로 올립니다. Claude Code, Codex, Cursor는 승인된 같은 기억을 읽습니다. 직접 정하기 전에는 어떤 기록도 몰래 바꾸지 않습니다.</p>
+      <p class="section-intro">밤사이 nautli가 발견한 모순을 질문으로 올립니다. Claude Code, Codex, Cursor는 승인된 같은 기억을 읽습니다. 직접 정하기 전에는 어느 쪽도 현재 사실로 확정되지 않습니다.</p>
       <div class="conversation-grid">
         <article class="conversation"><h3>nautli가 없을 때</h3><p><strong>Claude Code</strong> 로컬 개발은 PostgreSQL을 씁니다.</p><p><strong>Cursor</strong> 로컬 개발은 SQLite를 씁니다.</p><p><strong>나</strong> 지금 결정은 어느 쪽이지?</p></article>
         <article class="conversation after"><h3>nautli가 있을 때</h3><p class="added"><strong>nautli</strong> PostgreSQL과 SQLite가 충돌합니다. 결정이 바뀌었나요?</p><p class="added"><strong>나</strong> 네. SQLite가 PostgreSQL을 대체합니다.</p><p class="added"><strong>연결된 모든 AI</strong> 현재 결정은 SQLite입니다. PostgreSQL은 이력에 남습니다.</p></article>

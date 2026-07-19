@@ -76,7 +76,11 @@ export function discover({
     } catch {
       return true;
     }
-    if (!stat.isFile() || stat.size > MAX_FILE_BYTES) return true;
+    if (!stat.isFile()) return true;
+    if (stat.size > MAX_FILE_BYTES) {
+      partial = true;
+      return true;
+    }
 
     const real = safeRealpath(candidate);
     if (!real || claimedFiles.has(real)) return true;
@@ -103,6 +107,10 @@ export function discover({
       modified: stat.mtimeMs,
       body,
     });
+    if (docs.length >= MAX_SCAN_FILES || totalBytes >= MAX_SCAN_BYTES) {
+      partial = true;
+      stopped = true;
+    }
     return true;
   };
 
@@ -166,8 +174,8 @@ export function discover({
   for (const [file, tool] of direct) addFile(file, tool);
 
   walk(path.join(home, ".cursor", "rules"), "cursor", (file) => MARKDOWN_OR_MDC.test(file));
-  walk(path.join(home, ".windsurf", "rules"), "windsurf");
-  walk(path.join(cwd, ".cursor", "rules"), "project");
+  walk(path.join(home, ".windsurf", "rules"), "windsurf", (file) => MARKDOWN_OR_MDC.test(file));
+  walk(path.join(cwd, ".cursor", "rules"), "project", (file) => MARKDOWN_OR_MDC.test(file));
 
   // Claude memories only live below each project's immediate memory folder.
   const claudeProjects = path.join(home, ".claude", "projects");

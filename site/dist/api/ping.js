@@ -1,4 +1,4 @@
-import { hashResult, kvCommand, kvMultiExec, rateLimit } from "./_kv.js";
+import { hashResult, kvCommand, kvPipeline, rateLimit } from "./_kv.js";
 import {
   percentileFromHistogram,
   readJsonBody,
@@ -69,7 +69,7 @@ export default async function handler(req, res) {
 
     const { score } = validated.value;
     const weekKey = `nt:stats:week:${isoWeek()}`;
-    await kvMultiExec([
+    await kvPipeline([
       ["HINCRBY", HISTOGRAM_KEY, score, 1],
       ["INCR", "nt:stats:count"],
       ["INCRBY", "nt:stats:sum", score],

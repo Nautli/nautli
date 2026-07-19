@@ -34,7 +34,7 @@ function pageShell({ title, description, content, accent = "#00E6A1", canonical 
   const safeTitle = escapeHtml(title);
   const safeDescription = escapeHtml(description);
   return `<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="ko" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -60,8 +60,7 @@ function pageShell({ title, description, content, accent = "#00E6A1", canonical 
     .center{display:flex;align-items:center;gap:clamp(14px,3vw,36px)}
     .score{font-size:clamp(58px,15vw,190px);font-weight:700;line-height:.78;letter-spacing:-.075em}
     .grade{display:grid;width:clamp(52px,10vw,116px);aspect-ratio:1;place-items:center;border:2px solid var(--accent);border-radius:50%;color:var(--accent);font-size:clamp(27px,6vw,68px);font-weight:700}
-    .nick,.percentile{margin-top:clamp(9px,1.6vw,20px);color:var(--dim);font-size:clamp(12px,2vw,22px)}
-    .percentile{display:inline-block;border:1px solid var(--accent);border-radius:999px;padding:4px 10px;color:var(--accent)}
+    .nick{margin-top:clamp(9px,1.6vw,20px);color:var(--dim);font-size:clamp(12px,2vw,22px)}
     .bottom{display:flex;align-items:end;justify-content:space-between;gap:20px}
     .stats{margin:0;color:var(--dim);font-size:clamp(11px,2vw,24px);font-weight:500;white-space:nowrap}
     .site{color:var(--faint);font-size:clamp(11px,1.8vw,21px);white-space:nowrap}
@@ -80,15 +79,9 @@ function cardPage(card) {
   const tools = Number.isInteger(card.tools) ? card.tools : 0;
   const tokens = Number.isInteger(card.tokens) ? card.tokens : 0;
   const findings = Number.isInteger(card.findings) ? card.findings : 0;
-  const topPercent = Number.isInteger(card.percentile)
-    ? Math.max(1, 100 - Math.min(99, Math.max(0, card.percentile)))
-    : null;
   const nick = typeof card.nick === "string" && card.nick
     ? `<div class="nick">${escapeHtml(card.nick)}</div>`
     : "";
-  const percentile = topPercent === null
-    ? ""
-    : `<div class="percentile">Top ${topPercent}%</div>`;
   const title = `nautli memory score ${score} · ${grade}`;
   return pageShell({
     title,
@@ -97,18 +90,18 @@ function cardPage(card) {
     canonical: `https://nautli.ai/r/${escapeHtml(card.id)}`,
     content: `<article class="score-card" aria-label="nautli memory score ${score}, grade ${grade}">
       <div class="brand">nautli<span>.</span></div>
-      <div><div class="center"><div class="score">${score}</div><div class="grade">${grade}</div></div>${nick}${percentile}</div>
-      <div class="bottom"><p class="stats">${tools} AIs · ${tokens.toLocaleString("en-US")}tok memory · ${findings} signals</p><span class="site">nautli.ai</span></div>
+      <div><div class="center"><div class="score">${score}</div><div class="grade">${grade}</div></div>${nick}</div>
+      <div class="bottom"><p class="stats">AI ${tools}개 · 기억 ${tokens.toLocaleString("en-US")}tok · 신호 ${findings}건</p><span class="site">nautli.ai</span></div>
     </article>
-    <div class="cta"><a href="/diagnose">Check my score →</a></div>`,
+    <div class="cta"><a href="/diagnose">내 점수도 재보기 →</a></div>`,
   });
 }
 
 function notFoundPage() {
   return pageShell({
-    title: "Card not found · nautli",
-    description: "This shared card does not exist or has been deleted.",
-    content: `<section class="notice"><h1>Card not found</h1><p>Check the link or start a new diagnosis.</p><div class="cta"><a href="/diagnose">Check my score →</a></div></section>`,
+    title: "카드를 찾을 수 없습니다 · nautli",
+    description: "이 공유 카드는 없거나 삭제되었습니다.",
+    content: `<section class="notice"><h1>카드를 찾을 수 없습니다</h1><p>링크가 정확한지 확인하거나 새 진단을 시작해 주세요.</p><div class="cta"><a href="/diagnose">내 점수 진단하기 →</a></div></section>`,
   });
 }
 
@@ -118,7 +111,7 @@ export default async function handler(req, res) {
     sendHtml(res, 405, pageShell({
       title: "Method not allowed · nautli",
       description: "Method not allowed.",
-      content: `<section class="notice"><h1>Method not allowed</h1><div class="cta"><a href="/diagnose">Run a diagnosis →</a></div></section>`,
+      content: `<section class="notice"><h1>Method not allowed</h1><div class="cta"><a href="/diagnose">진단하기 →</a></div></section>`,
     }));
     return;
   }
@@ -137,9 +130,9 @@ export default async function handler(req, res) {
     sendHtml(res, 200, cardPage(JSON.parse(stored)));
   } catch {
     sendHtml(res, 500, pageShell({
-      title: "Please try again later · nautli",
-      description: "The card could not be loaded.",
-      content: `<section class="notice"><h1>The card could not be loaded</h1><p>Please try again later.</p><div class="cta"><a href="/diagnose">Run a diagnosis →</a></div></section>`,
+      title: "잠시 후 다시 시도해 주세요 · nautli",
+      description: "카드를 불러오지 못했습니다.",
+      content: `<section class="notice"><h1>카드를 불러오지 못했습니다</h1><p>잠시 후 다시 시도해 주세요.</p><div class="cta"><a href="/diagnose">진단하기 →</a></div></section>`,
     }));
   }
 }

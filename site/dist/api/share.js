@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { hashResult, kvCommand, kvMultiExec, rateLimit } from "./_kv.js";
+import { hashResult, kvCommand, kvPipeline, rateLimit } from "./_kv.js";
 import {
   estimateMonthlyUsd,
   gradeForScore,
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
       id,
       score: value.score,
       grade: gradeForScore(value.score),
-      percentile: summary.percentile,
+      percentile: summary.percentile ?? 0,
       tools: value.tools,
       tokens: value.tokens,
       alTokens: value.alTokens,
@@ -89,13 +89,12 @@ export default async function handler(req, res) {
       os: value.os,
       ts: Date.now(),
     };
-    const results = await kvMultiExec([
+    await kvPipeline([
       ["SET", `nt:card:${id}`, JSON.stringify(card)],
       ["LPUSH", "nt:cards:recent", id],
       ["LTRIM", "nt:cards:recent", 0, 199],
       ["ZADD", "nt:cards:byscore", value.score, id],
     ]);
-    if (results[0] !== "OK") throw new Error("card storage failed");
     sendJson(res, 200, { ok: true, id, url: `https://nautli.ai/r/${id}` });
   } catch {
     sendJson(res, 500, { ok: false, error: "service unavailable" });

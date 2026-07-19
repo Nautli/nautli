@@ -47,20 +47,12 @@ export async function kvCommand(command) {
 }
 
 export async function kvPipeline(commands) {
-  return kvBatch("/pipeline", commands);
-}
-
-export async function kvMultiExec(commands) {
-  return kvBatch("/multi-exec", commands);
-}
-
-async function kvBatch(pathname, commands) {
   if (!Array.isArray(commands) || commands.length === 0) {
-    throw new TypeError("KV command batch must not be empty");
+    throw new TypeError("KV pipeline must not be empty");
   }
   for (const command of commands) assertCommandKeys(command);
   const { url, token } = environment();
-  const response = await fetch(`${url}${pathname}`, {
+  const response = await fetch(`${url}/pipeline`, {
     method: "POST",
     headers: {
       authorization: `Bearer ${token}`,
@@ -71,12 +63,8 @@ async function kvBatch(pathname, commands) {
   });
   if (!response.ok) throw new Error("KV request failed");
   const results = await response.json();
-  if (
-    !Array.isArray(results)
-    || results.length !== commands.length
-    || results.some((entry) => entry?.error)
-  ) {
-    throw new Error("KV command batch failed");
+  if (!Array.isArray(results) || results.some((entry) => entry?.error)) {
+    throw new Error("KV pipeline failed");
   }
   return results.map((entry) => entry?.result);
 }

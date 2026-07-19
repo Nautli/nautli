@@ -14,10 +14,11 @@ export async function runScan({
   const discovered = discover({ cwd, home, platform });
   const result = analyze(discovered, { lang });
   const pingResult = noPing ? null : await ping(result);
+  const pingStatus = noPing ? "disabled" : pingResult ? "sent" : "failed";
   const percentile = pingResult?.percentile;
-  const reportFile = writeReport(result, { lang, percentile });
+  const reportFile = writeReport(result, { lang, percentile, pingStatus });
   if (!noOpen) openReport(reportFile, platform);
-  return { result, reportFile, percentile };
+  return { result, reportFile, percentile, pingStatus };
 }
 
 export { discover } from "./discover.js";

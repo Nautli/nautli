@@ -190,9 +190,7 @@ async function scanCommand(args) {
     finding: scan.result.findings[0]?.title ?? scanT("cli.scan.clean"),
   })}\n`);
   process.stdout.write(`${scanT("cli.scan.report", { file: scan.reportFile })}\n`);
-  process.stdout.write(`${scanT(parsed.values["no-ping"]
-    ? "cli.scan.privacy_off"
-    : "cli.scan.privacy")}\n`);
+  process.stdout.write(`${scanT(`cli.scan.privacy_${scan.pingStatus}`)}\n`);
 }
 
 function telemetryCommand(home, args) {

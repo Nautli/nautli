@@ -4,6 +4,7 @@ import { assertNtKey } from "../site/api/_kv.js";
 import {
   estimateMonthlyUsd,
   gradeForScore,
+  percentileFromHistogram,
   sanitizeNick,
   validatePingPayload,
   validateSharePayload,
@@ -73,6 +74,15 @@ test("server-derived grade and monthly estimate use the schema formulas", () => 
   assert.equal(gradeForScore(50), "C");
   assert.equal(gradeForScore(49), "F");
   assert.equal(estimateMonthlyUsd(1_000_000), 900);
+});
+
+test("percentile is null for an empty or self-only histogram", () => {
+  assert.deepEqual(percentileFromHistogram({}, 80), { count: 0, percentile: null });
+  assert.deepEqual(percentileFromHistogram({ 80: 1 }, 80), { count: 1, percentile: null });
+  assert.deepEqual(percentileFromHistogram({ 70: 1, 80: 1 }, 80), {
+    count: 2,
+    percentile: 50,
+  });
 });
 
 test("KV guard permits only the nt namespace", () => {

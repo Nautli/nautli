@@ -24,8 +24,9 @@
   <link rel="alternate icon" href="/assets/favicon.ico">
   <link rel="stylesheet" href="/style.css?v=4c45d328">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"ノートとエージェント指示ファイルをブラウザでスキャンする。重複ブロック、肥大化した常時読み込みファイル、残骸を表示。アップロードなし。","url":"https://nautli.ai/ja/diagnose.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ja/faq.html"}</script>
-  <script src="/main.js?v=1ca6cff5" defer></script>
+  <script src="/main.js?v=5835d527" defer></script>
   <script src="/diagnose.js?v=0f9d5f56" defer></script>
+  
 </head>
 <body class="" data-page="diagnose" data-copy-success="コピーしました" data-copy-failure="コピーできませんでした。コマンドを選択して手動でコピーしてください。" data-copy-prompt="このコマンドを手動でコピーしてください:">
   <a class="skip-link" href="#main-content">本文へ移動</a>
@@ -34,6 +35,7 @@
       <a class="wordmark" href="/ja/" aria-label="nautli ホーム">nautli</a>
       <nav class="primary-links" aria-label="メインナビゲーション">
         <a class="text-nav" href="/ja/diagnose.html" aria-current="page">診断</a>
+        <a class="text-nav" href="/ja/gallery.html">Gallery</a>
         <a class="text-nav" href="/ja/manifesto.html">マニフェスト</a>
         <a class="text-nav" href="/ja/install.html">インストール</a>
         <a class="icon-link" href="https://github.com/Nautli/nautli" aria-label="GitHub" rel="noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.58 9.58 0 0 1 12 6.82a9.5 9.5 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86v2.76c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg></a>
@@ -51,6 +53,7 @@
     </div>
     <nav class="mobile-menu" id="mobile-menu" aria-label="メインナビゲーション" hidden>
       <a href="/ja/diagnose.html" aria-current="page">診断</a>
+      <a href="/ja/gallery.html">Gallery</a>
       <a href="/ja/manifesto.html">マニフェスト</a>
       <a href="/ja/install.html">インストール</a>
       <a href="/ja/faq.html">よくある質問</a>
@@ -61,33 +64,52 @@
   <div id="main-content"><main class="subpage shell wide-shell diagnose-page" data-diagnose data-install-href="/ja/install.html">
     <script type="application/json" id="diagnose-copy">{"scanningProgress":"{total}件中{done}件","errorGeneric":"フォルダを読めなかった。","errorNoMarkdown":"そのフォルダにMarkdownやテキストファイルが見つからなかった。","folderFallbackLabel":"選択したフォルダ","resultEyebrow":"{folder} の表層スキャン","resultSignals":"{signalWord}。{scanned}件中{affected}件のファイルに集中している","resultMeta":"テキスト{scanned}{fileWord}を読み取り · {size} · テキスト以外{skipped}{skippedWord}をスキップ","resultPartial":"このスキャンは上限に達したため部分的だ。部分スキャンでは表層スコアを出さない。","resultClean":"確度の高い表層シグナルは見つからなかった。内容同士が整合しているという意味ではない。","scoreLabel":"表層の整理状態","scoreNote":"実測したシグナルのみを反映する。古さだけでは減点しない。","evidenceToggle":"根拠を表示（{count}）","evidenceMore":"ほか{count}件","restToggle":"すべての検出項目（あと{count}件）","boundaryTitle":"ブラウザで見えるのはここまで","boundaryBody":"上のものはすべて表層シグナルだ。サイズ、繰り返される文字列、更新時刻。2つのノートが同じ判断を指しているのか、どちらが現在なのかは、このページには判定できない。","ctaTitle":"どれが本物かを確かめる","ctaTitleClean":"ブラウザに見えない層を確かめる","ctaBody":"nautli checkupは同じフォルダをClaude Codeに通し、候補が重複なのか、置き換えられた判断なのか、本当の矛盾なのかを尋ねる。報告するだけで、ノートを勝手に書き換えない。","ctaButton":"インストール手順を見る","ctaNote":"macOS · Node 20+ · Claude Code CLIのインストールとサインインが必要 · MIT","wordFileOne":"件のファイル","wordFileMany":"件のファイル","wordMarkerOne":"件","wordMarkerMany":"件","wordSignalOne":"件のシグナル","wordSignalMany":"件のシグナル","findAlwaysLoadedTitle":"{name} が毎セッション丸ごと読み込まれている","findAlwaysLoadedMeasure":"約{tokens}トークン · {size}","findAlwaysLoadedWhy":"この種の指示ファイルは会話のたびに全文が読まれるため、その容量を毎回払い直すことになる。常に必要な規則と参考資料を分けるのが通常もっとも安上がりだ。","findRepeatedTitle":"同じブロックが{count}{fileWord}にある","findRepeatedMeasure":"{chars}文字、繰り返し","findRepeatedWhy":"意図したテンプレートかもしれない。ブラウザはどの複製が基準かを知らず、テキストが一致することだけを知る。","findLargeTitle":"{name} が最大の単一ファイルだ","findLargeMeasure":"{size} · 約{tokens}トークン","findLargeWhy":"大きな単一ファイルは必要な箇所だけを正確に取り出しにくい。エラーではなく構造の候補だ。","findEmptyTitle":"実質的に空のファイルが{count}件ある","findEmptyMeasure":"本文20文字未満","findEmptyWhy":"空のノートはたいていテンプレートや中断した記録の残骸だ。","findTodoTitle":"TODO・FIXMEの印が{count}{markerWord}残っている","findTodoMeasure":"{files}{fileWord}にわたって","findTodoWhy":"アシスタントが読むノートに残った印は、判断として拾われることがある。","findStaleTitle":"1年以上変更されていないファイルが{count}件ある","findStaleMeasure":"ファイル更新時刻で{count}{fileWord}","findStaleWhy":"古いこと自体は問題ではないのでスコアには入れない。置き換えられた判断が隠れやすい場所なので一覧にだけ載せる。"}</script>
 
-    <section data-pane="idle">
-      <p class="eyebrow">無料 · ブラウザ内で実行</p>
-      <h1>あなたのAIは実際に何を読んでいるか</h1>
-      <p class="section-intro">アシスタントが読むフォルダを選ぶ。すべてこのタブ内で処理される。ファイルもファイル名も本文の断片も端末を離れない。</p>
-      <p class="dg-expect-label">約30秒。スキャンでは主に次が見つかる:</p>
-      <ul class="dg-expect">
-        <li>毎セッション読み直される約12,000トークンのCLAUDE.md</li><li>4つのファイルに複製された同じ段落</li><li>決定のように読まれる古いTODOマーカー</li>
-      </ul>
-      <button class="primary-button" type="button" data-action="pick">フォルダを選んで無料診断</button>
-      <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
-      <p class="small-note">ChromeとEdgeはフォルダ選択ダイアログが開く。SafariとFirefoxはフォルダアップロードのコントロールを使うが、読み取りはローカルで行う。</p>
-      <p class="small-note" data-unsupported hidden>このブラウザはローカルフォルダを読めない。Chrome・Edge・Safariで開くか、インストール後にコマンドラインで進めてほしい。</p>
-      <p class="trust-line">🔒 インストールもアカウントもアップロードも不要。ファイルは手元に残る。</p>
+    <section class="dg-prompt-hero">
+      <p class="eyebrow">無料 · 読み取り専用 · コマンド1つ</p>
+      <h1>このプロンプトをClaude Code（またはCursor・Codex）に貼り付けてください</h1>
+      <p class="section-intro">AIが複数ツールの記憶ファイルを見つけ、完全なローカル診断を実行します。</p>
+      <div class="dg-prompt-box">
+        <pre><code>実行してください: npx nautli@latest scan
+
+この端末にあるAI記憶ファイル（CLAUDE.md、AGENTS.md、.cursorrules、Obsidian保管庫など）を読み取り専用で診断します。匿名の数値7つ以外は何もアップロードしません。完了するとローカルHTMLレポートが開きます。その後、重要な検出結果を要約してください。</code></pre>
+        <button class="primary-button copy-button" type="button" data-copy="実行してください: npx nautli@latest scan&#10;&#10;この端末にあるAI記憶ファイル（CLAUDE.md、AGENTS.md、.cursorrules、Obsidian保管庫など）を読み取り専用で診断します。匿名の数値7つ以外は何もアップロードしません。完了するとローカルHTMLレポートが開きます。その後、重要な検出結果を要約してください。" aria-describedby="copy-status-diagnose-prompt">プロンプトをコピー</button>
+        <span class="copy-status" id="copy-status-diagnose-prompt" role="status" aria-live="polite"></span>
+      </div>
+      <p class="dg-prompt-why"><strong>なぜプロンプト?</strong> フォルダの場所を知らなくても大丈夫です。あなたのAIは知っています。</p>
     </section>
 
-    <section data-pane="scanning" hidden>
-      <h1>ローカルで読み取り中</h1>
-      <p class="section-intro" data-progress></p>
-    </section>
+    <details class="dg-browser-scan">
+      <summary>ブラウザで行う（Obsidian保管庫向け）</summary>
+      <div class="dg-browser-scan-body">
+        <section data-pane="idle">
+          <p class="eyebrow">無料 · ブラウザ内で実行</p>
+          <h2>あなたのAIは実際に何を読んでいるか</h2>
+          <p class="section-intro">アシスタントが読むフォルダを選ぶ。すべてこのタブ内で処理される。ファイルもファイル名も本文の断片も端末を離れない。</p>
+          <p class="dg-expect-label">約30秒。スキャンでは主に次が見つかる:</p>
+          <ul class="dg-expect">
+            <li>毎セッション読み直される約12,000トークンのCLAUDE.md</li><li>4つのファイルに複製された同じ段落</li><li>決定のように読まれる古いTODOマーカー</li>
+          </ul>
+          <button class="primary-button" type="button" data-action="pick">フォルダを選んで無料診断</button>
+          <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
+          <p class="small-note">ChromeとEdgeはフォルダ選択ダイアログが開く。SafariとFirefoxはフォルダアップロードのコントロールを使うが、読み取りはローカルで行う。</p>
+          <p class="small-note" data-unsupported hidden>このブラウザはローカルフォルダを読めない。Chrome・Edge・Safariで開くか、インストール後にコマンドラインで進めてほしい。</p>
+          <p class="trust-line">🔒 インストールもアカウントもアップロードも不要。ファイルは手元に残る。</p>
+        </section>
 
-    <section class="diagnose-result" data-pane="result" hidden></section>
+        <section data-pane="scanning" hidden>
+          <h2>ローカルで読み取り中</h2>
+          <p class="section-intro" data-progress></p>
+        </section>
 
-    <section data-pane="error" hidden>
-      <h1>スキャンを完了できなかった</h1>
-      <p class="section-intro" data-error-message></p>
-      <button class="secondary-button" type="button" data-action="reset">別のフォルダを選ぶ</button>
-    </section>
+        <section class="diagnose-result" data-pane="result" hidden></section>
+
+        <section data-pane="error" hidden>
+          <h2>スキャンを完了できなかった</h2>
+          <p class="section-intro" data-error-message></p>
+          <button class="secondary-button" type="button" data-action="reset">別のフォルダを選ぶ</button>
+        </section>
+      </div>
+    </details>
   </main></div>
   <footer class="site-footer shell">
     <div><a class="wordmark" href="/ja/">nautli</a><span>MITライセンスのオープンソース</span></div>

@@ -53,13 +53,14 @@
 
     const statusId = button.getAttribute("aria-describedby");
     const status = statusId ? document.getElementById(statusId) : null;
+    const value = button.getAttribute("data-copy") ?? "";
     button.disabled = true;
     try {
-      const copied = await copyText(button.dataset.copy);
+      const copied = await copyText(value);
       if (!copied) throw new Error("copy unavailable");
       if (status) status.textContent = body.dataset.copySuccess;
     } catch {
-      window.prompt(body.dataset.copyPrompt, button.dataset.copy);
+      window.prompt(body.dataset.copyPrompt, value);
       if (status) status.textContent = body.dataset.copyFailure;
     } finally {
       button.disabled = false;
