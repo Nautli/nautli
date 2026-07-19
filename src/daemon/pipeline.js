@@ -111,6 +111,7 @@ export async function runOnce(store, home, config, { dry = false, scope, subject
     judgments: judgeResult.parsedCount,
     judge_errors: judgeResult.errors,
     ...appliedResults,
+    ...(judgeResult.rate_limited ? { rate_limited: true, retry_at: judgeResult.retry_at } : {}),
   };
   result.capture = await capture();
   recordStage(home, "capture", result.capture);

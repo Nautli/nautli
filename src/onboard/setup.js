@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFile, execFileSync } from "node:child_process";
+import { execFile, execFileSync, spawn as spawnChild } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { remember } from "../core/gate.js";
 import { withReviewLock } from "../core/review-lock.js";
@@ -1320,17 +1320,16 @@ export async function runDigestOnce(home, { dry = false, locale, trigger } = {})
 
 // Touch spool after delay to re-trigger launchd daemon (WatchPaths).
 // Spawns a detached shell process so the main daemon can exit.
-function scheduleRetryTouch(home, delayMs) {
+export function scheduleRetryTouch(home, delayMs) {
   const spoolDir = path.join(home, "daemon", "spool");
   const delaySec = Math.ceil(delayMs / 1000);
   const markerPath = path.join(spoolDir, `${Date.now() + delayMs}-retry.marker`);
   try {
-    // Use /bin/sh detached — sleep then touch marker to trigger WatchPaths
-    const child = execFile("/bin/sh", [
+    const child = spawnChild("/bin/sh", [
       "-c",
-      `sleep ${delaySec} && mkdir -p "${spoolDir}" && touch "${markerPath}"`,
+      `sleep ${delaySec} && mkdir -p '${spoolDir.replace(/'/gu, "'\\''")}' && touch '${markerPath.replace(/'/gu, "'\\''")}'`,
     ], { stdio: "ignore", detached: true });
-    if (child.unref) child.unref();
+    child.unref();
   } catch {
     // Best-effort: if scheduling fails, next 3:30 cron will still run
   }

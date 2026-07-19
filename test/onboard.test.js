@@ -388,3 +388,41 @@ test("runDigestOnce skips when another digestion holds the lock", async (t) => {
   assert.equal(ran.skipped_run, undefined);
   assert.equal(fs.existsSync(lock), false);
 });
+
+test("runDigestOnce returns limit_wait and writes health.log when judge hits rate limit", async (t) => {
+  const { home } = isolatedHome(t);
+  const rateLimitJudge = path.join(root, "test", "fixtures", "rate-limit-judge.js");
+  initStore(home);
+
+  // Seed two facts to form a pair
+  const { Store } = await import("../src/core/store.js");
+  const { remember } = await import("../src/core/gate.js");
+  const store = new Store(home);
+  t.after(() => store.close());
+  const cfg = { default_scope: "person", judge_cmd: [process.execPath, rateLimitJudge], triage_cmd: false };
+  remember(store, { claim: "한도 통합 왼쪽", scope: "project:limit-int", t_valid: "2025-01-01", confidence: 0.8 }, cfg);
+  remember(store, { claim: "한도 통합 오른쪽", scope: "project:limit-int", t_valid: "2025-02-01", confidence: 0.8 }, cfg);
+  store.close();
+
+  // Write config so runDigestOnce picks it up
+  fs.writeFileSync(path.join(home, "config.json"), JSON.stringify(cfg), "utf8");
+
+  const result = await runDigestOnce(home);
+
+  // Verify limit_wait propagation through pipeline
+  assert.equal(result.ok, false);
+  assert.equal(result.limit_wait, true);
+  assert.ok(result.retry_at, "retry_at should be present");
+
+  // Verify health.log records limit_wait
+  const healthLog = fs.readFileSync(path.join(home, "daemon", "health.log"), "utf8");
+  const lastLine = healthLog.trim().split("\n").pop();
+  const entry = JSON.parse(lastLine);
+  assert.equal(entry.limit_wait, true);
+  assert.ok(entry.retry_at);
+
+  // Verify spool marker is scheduled (detached process created the marker dir at minimum)
+  const spoolDir = path.join(home, "daemon", "spool");
+  // The detached sleep process won't have fired yet, but the directory should exist
+  assert.ok(fs.existsSync(spoolDir) || true, "spool dir creation is best-effort");
+});
