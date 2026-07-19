@@ -180,6 +180,7 @@ function readHealth(home) {
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     try {
       const value = JSON.parse(lines[index]);
+      if (value.skipped_run) continue;
       const timestamp = Date.parse(value.at);
       if (!Number.isFinite(timestamp)) continue;
       const age = Math.max(0, Date.now() - timestamp);

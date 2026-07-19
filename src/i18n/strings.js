@@ -4,11 +4,11 @@ export const STRINGS = Object.freeze({
 
 dashboard  Open the dashboard to manage setup and memories
 init       Initialize the memory store
-setup      Configure AI connections and nightly digestion
+setup      Configure AI connections and patrol
 remember   Save a new memory
 recall     Search saved memories
 checkup    Diagnose a notes folder for duplicates and contradictions. Example: nautli checkup ~/Documents/vault
-daemon-run Run nightly digestion once
+daemon-run Run patrol once
 rebuild    Rebuild the memory store index
 stats      Show memory store statistics
 doctor     Check installation and store health
@@ -23,11 +23,11 @@ New here? npx nautli dashboard`,
 
 dashboard  설정과 기억을 관리하는 대시보드를 열어요.
 init       기억 저장소를 초기화해요.
-setup      AI 연결과 밤 소화를 설정해요.
+setup      AI 연결과 순찰을 설정해요.
 remember   새 기억을 저장해요.
 recall     저장된 기억을 검색해요.
 checkup    노트 폴더를 진단해요(중복·모순 리포트). 예: nautli checkup ~/Documents/vault
-daemon-run 밤 소화를 한 번 실행해요.
+daemon-run 순찰을 한 번 실행해요.
 rebuild    기억 저장소 인덱스를 다시 만들어요.
 stats      기억 저장소 통계를 보여줘요.
 doctor     설치와 저장소 상태를 점검해요.
@@ -88,7 +88,7 @@ mcp        MCP 서버를 실행해요.
   "setup.codex_mcp_failed": { en: "Could not register the Codex MCP automatically. Run the command below in your terminal", ko: "Codex MCP 자동 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요." },
   "setup.instructions_preview": { en: "Location: {file}\n\nBlock to add:\n{block}", ko: "추가될 위치: {file}\n\n추가될 블록:\n{block}" },
   "setup.instructions_broken_block": { en: "Found the start marker but not the end marker in {file}; not touching it. Remove the nautli block manually and reinstall.", ko: "{file}에서 시작 마커만 있고 끝 마커가 없어요. 파일을 건드리지 않았어요 — nautli 블록을 직접 지운 뒤 다시 설치해 주세요." },
-  "setup.daemon_failed": { en: "Could not register the nightly digestion daemon. Run the command below in your terminal", ko: "밤 소화 데몬 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요." },
+  "setup.daemon_failed": { en: "Could not register the patrol daemon. Run the command below in your terminal", ko: "순찰 데몬 등록에 실패했어요. 아래 명령을 터미널에서 실행해 주세요." },
   "setup.daemon_failed_conflict": { en: "If launchctl printed error 5 (Input/output error), the label com.nautli.daemon may already be loaded from another plist path. Run `launchctl bootout gui/{uid}/com.nautli.daemon` and retry", ko: "launchctl이 error 5(Input/output error)를 냈다면 com.nautli.daemon 라벨이 이미 다른 plist 경로로 로드돼 있을 수 있어요. `launchctl bootout gui/{uid}/com.nautli.daemon` 실행 후 다시 시도해 주세요." },
   "setup.app_darwin_only": { en: "The desktop app launcher is only supported on macOS for now.", ko: "데스크탑 앱 런처는 아직 macOS에서만 지원해요." },
   "setup.digest_judge_failed": { en: "Sample digestion failed: {reason}", ko: "체험 소화 판정에 실패했어요: {reason}" },
@@ -124,7 +124,7 @@ mcp        MCP 서버를 실행해요.
   "checkup.memories_missing": { en: "No memories were extracted by the checkup", ko: "진단에서 추출된 기억이 없어요." },
 
   "mcp.briefing.auto_cleanup": { en: "[nautli] {count} memories auto-organized so far ({undone} reversed by user).", ko: "[nautli] 기억 {count}건 자동 정리 완료 (사용자 되돌리기 {undone}건)." },
-  "mcp.briefing.digest_stale": { en: "[nautli] Nightly digestion has not succeeded since {last}. Please suggest the user run npx nautli checkup.", ko: "[nautli] 밤 소화가 {last} 이후 성공하지 못했어요. 사용자에게 npx nautli checkup 점검을 권해 주세요." },
+  "mcp.briefing.digest_stale": { en: "[nautli] Patrol has not succeeded since {last}. Please suggest the user run npx nautli checkup.", ko: "[nautli] 순찰이 {last} 이후 성공하지 못했어요. 사용자에게 npx nautli checkup 점검을 권해 주세요." },
   "mcp.briefing.receipt": { en: "In the last {days} days, memory carried across {conversations} conversations and delivered about {tokens} tokens of relevant memory.", ko: "최근 {days}일, 기억으로 이어간 대화 {conversations}번, 필요한 기억 약 {tokens}토큰만 골라 건넸어요." },
   "mcp.briefing.receipt_building": { en: "Memory is building up. {facts} facts currently carry forward.", ko: "기억이 쌓이는 중이에요. 현재 이어지는 사실 {facts}개." },
 
@@ -146,7 +146,7 @@ mcp        MCP 서버를 실행해요.
   "report.receipt_first_week": { en: "During the first week, we show how memories build up rather than savings", ko: "첫 주에는 절감보다 기억이 쌓이는 과정을 보여드려요" },
   "report.receipt_conversations": { en: "- {count} conversation(s)", ko: "- 대화 {count}번" },
   "report.receipt_tokens": { en: "- About {count} tokens of memory delivered", ko: "- 기억 약 {count}토큰 골라 건넴" },
-  "report.receipt_organized": { en: "- {count} record(s) organized overnight", ko: "- 밤새 정리한 기록 {count}건" },
+  "report.receipt_organized": { en: "- {count} record(s) auto-organized", ko: "- 자동 정리한 기록 {count}건" },
   "report.receipt_facts": { en: "- {active} active facts, {delta} this week", ko: "- 현재 이어지는 사실 {active}개, 이번 주 {delta}" },
   "report.handoff_heading": { en: "## Today's handoff card", ko: "## 오늘의 인수인계 카드" },
   "report.handoff_delivered": { en: "- Memory delivered: {claim} (across {sessions} session(s))", ko: "- 기억 전달: {claim} ({sessions}개 세션에 건넴)" },
@@ -187,7 +187,7 @@ mcp        MCP 서버를 실행해요.
   "dash.error.claude_missing": { en: "Claude CLI is not installed", ko: "Claude CLI가 설치되어 있지 않아요." },
   "dash.error.codex_missing": { en: "Codex CLI is not installed", ko: "Codex CLI가 설치되어 있지 않아요." },
   "dash.error.mcp_failed": { en: "Could not register the Claude MCP automatically", ko: "Claude MCP 자동 등록에 실패했어요." },
-  "dash.error.daemon_failed": { en: "Could not register the nightly digestion daemon", ko: "밤 소화 데몬 등록에 실패했어요." },
+  "dash.error.daemon_failed": { en: "Could not register the patrol daemon", ko: "순찰 데몬 등록에 실패했어요." },
   "dash.error.extract_failed": { en: "Could not extract memory candidates from the conversation", ko: "대화에서 기억 후보를 뽑지 못했어요." },
   "dash.error.duplicate": { en: "This memory is already saved", ko: "이미 같은 기억이 저장되어 있어요." },
   "dash.error.generic": { en: "Could not process the request", ko: "요청을 처리하지 못했어요." },

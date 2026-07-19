@@ -7,7 +7,7 @@ import { remember } from "../core/gate.js";
 import { appendRawLog, buildCommand, extractJsonObjects } from "./judge.js";
 import { buildEvidence } from "./resolve.js";
 
-// shadow-resolve: 밤 소화에서 shadow(검증 대기) 항목을 새 근거로 자동 해소한다.
+// shadow-resolve: 순찰에서 shadow(검증 대기) 항목을 새 근거로 자동 해소한다.
 // corroborate(새 독립 근거가 같은 결론 지지) → commit, contradict → 폐기(dismissed).
 // person scope는 자동 commit 영구 금지.
 
