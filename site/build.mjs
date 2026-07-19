@@ -50,9 +50,16 @@ await writeFile(path.join(distDir, ".gitignore"), ".vercel\n.env*\n", "utf8");
 // dist는 빌드마다 wipe되므로 vercel.json도 여기서 재생성한다 — clean URL(/diagnose) 404 방지.
 await writeFile(
   path.join(distDir, "vercel.json"),
-  JSON.stringify({ cleanUrls: true, trailingSlash: false }, null, 2) + "\n",
+  JSON.stringify({
+    cleanUrls: true,
+    trailingSlash: false,
+    rewrites: [{ source: "/r/:id", destination: "/api/r?id=:id" }],
+  }, null, 2) + "\n",
   "utf8",
 );
+
+// Vercel Functions는 배포 루트인 dist/api 아래에 있어야 한다.
+await cp(path.join(siteDir, "api"), path.join(distDir, "api"), { recursive: true });
 
 const messages = {};
 for (const locale of locales) {
