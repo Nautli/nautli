@@ -206,6 +206,23 @@ export function buildTelemetryPayload(home, store) {
     // 읽기 실패 시 이미 얻은 사실 배열 길이만 사용한다.
   }
 
+  // shadow resolve 통계: undo ledger에서 shadow_resolved_at 기준으로 집계
+  const shadowResolve = { corroborated: 0, contradicted: 0, no_signal: 0 };
+  const undoLedger = readJsonl(path.join(home, "review", "undo-ledger.jsonl"));
+  for (const entry of undoLedger) {
+    if (!entry.shadow_resolved_at || !recent(entry.shadow_resolved_at, cutoff, now)) continue;
+    if (entry.shadow_decision === "corroborate") shadowResolve.corroborated += 1;
+    else if (entry.shadow_decision === "contradict") shadowResolve.contradicted += 1;
+  }
+  // no_signal은 이벤트 로그에서 집계 (ledger에 기록되지 않음)
+  const events = readJsonl(path.join(home, "events",
+    `${new Date(now).toISOString().slice(0, 7)}.jsonl`));
+  for (const event of events) {
+    if (event?.ev === "shadow.resolve_cycle" && recent(event.at, cutoff, now)) {
+      shadowResolve.no_signal += (event.no_signal ?? 0);
+    }
+  }
+
   const payload = {
     schema_version: 1,
     install_id: ensureInstallId(home),
@@ -220,6 +237,7 @@ export function buildTelemetryPayload(home, store) {
       pending_total: pendingTotal,
       facts_total: factsTotal,
       facts_by_scope: factsByScope,
+      shadow_resolve: shadowResolve,
     },
   };
   payloadHomes.set(payload, home);

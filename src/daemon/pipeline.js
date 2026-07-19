@@ -14,6 +14,7 @@ import {
   isTelemetryEnabled,
   sendTelemetry,
 } from "./telemetry.js";
+import { resolveShadows } from "./shadow-resolve.js";
 
 function recordStage(home, stage, detail) {
   const file = path.join(home, "daemon", "journal.jsonl");
@@ -153,10 +154,29 @@ export async function runOnce(store, home, config, { dry = false, scope, subject
   }
   recordStage(home, "oracle_resolve", result.oracle_resolve);
 
+  if (config?.shadow_resolve_cmd !== false) {
+    try {
+      result.shadow_resolve = await resolveShadows(store, home, config);
+    } catch (error) {
+      result.shadow_resolve = {
+        checked: 0,
+        corroborated: 0,
+        contradicted: 0,
+        no_signal: 0,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  } else {
+    result.shadow_resolve = { skipped: true, reason: "disabled" };
+  }
+  recordStage(home, "shadow_resolve", result.shadow_resolve);
+
   result.report = writeReport(store, home, {
     ...appliedResults,
     ...result.capture_triage,
     oracle_resolve: result.oracle_resolve,
+    shadow_resolve: result.shadow_resolve,
   });
   recordStage(home, "report", { file: result.report.file, cards: result.report.cards });
 
