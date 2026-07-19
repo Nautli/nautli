@@ -22,6 +22,7 @@ import {
   runDigestOnce,
   seedSampleFacts,
   statusAll,
+  scheduleRetryTouch,
   uninstallApp,
   uninstallDaemon,
 } from "../src/onboard/setup.js";
@@ -69,6 +70,33 @@ test("notifyDigestResult posts a macOS notification via argv (no injection)", ()
 
   assert.equal(notifyDigestResult({ ok: true, skipped_run: true }, { runner }).notified, false);
   assert.equal(notifyDigestResult({ ok: true }, { runner, config: { notifications: false } }).notified, false);
+});
+
+test("notifyDigestResult sends limit_wait notification with correct body", () => {
+  const calls = [];
+  const runner = (command, args) => { calls.push([command, args]); return ""; };
+  const res = notifyDigestResult(
+    { ok: false, limit_wait: true, retry_at: "2026-07-20T07:00:00.000Z" },
+    { runner, locale: "ko", config: {} },
+  );
+  assert.equal(res.notified, true);
+  const [command, args] = calls[0];
+  assert.equal(command, "osascript");
+  const body = args[args.length - 2];
+  // Must be the limit_wait string, NOT generic failed_body
+  assert.ok(body.includes("한도 대기"), `expected '한도 대기' in body, got: ${body}`);
+  assert.ok(!body.includes("중단"), "should NOT contain '중단' (generic failure text)");
+
+  // English locale
+  const callsEn = [];
+  const runnerEn = (cmd, a) => { callsEn.push([cmd, a]); return ""; };
+  const resEn = notifyDigestResult(
+    { ok: false, limit_wait: true, retry_at: "2026-07-20T07:00:00.000Z" },
+    { runner: runnerEn, locale: "en", config: {} },
+  );
+  assert.equal(resEn.notified, true);
+  const bodyEn = callsEn[0][1][callsEn[0][1].length - 2];
+  assert.ok(bodyEn.includes("Usage limit"), `expected 'Usage limit' in body, got: ${bodyEn}`);
 });
 
 test("onboarding steps are isolated and shell commands use the injected runner", (t) => {
@@ -421,8 +449,11 @@ test("runDigestOnce returns limit_wait and writes health.log when judge hits rat
   assert.equal(entry.limit_wait, true);
   assert.ok(entry.retry_at);
 
-  // Verify spool marker is scheduled (detached process created the marker dir at minimum)
+  // Verify scheduleRetryTouch actually creates marker via direct call with delay 0
+  scheduleRetryTouch(home, 0);
+  await new Promise((r) => setTimeout(r, 300));
   const spoolDir = path.join(home, "daemon", "spool");
-  // The detached sleep process won't have fired yet, but the directory should exist
-  assert.ok(fs.existsSync(spoolDir) || true, "spool dir creation is best-effort");
+  assert.ok(fs.existsSync(spoolDir), "spool dir should be created by scheduleRetryTouch");
+  const markers = fs.readdirSync(spoolDir).filter((f) => f.endsWith("-retry.marker"));
+  assert.ok(markers.length > 0, "at least one retry marker file should exist");
 });
