@@ -5,6 +5,7 @@ const formulaUrl = `${githubUrl}/blob/main/docs/checkup-score.md`;
 const pageFiles = {
   index: "",
   diagnose: "diagnose.html",
+  gallery: "gallery.html",
   manifesto: "manifesto.html",
   install: "install.html",
   faq: "faq.html",
@@ -53,6 +54,7 @@ function nav(locale, page, copy) {
       <a class="wordmark" href="${pagePath(locale, "index")}" aria-label="nautli ${escapeHtml(copy.common.home)}">nautli</a>
       <nav class="primary-links" aria-label="${escapeHtml(copy.common.primaryNav)}">
         <a class="text-nav" href="${pagePath(locale, "diagnose")}"${page === "diagnose" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.diagnose)}</a>
+        <a class="text-nav" href="${pagePath(locale, "gallery")}"${page === "gallery" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.gallery)}</a>
         <a class="text-nav" href="${pagePath(locale, "manifesto")}"${page === "manifesto" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.manifesto)}</a>
         <a class="text-nav" href="${pagePath(locale, "install")}"${page === "install" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.install)}</a>
         <a class="icon-link" href="${githubUrl}" aria-label="GitHub" rel="noreferrer">${githubIcon()}</a>
@@ -65,6 +67,7 @@ function nav(locale, page, copy) {
     </div>
     <nav class="mobile-menu" id="mobile-menu" aria-label="${escapeHtml(copy.common.primaryNav)}" hidden>
       <a href="${pagePath(locale, "diagnose")}"${page === "diagnose" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.diagnose)}</a>
+      <a href="${pagePath(locale, "gallery")}"${page === "gallery" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.gallery)}</a>
       <a href="${pagePath(locale, "manifesto")}"${page === "manifesto" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.manifesto)}</a>
       <a href="${pagePath(locale, "install")}"${page === "install" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.install)}</a>
       <a href="${pagePath(locale, "faq")}"${page === "faq" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.faq)}</a>
@@ -170,7 +173,7 @@ function diagnoseBand(locale, copy) {
   </section>`;
 }
 
-// 스캔은 전부 클라이언트에서 돈다. 서버로 가는 경로 자체가 없다.
+// 프롬프트가 1번 경로다. 기존 브라우저 스캔은 옵시디언 볼트용 보조 경로로 남긴다.
 function diagnosePage(locale, copy) {
   const d = copy.diagnose;
   const runtimeKeys = [
@@ -189,35 +192,89 @@ function diagnosePage(locale, copy) {
     "findStaleTitle", "findStaleMeasure", "findStaleWhy",
   ];
   const runtimeCopy = Object.fromEntries(runtimeKeys.map((key) => [key, d[key]]));
+  const promptValue = escapeHtml(d.prompt).replaceAll("\n", "&#10;");
   return `<main class="subpage shell wide-shell diagnose-page" data-diagnose data-install-href="${pagePath(locale, "install")}">
     <script type="application/json" id="diagnose-copy">${JSON.stringify(runtimeCopy).replaceAll("<", "\\u003c")}</script>
 
-    <section data-pane="idle">
-      <p class="eyebrow">${escapeHtml(d.eyebrow)}</p>
-      <h1>${escapeHtml(d.pageTitle)}</h1>
-      <p class="section-intro">${escapeHtml(d.pageIntro)}</p>
-      <p class="dg-expect-label">${escapeHtml(d.pageExpect)}</p>
-      <ul class="dg-expect">
-        ${d.exampleItems.map((it) => `<li>${escapeHtml(it)}</li>`).join("")}
-      </ul>
-      <button class="primary-button" type="button" data-action="pick">${escapeHtml(d.pickLabel)}</button>
-      <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
-      <p class="small-note">${escapeHtml(d.fallbackHint)}</p>
-      <p class="small-note" data-unsupported hidden>${escapeHtml(d.unsupported)}</p>
-      <p class="trust-line">🔒 ${escapeHtml(d.note)}</p>
+    <section class="dg-prompt-hero">
+      <p class="eyebrow">${escapeHtml(d.promptEyebrow)}</p>
+      <h1>${escapeHtml(d.promptTitle)}</h1>
+      <p class="section-intro">${escapeHtml(d.promptIntro)}</p>
+      <div class="dg-prompt-box">
+        <pre><code>${escapeHtml(d.prompt)}</code></pre>
+        <button class="primary-button copy-button" type="button" data-copy="${promptValue}" aria-describedby="copy-status-diagnose-prompt">${escapeHtml(d.promptCopy)}</button>
+        <span class="copy-status" id="copy-status-diagnose-prompt" role="status" aria-live="polite"></span>
+      </div>
+      <p class="dg-prompt-why"><strong>${escapeHtml(d.promptWhyTitle)}</strong> ${escapeHtml(d.promptWhy)}</p>
     </section>
 
-    <section data-pane="scanning" hidden>
-      <h1>${escapeHtml(d.scanningTitle)}</h1>
-      <p class="section-intro" data-progress></p>
-    </section>
+    <details class="dg-browser-scan">
+      <summary>${escapeHtml(d.browserSummary)}</summary>
+      <div class="dg-browser-scan-body">
+        <section data-pane="idle">
+          <p class="eyebrow">${escapeHtml(d.eyebrow)}</p>
+          <h2>${escapeHtml(d.pageTitle)}</h2>
+          <p class="section-intro">${escapeHtml(d.pageIntro)}</p>
+          <p class="dg-expect-label">${escapeHtml(d.pageExpect)}</p>
+          <ul class="dg-expect">
+            ${d.exampleItems.map((it) => `<li>${escapeHtml(it)}</li>`).join("")}
+          </ul>
+          <button class="primary-button" type="button" data-action="pick">${escapeHtml(d.pickLabel)}</button>
+          <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
+          <p class="small-note">${escapeHtml(d.fallbackHint)}</p>
+          <p class="small-note" data-unsupported hidden>${escapeHtml(d.unsupported)}</p>
+          <p class="trust-line">🔒 ${escapeHtml(d.note)}</p>
+        </section>
 
-    <section class="diagnose-result" data-pane="result" hidden></section>
+        <section data-pane="scanning" hidden>
+          <h2>${escapeHtml(d.scanningTitle)}</h2>
+          <p class="section-intro" data-progress></p>
+        </section>
 
-    <section data-pane="error" hidden>
-      <h1>${escapeHtml(d.errorTitle)}</h1>
-      <p class="section-intro" data-error-message></p>
-      <button class="secondary-button" type="button" data-action="reset">${escapeHtml(d.retry)}</button>
+        <section class="diagnose-result" data-pane="result" hidden></section>
+
+        <section data-pane="error" hidden>
+          <h2>${escapeHtml(d.errorTitle)}</h2>
+          <p class="section-intro" data-error-message></p>
+          <button class="secondary-button" type="button" data-action="reset">${escapeHtml(d.retry)}</button>
+        </section>
+      </div>
+    </details>
+  </main>`;
+}
+
+function galleryPage(copy) {
+  const g = copy.gallery;
+  const runtimeCopy = {
+    stats: g.stats,
+    loading: g.loading,
+    error: g.error,
+    empty: g.empty,
+    cardStats: g.cardStats,
+    anonymous: g.anonymous,
+    topPercent: g.topPercent,
+  };
+  return `<main class="subpage shell wide-shell gallery-page" data-gallery>
+    <script type="application/json" id="gallery-copy">${JSON.stringify(runtimeCopy).replaceAll("<", "\\u003c")}</script>
+    <style>
+      .gallery-lead{text-align:center;padding:32px 0 56px}.gallery-lead h1{font-size:clamp(38px,7vw,72px)}.gallery-live{color:var(--accent);font-size:clamp(20px,3vw,28px);font-weight:700;font-variant-numeric:tabular-nums}.gallery-tabs{display:flex;gap:8px;margin-bottom:24px;border-bottom:1px solid var(--border)}.gallery-tab{padding:12px 18px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--text-dim);cursor:pointer}.gallery-tab[aria-selected="true"]{border-color:var(--accent);color:var(--text)}.gallery-status,.gallery-empty{padding:48px 20px;text-align:center;color:var(--text-dim)}.gallery-wall{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.gallery-card{display:flex;min-height:250px;aspect-ratio:1200/630;flex-direction:column;padding:22px;border:1px solid var(--border);border-radius:14px;background:#1c1c1a;color:var(--text);text-decoration:none;transition:transform .15s ease,border-color .15s ease}.gallery-card:hover{transform:translateY(-2px);border-color:var(--grade-accent,var(--accent));text-decoration:none}.gallery-card[data-grade="S"]{--grade-accent:#00e6a1}.gallery-card[data-grade="A"]{--grade-accent:#14d9c4}.gallery-card[data-grade="B"]{--grade-accent:#e6d65c}.gallery-card[data-grade="C"]{--grade-accent:#f29b4b}.gallery-card[data-grade="F"]{--grade-accent:#ff6161}.gallery-card-head,.gallery-card-foot{display:flex;align-items:center;justify-content:space-between;gap:12px}.gallery-card-head{font-weight:700}.gallery-card-nick{max-width:55%;overflow:hidden;color:var(--text-dim);font-size:13px;text-overflow:ellipsis;white-space:nowrap}.gallery-score{display:flex;flex:1;align-items:baseline;justify-content:center;gap:12px;color:var(--grade-accent);line-height:1}.gallery-score strong{font-size:clamp(54px,7vw,84px)}.gallery-score span{font-size:28px;font-weight:700}.gallery-card-stats{margin:0 0 16px;color:var(--text-dim);font-size:13px;text-align:center}.gallery-card-foot{color:var(--text-faint);font-size:12px}@media(max-width:900px){.gallery-wall{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.gallery-wall{grid-template-columns:1fr}.gallery-tabs{overflow-x:auto}.gallery-tab{flex:0 0 auto}.gallery-card{min-height:220px}}
+    </style>
+    <header class="gallery-lead">
+      <p class="eyebrow">${escapeHtml(g.eyebrow)}</p>
+      <h1>${escapeHtml(g.title)}</h1>
+      <p class="section-intro">${escapeHtml(g.intro)}</p>
+      <p class="gallery-live" data-gallery-stats aria-live="polite">${escapeHtml(g.loading)}</p>
+    </header>
+    <section aria-labelledby="gallery-wall-title">
+      <h2 class="visually-hidden" id="gallery-wall-title">${escapeHtml(g.wallTitle)}</h2>
+      <div class="gallery-tabs" role="tablist" aria-label="${escapeHtml(g.tabsLabel)}">
+        <button class="gallery-tab" type="button" role="tab" aria-selected="true" data-gallery-tab="recent">${escapeHtml(g.tabs.recent)}</button>
+        <button class="gallery-tab" type="button" role="tab" aria-selected="false" data-gallery-tab="top">${escapeHtml(g.tabs.top)}</button>
+        <button class="gallery-tab" type="button" role="tab" aria-selected="false" data-gallery-tab="bottom">${escapeHtml(g.tabs.bottom)}</button>
+      </div>
+      <p class="gallery-status" data-gallery-status aria-live="polite">${escapeHtml(g.loading)}</p>
+      <p class="gallery-empty" data-gallery-empty hidden>${escapeHtml(g.empty)}</p>
+      <div class="gallery-wall" data-gallery-wall></div>
     </section>
   </main>`;
 }
@@ -369,6 +426,7 @@ function sharePage(copy) {
 function pageContent(locale, page, copy) {
   if (page === "index") return homePage(locale, copy);
   if (page === "diagnose") return diagnosePage(locale, copy);
+  if (page === "gallery") return galleryPage(copy);
   if (page === "manifesto") return manifestoPage(copy);
   if (page === "install") return installPage(copy);
   if (page === "faq") return faqPage(copy);
@@ -419,6 +477,7 @@ export function renderPage({ locale, page, copy, baseUrl, assetVersions = {} }) 
   <script type="application/ld+json">${JSON.stringify(schema).replaceAll("<", "\\u003c")}</script>
   <script src="/main.js${assetVersions.script ? `?v=${assetVersions.script}` : ""}" defer></script>
   ${page === "diagnose" ? `<script src="/diagnose.js${assetVersions.diagnose ? `?v=${assetVersions.diagnose}` : ""}" defer></script>` : ""}
+  ${page === "gallery" ? `<script src="/gallery.js${assetVersions.gallery ? `?v=${assetVersions.gallery}` : ""}" defer></script>` : ""}
 </head>
 <body class="${bodyClass}" data-page="${page}" data-copy-success="${escapeHtml(copy.common.copySuccess)}" data-copy-failure="${escapeHtml(copy.common.copyFailure)}" data-copy-prompt="${escapeHtml(copy.common.copyPrompt)}">
   <a class="skip-link" href="#main-content">${escapeHtml(copy.common.skip)}</a>

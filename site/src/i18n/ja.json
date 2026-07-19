@@ -24,6 +24,10 @@
     "diagnose": {
       "title": "無料の記憶診断 | nautli",
       "description": "ノートとエージェント指示ファイルをブラウザでスキャンする。重複ブロック、肥大化した常時読み込みファイル、残骸を表示。アップロードなし。"
+    },
+    "gallery": {
+      "title": "記憶スコアギャラリー | nautli",
+      "description": "最近のnautli記憶診断、殿堂、空き缶館を見る。共有カードに含まれるのは数値と任意のニックネームだけ。"
     }
   },
   "common": {
@@ -41,6 +45,7 @@
     "copyPrompt": "このコマンドを手動でコピーしてください:",
     "skip": "本文へ移動",
     "diagnose": "診断",
+    "gallery": "Gallery",
     "menuToggle": "メニュー"
   },
   "home": {
@@ -435,6 +440,14 @@
     ]
   },
   "diagnose": {
+    "promptEyebrow": "無料 · 読み取り専用 · コマンド1つ",
+    "promptTitle": "このプロンプトをClaude Code（またはCursor・Codex）に貼り付けてください",
+    "promptIntro": "AIが複数ツールの記憶ファイルを見つけ、完全なローカル診断を実行します。",
+    "prompt": "実行してください: npx nautli@latest scan\n\nこの端末にあるAI記憶ファイル（CLAUDE.md、AGENTS.md、.cursorrules、Obsidian保管庫など）を読み取り専用で診断します。匿名の数値7つ以外は何もアップロードしません。完了するとローカルHTMLレポートが開きます。その後、重要な検出結果を要約してください。",
+    "promptCopy": "プロンプトをコピー",
+    "promptWhyTitle": "なぜプロンプト?",
+    "promptWhy": "フォルダの場所を知らなくても大丈夫です。あなたのAIは知っています。",
+    "browserSummary": "ブラウザで行う（Obsidian保管庫向け）",
     "eyebrow": "無料 · ブラウザ内で実行",
     "title": "AIが読んでいる記憶を診断する",
     "intro": "Obsidianのvault、ノートのフォルダ、あるいはアシスタントが毎セッション読み込むCLAUDE.mdやAGENTS.mdを指定する。ブラウザ内で読み取り、何が重複し、何が大きすぎ、何が residue として残っているかを示す。アップロードは一切しない。",
@@ -497,5 +510,24 @@
     "wordMarkerMany": "件",
     "wordSignalOne": "件のシグナル",
     "wordSignalMany": "件のシグナル"
+  },
+  "gallery": {
+    "eyebrow": "ライブ記憶スコア",
+    "title": "みんなのAI記憶はどれくらいきれい?",
+    "intro": "所有者が共有した匿名の数値診断結果です。ファイル名、パス、内容は表示されません。",
+    "stats": "診断{count}回 · 平均{avg}点",
+    "loading": "ギャラリーを読み込み中です。",
+    "error": "ギャラリーを読み込めませんでした。しばらくしてから再試行してください。",
+    "empty": "カードはまだありません。診断して最初のカードを共有してみてください。",
+    "wallTitle": "共有された記憶スコアカード",
+    "tabsLabel": "ギャラリーの区分",
+    "tabs": {
+      "recent": "最近",
+      "top": "殿堂",
+      "bottom": "空き缶館"
+    },
+    "cardStats": "AI {tools}個 · 記憶 {tokens}tok · シグナル {findings}件",
+    "anonymous": "匿名",
+    "topPercent": "上位{percent}%"
   }
 }

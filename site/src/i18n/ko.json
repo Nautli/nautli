@@ -24,6 +24,10 @@
     "diagnose": {
       "title": "무료 기억 진단 | nautli",
       "description": "노트와 에이전트 지침 파일을 브라우저에서 스캔합니다. 반복 문단, 비대해진 상시 로드 파일, 남은 흔적을 보여줍니다. 업로드 없음."
+    },
+    "gallery": {
+      "title": "기억 점수 갤러리 | nautli",
+      "description": "최근 nautli 기억 진단, 명예의 전당, 깡통관을 둘러보세요. 공유 카드에는 숫자와 선택한 닉네임만 들어갑니다."
     }
   },
   "common": {
@@ -41,6 +45,7 @@
     "copyPrompt": "이 명령을 직접 복사해 주세요:",
     "skip": "본문으로 건너뛰기",
     "diagnose": "진단",
+    "gallery": "Gallery",
     "menuToggle": "메뉴"
   },
   "home": {
@@ -435,6 +440,14 @@
     ]
   },
   "diagnose": {
+    "promptEyebrow": "무료 · 읽기 전용 · 명령 하나",
+    "promptTitle": "이 프롬프트를 Claude Code(또는 Cursor·Codex)에 붙여넣으세요",
+    "promptIntro": "내 AI가 여러 도구의 기억 파일을 찾아 완전한 로컬 진단을 실행합니다.",
+    "prompt": "실행해 주세요: npx nautli@latest scan\n\n이 기기의 AI 기억 파일(CLAUDE.md, AGENTS.md, .cursorrules, 옵시디언 볼트와 유사 파일)을 읽기 전용으로 진단합니다. 익명 숫자 7개 외에는 아무것도 업로드하지 않습니다. 완료되면 로컬 HTML 리포트를 엽니다. 그런 다음 가장 중요한 발견 내용을 요약해 주세요.",
+    "promptCopy": "프롬프트 복사",
+    "promptWhyTitle": "왜 프롬프트인가?",
+    "promptWhy": "폴더가 어디 있는지 몰라도 됩니다. 당신의 AI는 압니다.",
+    "browserSummary": "브라우저에서 하기(옵시디언 볼트용)",
     "eyebrow": "무료 · 브라우저에서 바로 실행",
     "title": "AI가 읽고 있는 내 기억을 진단합니다",
     "intro": "옵시디언 볼트, 노트 폴더, 또는 어시스턴트가 매 세션 통째로 읽는 CLAUDE.md·AGENTS.md를 지정하면 됩니다. 브라우저 안에서 읽어서 무엇이 반복되고, 무엇이 지나치게 크고, 무엇이 남겨져 있는지 보여줍니다. 아무것도 업로드하지 않습니다.",
@@ -477,13 +490,13 @@
     "ctaBody": "nautli checkup은 같은 폴더를 Claude Code로 분석해 중복, 바뀐 결정, 진짜 모순을 구분합니다. 결과만 보여주며 원본 노트는 수정하지 않습니다.",
     "ctaButton": "설치 방법 보기",
     "ctaNote": "macOS · Node 20+ · Claude Code CLI 설치·로그인 필요 · MIT",
-    "findAlwaysLoadedTitle": "{name} — 매 세션 통째로 올라갑니다",
+    "findAlwaysLoadedTitle": "{name}, 매 세션 통째로 올라갑니다",
     "findAlwaysLoadedMeasure": "약 {tokens} 토큰 · {size}",
     "findAlwaysLoadedWhy": "이런 지침 파일은 대화마다 전문이 읽혀서 그 분량만큼 토큰을 매번 다시 씁니다. 항상 필요한 규칙과 참고 자료를 분리하는 게 보통 가장 싼 개선입니다.",
     "findRepeatedTitle": "같은 문단이 {count}{fileWord}에 있습니다",
     "findRepeatedMeasure": "{chars}자, 반복됨",
     "findRepeatedWhy": "의도한 템플릿일 수도 있습니다. 브라우저는 어느 사본이 기준인지 모르고, 텍스트가 일치한다는 것만 압니다.",
-    "findLargeTitle": "{name} — 가장 큰 단일 파일",
+    "findLargeTitle": "{name}, 가장 큰 단일 파일",
     "findLargeMeasure": "{size} · 약 {tokens} 토큰",
     "findLargeWhy": "큰 단일 파일은 필요한 부분만 정확히 꺼내기 어렵습니다. 오류가 아니라 구조를 다시 볼 지점입니다.",
     "findEmptyTitle": "사실상 빈 파일이 {count}개 있습니다",
@@ -501,5 +514,24 @@
     "wordMarkerMany": "개",
     "wordSignalOne": "개 신호",
     "wordSignalMany": "개 신호"
+  },
+  "gallery": {
+    "eyebrow": "실시간 기억 점수",
+    "title": "다른 사람의 AI 기억은 얼마나 깨끗할까?",
+    "intro": "소유자가 공유한 익명 숫자 진단 결과입니다. 파일명, 경로, 내용은 여기에 나타나지 않습니다.",
+    "stats": "{count}회 진단 · 평균 {avg}점",
+    "loading": "갤러리를 불러오는 중입니다.",
+    "error": "갤러리를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "empty": "아직 카드가 없습니다. 진단하고 첫 카드를 공유해 보세요.",
+    "wallTitle": "공유된 기억 점수 카드",
+    "tabsLabel": "갤러리 구역",
+    "tabs": {
+      "recent": "최근",
+      "top": "명예의 전당",
+      "bottom": "깡통관"
+    },
+    "cardStats": "AI {tools}개 · 기억 {tokens}tok · 신호 {findings}건",
+    "anonymous": "익명",
+    "topPercent": "상위 {percent}%"
   }
 }

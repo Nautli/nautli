@@ -24,6 +24,10 @@
     "diagnose": {
       "title": "Free memory diagnosis | nautli",
       "description": "Scan your notes and agent instruction files in the browser. See repeated blocks, oversized always-loaded files, and leftovers. Nothing is uploaded."
+    },
+    "gallery": {
+      "title": "Memory score gallery | nautli",
+      "description": "See recent nautli memory scans, the hall of fame, and the tin-can hall. Shared cards contain numbers and an optional nickname only."
     }
   },
   "common": {
@@ -41,6 +45,7 @@
     "copyPrompt": "Copy this command manually:",
     "skip": "Skip to content",
     "diagnose": "Diagnose",
+    "gallery": "Gallery",
     "menuToggle": "Menu"
   },
   "home": {
@@ -435,6 +440,14 @@
     ]
   },
   "diagnose": {
+    "promptEyebrow": "Free · Read-only · One command",
+    "promptTitle": "Paste this prompt into Claude Code (or Cursor or Codex)",
+    "promptIntro": "Your AI can find memory files across tools and run the complete local diagnosis for you.",
+    "prompt": "Run: npx nautli@latest scan\n\nRead-only diagnosis of the AI memory files on this machine (CLAUDE.md, AGENTS.md, .cursorrules, Obsidian vaults and similar). Nothing is uploaded except 7 anonymous numbers. It opens a local HTML report when done — then summarize the top findings for me.",
+    "promptCopy": "Copy prompt",
+    "promptWhyTitle": "Why a prompt?",
+    "promptWhy": "You do not need to know where the folders are. Your AI does.",
+    "browserSummary": "Do it in the browser (for Obsidian vaults)",
     "eyebrow": "Free · Runs in your browser",
     "title": "Diagnose the memory your AI reads",
     "intro": "Point nautli at your Obsidian vault, your notes folder, or the CLAUDE.md and AGENTS.md files your assistants load every session. It reads them in your browser and shows you what is repeated, oversized, or left behind. Nothing is uploaded.",
@@ -497,5 +510,24 @@
     "wordMarkerMany": "markers",
     "wordSignalOne": "signal",
     "wordSignalMany": "signals"
+  },
+  "gallery": {
+    "eyebrow": "Live memory scores",
+    "title": "How clean is everyone’s AI memory?",
+    "intro": "Anonymous numeric scan results, shared by their owners. No file name, path, or content appears here.",
+    "stats": "{count} diagnoses · {avg} average score",
+    "loading": "Loading the gallery…",
+    "error": "The gallery could not be loaded. Please try again later.",
+    "empty": "No cards here yet. Run a diagnosis and share the first one.",
+    "wallTitle": "Shared memory score cards",
+    "tabsLabel": "Gallery sections",
+    "tabs": {
+      "recent": "Recent",
+      "top": "Hall of fame",
+      "bottom": "Tin-can hall"
+    },
+    "cardStats": "{tools} AIs · {tokens}tok memory · {findings} signals",
+    "anonymous": "Anonymous",
+    "topPercent": "top {percent}%"
   }
 }
