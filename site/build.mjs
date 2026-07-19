@@ -47,6 +47,13 @@ if (hadVercelLink) {
 // Recreate it so a build never silently drops the deploy ignores.
 await writeFile(path.join(distDir, ".gitignore"), ".vercel\n.env*\n", "utf8");
 
+// dist는 빌드마다 wipe되므로 vercel.json도 여기서 재생성한다 — clean URL(/diagnose) 404 방지.
+await writeFile(
+  path.join(distDir, "vercel.json"),
+  JSON.stringify({ cleanUrls: true, trailingSlash: false }, null, 2) + "\n",
+  "utf8",
+);
+
 const messages = {};
 for (const locale of locales) {
   messages[locale] = JSON.parse(
