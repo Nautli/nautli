@@ -3,6 +3,7 @@ export const STRINGS = Object.freeze({
     en: `nautli - One shared brain for every AI
 
 dashboard  Open the dashboard to manage setup and memories
+scan       Scan local AI memory files. Options: --json --no-open --no-ping --lang en|ko
 init       Initialize the memory store
 setup      Configure AI connections and patrol
 remember   Save a new memory
@@ -22,6 +23,7 @@ New here? npx nautli dashboard`,
     ko: `nautli - 모든 AI가 공유하는 하나의 뇌
 
 dashboard  설정과 기억을 관리하는 대시보드를 열어요.
+scan       로컬 AI 기억 파일을 진단해요. 옵션: --json --no-open --no-ping --lang en|ko
 init       기억 저장소를 초기화해요.
 setup      AI 연결과 순찰을 설정해요.
 remember   새 기억을 저장해요.
@@ -40,6 +42,13 @@ mcp        MCP 서버를 실행해요.
 처음이면: npx nautli dashboard`,
   },
   "cli.error.invalid_input": { en: "Check your input", ko: "입력 내용을 확인해 주세요." },
+  "cli.scan.score": { en: "Score {score}/100 · grade {grade}", ko: "점수 {score}/100 · 등급 {grade}" },
+  "cli.scan.tools": { en: "Detected tools: {count}", ko: "감지한 도구: {count}개" },
+  "cli.scan.top": { en: "Top signal: {finding}", ko: "상위 신호: {finding}" },
+  "cli.scan.clean": { en: "No weighted signals found", ko: "점수에 반영할 신호 없음" },
+  "cli.scan.report": { en: "Report: {file}", ko: "리포트: {file}" },
+  "cli.scan.privacy": { en: "Sent = 7 anonymous aggregate fields. Disable with --no-ping", ko: "전송=숫자 7개, --no-ping으로 끔" },
+  "cli.scan.privacy_off": { en: "Ping disabled. No scan aggregate was sent", ko: "핑 꺼짐. 진단 집계도 전송하지 않음" },
   "cli.checkup.other_running": { en: "A checkup is already running for another folder: {vault}. Try again when it finishes", ko: "다른 폴더 진단이 돌고 있어요: {vault}. 끝난 뒤 다시 시도해 주세요." },
   "cli.checkup.already_running": { en: "A checkup is already running for this folder. Watching it now", ko: "이미 이 폴더 진단이 돌고 있어요. 이어서 지켜볼게요." },
   "cli.checkup.claude_missing": { en: "Claude CLI is required. Install it with npm install -g @anthropic-ai/claude-code, then try again", ko: "claude CLI가 필요해요. npm install -g @anthropic-ai/claude-code 후 다시 실행해 주세요." },

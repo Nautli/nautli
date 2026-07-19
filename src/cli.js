@@ -158,6 +158,43 @@ function doctorCommand(home, args) {
   return doctor(home);
 }
 
+async function scanCommand(args) {
+  const parsed = parseCommand(args, {
+    json: { type: "boolean", default: false },
+    "no-open": { type: "boolean", default: false },
+    "no-ping": { type: "boolean", default: false },
+    lang: { type: "string" },
+  });
+  requirePositionals(parsed.positionals, 0);
+  const lang = parsed.values.lang ?? locale;
+  if (lang !== "en" && lang !== "ko") throw codedError(ERR.E_INVALID_INPUT);
+
+  const { runScan } = await import("./scan/index.js");
+  const scan = await runScan({
+    lang,
+    noOpen: parsed.values["no-open"],
+    noPing: parsed.values["no-ping"],
+  });
+  if (parsed.values.json) {
+    writeJson(scan.result);
+    return;
+  }
+
+  const scanT = makeT(lang);
+  process.stdout.write(`${scanT("cli.scan.score", {
+    score: scan.result.score,
+    grade: scan.result.grade,
+  })}\n`);
+  process.stdout.write(`${scanT("cli.scan.tools", { count: scan.result.tools.length })}\n`);
+  process.stdout.write(`${scanT("cli.scan.top", {
+    finding: scan.result.findings[0]?.title ?? scanT("cli.scan.clean"),
+  })}\n`);
+  process.stdout.write(`${scanT("cli.scan.report", { file: scan.reportFile })}\n`);
+  process.stdout.write(`${scanT(parsed.values["no-ping"]
+    ? "cli.scan.privacy_off"
+    : "cli.scan.privacy")}\n`);
+}
+
 function telemetryCommand(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 1);
@@ -787,6 +824,12 @@ export async function main(argv = process.argv.slice(2)) {
 
     if (command === "telemetry") {
       telemetryCommand(home, args);
+      process.exitCode = 0;
+      return;
+    }
+
+    if (command === "scan") {
+      await scanCommand(args);
       process.exitCode = 0;
       return;
     }
