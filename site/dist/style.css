@@ -390,32 +390,6 @@ code {
   animation: crawler-glitch 12s steps(1, end) infinite;
 }
 
-/* 고스트(RGB 스플릿 대용 잔상): 평소엔 숨고 글리치 버스트 때만 깜빡 */
-.spiral .crawler-ghost .shell-body {
-  fill: none;
-}
-
-.spiral .crawler-ghost .crawler-inner {
-  opacity: 0;
-}
-
-.spiral .crawler-g1 {
-  color: #9ff5d8;
-}
-
-.spiral .crawler-g2 {
-  color: #ffffff;
-}
-
-.spiral .crawler-g1 .crawler-inner {
-  animation: crawler-ghost-flicker 12s steps(1, end) infinite;
-}
-
-.spiral .crawler-g2 .crawler-inner {
-  animation: crawler-ghost-flicker 12s steps(1, end) infinite;
-  animation-delay: 0.06s;
-}
-
 @keyframes crawler-glitch {
   0% { transform: none; opacity: 1; }
   18% { transform: translate(2px, -1.5px) skewX(10deg); }
@@ -430,19 +404,6 @@ code {
   97.2% { transform: translate(-2px, 1px); opacity: 0.8; }
   98.4% { transform: none; opacity: 0.3; }
   100% { transform: none; opacity: 1; }
-}
-
-@keyframes crawler-ghost-flicker {
-  0% { opacity: 0; }
-  17.8% { opacity: 0.65; }
-  19.2% { opacity: 0; }
-  41.8% { opacity: 0.5; }
-  42.6% { opacity: 0; }
-  66.8% { opacity: 0.6; }
-  67.8% { opacity: 0; }
-  95.6% { opacity: 0.7; }
-  99% { opacity: 0; }
-  100% { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
