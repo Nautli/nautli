@@ -59,7 +59,18 @@ function nav(locale, page, copy) {
         <a class="icon-link" href="${discordUrl}" aria-label="Discord" rel="noreferrer">${discordIcon()}</a>
         ${languageMenu(locale, page, copy)}
       </nav>
+      <button class="mobile-menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="${escapeHtml(copy.common.menuToggle)}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>
+      </button>
     </div>
+    <nav class="mobile-menu" id="mobile-menu" aria-label="${escapeHtml(copy.common.primaryNav)}" hidden>
+      <a href="${pagePath(locale, "diagnose")}"${page === "diagnose" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.diagnose)}</a>
+      <a href="${pagePath(locale, "manifesto")}"${page === "manifesto" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.manifesto)}</a>
+      <a href="${pagePath(locale, "install")}"${page === "install" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.install)}</a>
+      <a href="${pagePath(locale, "faq")}"${page === "faq" ? ' aria-current="page"' : ""}>${escapeHtml(copy.common.faq)}</a>
+      <a href="${githubUrl}" rel="noreferrer">GitHub</a>
+      <a href="${discordUrl}" rel="noreferrer">Discord</a>
+    </nav>
   </header>`;
 }
 

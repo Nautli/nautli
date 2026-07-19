@@ -40,7 +40,8 @@
     "copyFailure": "복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요.",
     "copyPrompt": "이 명령을 직접 복사해 주세요:",
     "skip": "본문으로 건너뛰기",
-    "diagnose": "진단"
+    "diagnose": "진단",
+    "menuToggle": "메뉴"
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",

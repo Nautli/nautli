@@ -69,6 +69,25 @@
     }
   });
 
+  // Mobile hamburger menu toggle
+  const mobileMenuToggle = document.querySelector(".mobile-menu-toggle");
+  const mobileMenu = document.getElementById("mobile-menu");
+
+  mobileMenuToggle?.addEventListener("click", () => {
+    if (!mobileMenu) return;
+    const willOpen = mobileMenu.hidden;
+    mobileMenu.hidden = !willOpen;
+    mobileMenuToggle.setAttribute("aria-expanded", String(willOpen));
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && mobileMenu && !mobileMenu.hidden) {
+      mobileMenu.hidden = true;
+      mobileMenuToggle.setAttribute("aria-expanded", "false");
+      mobileMenuToggle.focus();
+    }
+  });
+
   // Sticky header keeps its bottom border only once content scrolls under it.
   const siteHeader = document.querySelector(".site-header");
   if (siteHeader) {

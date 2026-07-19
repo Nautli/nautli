@@ -40,7 +40,8 @@
     "copyFailure": "コピーできませんでした。コマンドを選択して手動でコピーしてください。",
     "copyPrompt": "このコマンドを手動でコピーしてください:",
     "skip": "本文へ移動",
-    "diagnose": "診断"
+    "diagnose": "診断",
+    "menuToggle": "メニュー"
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",

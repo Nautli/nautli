@@ -40,7 +40,8 @@
     "copyFailure": "Copy failed. Select the command and copy it manually.",
     "copyPrompt": "Copy this command manually:",
     "skip": "Skip to content",
-    "diagnose": "Diagnose"
+    "diagnose": "Diagnose",
+    "menuToggle": "Menu"
   },
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
