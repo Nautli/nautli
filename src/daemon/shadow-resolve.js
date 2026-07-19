@@ -266,7 +266,10 @@ export async function resolveShadows(store, home, config, { cap = 20 } = {}) {
       }
 
       const index = ledger.findIndex((e) => e.undo_id === undoId);
-      if (index < 0) continue;
+      if (index < 0) {
+        stats.no_signal += 1;
+        continue;
+      }
 
       if (decision === "corroborate") {
         // Commit: apply the shadow as if user confirmed
