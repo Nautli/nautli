@@ -22,7 +22,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css?v=9b3ad4de">
+  <link rel="stylesheet" href="/style.css?v=600fa306">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"노트와 에이전트 지침 파일을 브라우저에서 스캔한다. 반복 문단, 비대해진 상시 로드 파일, 잔해를 보여준다. 업로드 없음.","url":"https://nautli.ai/ko/diagnose.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
   <script src="/main.js?v=1ca6cff5" defer></script>
   <script src="/diagnose.js?v=0f9d5f56" defer></script>
@@ -65,7 +65,11 @@
       <p class="eyebrow">무료 · 브라우저에서 바로 실행</p>
       <h1>당신의 AI는 실제로 무엇을 읽고 있나</h1>
       <p class="section-intro">어시스턴트가 읽는 폴더를 고르면 된다. 전부 이 탭 안에서 처리된다. 파일도 파일명도 본문 조각도 기기를 떠나지 않는다.</p>
-      <button class="primary-button" type="button" data-action="pick">폴더 고르기</button>
+      <p class="dg-expect-label">약 30초. 스캔은 보통 이런 걸 찾아낸다:</p>
+      <ul class="dg-expect">
+        <li>매 세션 통째로 다시 읽히는 ~12,000토큰짜리 CLAUDE.md</li><li>4개 파일에 복사된 같은 문단</li><li>결정처럼 읽히는 낡은 TODO 마커</li>
+      </ul>
+      <button class="primary-button" type="button" data-action="pick">폴더 선택하고 무료 진단</button>
       <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
       <p class="small-note">크롬·엣지는 폴더 선택창이 열린다. 사파리·파이어폭스는 폴더 업로드 컨트롤을 쓰는데, 이것도 읽기는 로컬에서 한다.</p>
       <p class="small-note" data-unsupported hidden>이 브라우저는 로컬 폴더를 읽지 못한다. 크롬·엣지·사파리로 열거나, 설치 후 커맨드라인으로 진행해라.</p>

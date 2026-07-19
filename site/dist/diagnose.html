@@ -22,7 +22,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css?v=9b3ad4de">
+  <link rel="stylesheet" href="/style.css?v=600fa306">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Scan your notes and agent instruction files in the browser. See repeated blocks, oversized always-loaded files, and leftovers. Nothing is uploaded.","url":"https://nautli.ai/diagnose.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/faq.html"}</script>
   <script src="/main.js?v=1ca6cff5" defer></script>
   <script src="/diagnose.js?v=0f9d5f56" defer></script>
@@ -65,7 +65,11 @@
       <p class="eyebrow">Free · Runs in your browser</p>
       <h1>What is your AI actually reading?</h1>
       <p class="section-intro">Choose the folder your assistants read from. Everything is parsed in this tab. No file, name, or snippet leaves your machine.</p>
-      <button class="primary-button" type="button" data-action="pick">Choose folder</button>
+      <p class="dg-expect-label">About 30 seconds. A scan typically surfaces:</p>
+      <ul class="dg-expect">
+        <li>CLAUDE.md at ~12,000 tokens, reloaded every session</li><li>The same paragraph copied across 4 files</li><li>Stale TODO markers your AI reads as decisions</li>
+      </ul>
+      <button class="primary-button" type="button" data-action="pick">Scan my folder · free</button>
       <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
       <p class="small-note">Chrome and Edge open a folder picker. Safari and Firefox use the folder upload control, which still reads locally.</p>
       <p class="small-note" data-unsupported hidden>This browser cannot read a local folder. Open the page in Chrome, Edge, or Safari, or run the install steps and use the command line instead.</p>

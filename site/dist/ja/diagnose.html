@@ -22,7 +22,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css?v=9b3ad4de">
+  <link rel="stylesheet" href="/style.css?v=600fa306">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"ノートとエージェント指示ファイルをブラウザでスキャンする。重複ブロック、肥大化した常時読み込みファイル、残骸を表示。アップロードなし。","url":"https://nautli.ai/ja/diagnose.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ja/faq.html"}</script>
   <script src="/main.js?v=1ca6cff5" defer></script>
   <script src="/diagnose.js?v=0f9d5f56" defer></script>
@@ -65,7 +65,11 @@
       <p class="eyebrow">無料 · ブラウザ内で実行</p>
       <h1>あなたのAIは実際に何を読んでいるか</h1>
       <p class="section-intro">アシスタントが読むフォルダを選ぶ。すべてこのタブ内で処理される。ファイルもファイル名も本文の断片も端末を離れない。</p>
-      <button class="primary-button" type="button" data-action="pick">フォルダを選ぶ</button>
+      <p class="dg-expect-label">約30秒。スキャンでは主に次が見つかる:</p>
+      <ul class="dg-expect">
+        <li>毎セッション読み直される約12,000トークンのCLAUDE.md</li><li>4つのファイルに複製された同じ段落</li><li>決定のように読まれる古いTODOマーカー</li>
+      </ul>
+      <button class="primary-button" type="button" data-action="pick">フォルダを選んで無料診断</button>
       <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
       <p class="small-note">ChromeとEdgeはフォルダ選択ダイアログが開く。SafariとFirefoxはフォルダアップロードのコントロールを使うが、読み取りはローカルで行う。</p>
       <p class="small-note" data-unsupported hidden>このブラウザはローカルフォルダを読めない。Chrome・Edge・Safariで開くか、インストール後にコマンドラインで進めてほしい。</p>

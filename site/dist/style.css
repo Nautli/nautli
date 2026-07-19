@@ -142,6 +142,8 @@ h3 {
   line-height: 1.16;
 }
 
+:lang(ko) h1, :lang(ko) h2, :lang(ko) h3 { word-break: keep-all; overflow-wrap: anywhere; }
+
 h1 {
   margin-bottom: 24px;
   font-size: clamp(38px, 11vw, 60px);
@@ -362,8 +364,91 @@ code {
   right: 0;
   width: min(44vw, 420px);
   color: var(--accent);
-  opacity: 0.18;
   pointer-events: none;
+}
+
+/* 트랙(나선 선)만 은은하게 — 캐릭터는 svg 전체 opacity에 안 눌리게 분리 */
+.spiral .spiral-track {
+  opacity: 0.18;
+}
+
+/* 조개 캐릭터: animateMotion(SMIL)이 나선 패스를 타고 돌고,
+   글리치는 안쪽 g에 CSS로 얹는다(모션 transform과 충돌 방지용 중첩). */
+.spiral .crawler {
+  color: var(--accent);
+}
+
+.spiral .crawler .shell-body {
+  fill: var(--bg);
+}
+
+.spiral .crawler-main {
+  opacity: 0.9;
+}
+
+.spiral .crawler-main .crawler-inner {
+  animation: crawler-glitch 12s steps(1, end) infinite;
+}
+
+/* 고스트(RGB 스플릿 대용 잔상): 평소엔 숨고 글리치 버스트 때만 깜빡 */
+.spiral .crawler-ghost .shell-body {
+  fill: none;
+}
+
+.spiral .crawler-ghost .crawler-inner {
+  opacity: 0;
+}
+
+.spiral .crawler-g1 {
+  color: #9ff5d8;
+}
+
+.spiral .crawler-g2 {
+  color: #ffffff;
+}
+
+.spiral .crawler-g1 .crawler-inner {
+  animation: crawler-ghost-flicker 12s steps(1, end) infinite;
+}
+
+.spiral .crawler-g2 .crawler-inner {
+  animation: crawler-ghost-flicker 12s steps(1, end) infinite;
+  animation-delay: 0.06s;
+}
+
+@keyframes crawler-glitch {
+  0% { transform: none; opacity: 1; }
+  18% { transform: translate(2px, -1.5px) skewX(10deg); }
+  18.5% { transform: translate(-1.5px, 1px); }
+  19% { transform: none; }
+  42% { transform: translate(-2px, 0); opacity: 0.35; }
+  42.4% { transform: none; opacity: 1; }
+  67% { transform: translate(1.5px, 1.5px) skewX(-8deg); }
+  67.5% { transform: none; }
+  /* 루프 점프(중심→바깥 순간이동)를 글리치 텔레포트처럼 읽히게 마지막에 강한 버스트 */
+  96% { transform: translate(2.5px, -1px) skewX(14deg); opacity: 0.25; }
+  97.2% { transform: translate(-2px, 1px); opacity: 0.8; }
+  98.4% { transform: none; opacity: 0.3; }
+  100% { transform: none; opacity: 1; }
+}
+
+@keyframes crawler-ghost-flicker {
+  0% { opacity: 0; }
+  17.8% { opacity: 0.65; }
+  19.2% { opacity: 0; }
+  41.8% { opacity: 0.5; }
+  42.6% { opacity: 0; }
+  66.8% { opacity: 0.6; }
+  67.8% { opacity: 0; }
+  95.6% { opacity: 0.7; }
+  99% { opacity: 0; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spiral .crawler {
+    display: none;
+  }
 }
 
 .command-block {
@@ -1180,11 +1265,33 @@ tbody th {
 }
 
 .hero-actions {
+  margin-top: 28px;
+}
+
+.hero-cta-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 20px 40px;
-  margin-top: 28px;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.ghost-button {
+  display: inline-block;
+  min-height: 52px;
+  padding: 14px 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.hero-cta-note {
+  margin: 0 0 18px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
 }
 
 .hero-actions .stats-strip {
@@ -1204,6 +1311,9 @@ tbody th {
 .hero .spiral {
   top: -40px;
   right: -32px;
+}
+
+.hero .spiral .spiral-track {
   opacity: 0.12;
 }
 
@@ -1542,7 +1652,15 @@ tbody th {
     top: -72px;
     right: -96px;
     width: 300px;
+  }
+
+  .hero .spiral .spiral-track {
     opacity: 0.09;
+  }
+
+  /* 모바일에선 나선이 헤드라인과 겹친다 — 캐릭터도 배경 데코 수준으로 톤 다운 */
+  .hero .spiral .crawler {
+    opacity: 0.4;
   }
 }
 
@@ -1567,6 +1685,10 @@ tbody th {
 @media (hover: hover) and (pointer: fine) {
   .primary-button:hover {
     transform: scale(1.02);
+  }
+
+  .ghost-button:hover {
+    background: var(--accent-soft);
   }
 }
 
@@ -1630,6 +1752,26 @@ tbody th {
 
 .diagnose-page .primary-button {
   margin-top: 8px;
+}
+
+.dg-expect-label {
+  margin: 20px 0 8px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.dg-expect {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 20px;
+  padding: 0;
+  color: var(--text-dim);
+  list-style: none;
+}
+
+.dg-expect li::before {
+  margin-right: 8px;
+  content: "·";
 }
 
 /* 결과: 맨 위는 점수가 아니라 신호 수다. */

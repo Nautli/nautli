@@ -196,6 +196,10 @@ function diagnosePage(locale, copy) {
       <p class="eyebrow">${escapeHtml(d.eyebrow)}</p>
       <h1>${escapeHtml(d.pageTitle)}</h1>
       <p class="section-intro">${escapeHtml(d.pageIntro)}</p>
+      <p class="dg-expect-label">${escapeHtml(d.pageExpect)}</p>
+      <ul class="dg-expect">
+        ${d.exampleItems.map((it) => `<li>${escapeHtml(it)}</li>`).join("")}
+      </ul>
       <button class="primary-button" type="button" data-action="pick">${escapeHtml(d.pickLabel)}</button>
       <input class="visually-hidden" type="file" webkitdirectory directory multiple data-fallback-input aria-hidden="true" tabindex="-1">
       <p class="small-note">${escapeHtml(d.fallbackHint)}</p>
@@ -222,13 +226,43 @@ function homePage(locale, copy) {
   const h = copy.home;
   return `<main>
     <section class="hero shell wide-shell grain-surface">
-      <svg class="spiral" viewBox="0 0 300 300" aria-hidden="true"><path d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg class="spiral" viewBox="0 0 300 300" aria-hidden="true">
+        <path id="nautli-spiral-path" class="spiral-track" d="M150 38C209 43 251 100 246 150C241 200 192 235 150 230C108 225 81 184 86 150C91 116 125 97 150 102C175 107 187 133 182 150C177 167 160 175 150 170C142 166 140 153 150 150" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <g class="crawler crawler-ghost crawler-g1">
+          <animateMotion dur="12s" begin="0.22s" repeatCount="indefinite" rotate="auto"><mpath href="#nautli-spiral-path"/></animateMotion>
+          <g class="crawler-inner">
+            <circle class="shell-body" cx="-2" cy="0" r="11" stroke="currentColor" stroke-width="2.5"/>
+            <path class="shell-whorl" d="M9 0C9 -6.5 4 -9.5 -2 -9.5C-7.5 -9.5 -10.5 -5 -10.5 0C-10.5 4.5 -7 7.5 -2.5 7.5C1 7.5 3.5 5 3.5 1.5C3.5 -1 1.5 -3 -1 -3" fill="none" stroke="currentColor" stroke-width="2"/>
+          </g>
+        </g>
+        <g class="crawler crawler-ghost crawler-g2">
+          <animateMotion dur="12s" begin="-0.22s" repeatCount="indefinite" rotate="auto"><mpath href="#nautli-spiral-path"/></animateMotion>
+          <g class="crawler-inner">
+            <circle class="shell-body" cx="-2" cy="0" r="11" stroke="currentColor" stroke-width="2.5"/>
+            <path class="shell-whorl" d="M9 0C9 -6.5 4 -9.5 -2 -9.5C-7.5 -9.5 -10.5 -5 -10.5 0C-10.5 4.5 -7 7.5 -2.5 7.5C1 7.5 3.5 5 3.5 1.5C3.5 -1 1.5 -3 -1 -3" fill="none" stroke="currentColor" stroke-width="2"/>
+          </g>
+        </g>
+        <g class="crawler crawler-main">
+          <animateMotion dur="12s" repeatCount="indefinite" rotate="auto"><mpath href="#nautli-spiral-path"/></animateMotion>
+          <g class="crawler-inner">
+            <circle class="shell-body" cx="-2" cy="0" r="11" stroke="currentColor" stroke-width="2.5"/>
+            <path class="shell-whorl" d="M9 0C9 -6.5 4 -9.5 -2 -9.5C-7.5 -9.5 -10.5 -5 -10.5 0C-10.5 4.5 -7 7.5 -2.5 7.5C1 7.5 3.5 5 3.5 1.5C3.5 -1 1.5 -3 -1 -3" fill="none" stroke="currentColor" stroke-width="2"/>
+            <circle class="crawler-eye" cx="4.5" cy="-3.5" r="1.7" fill="currentColor" stroke="none"/>
+            <path class="crawler-tentacles" d="M9.5 -2.5C12 -3.5 13.5 -5.5 14 -7.5M10.5 0.5C13 0.5 15 1.5 16.5 3M9.5 3.5C11.5 4.5 12.5 6.5 12.5 8.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </g>
+        </g>
+      </svg>
       <div class="hero-copy">
         <p class="eyebrow">${escapeHtml(h.eyebrow)}</p>
         <h1>${escapeHtml(h.h1)}</h1>
         <p class="hero-subline">${escapeHtml(h.subline)}</p>
       </div>
       <div class="hero-actions">
+        <div class="hero-cta-row">
+          <a class="primary-button" href="${pagePath(locale, "diagnose")}">${escapeHtml(h.ctaPrimary)}</a>
+          <a class="ghost-button" href="${pagePath(locale, "install")}">${escapeHtml(h.ctaSecondary)}</a>
+        </div>
+        <p class="hero-cta-note">${escapeHtml(h.ctaNote)}</p>
         ${Array.isArray(h.stats) && h.stats.length ? `<ul class="stats-strip">${h.stats.map((st) => `<li><strong>${escapeHtml(st[0])}</strong><span>${escapeHtml(st[1])}</span></li>`).join("")}</ul>` : ""}
       </div>
       <p class="trust-line">🔒 ${escapeHtml(h.trustLine)}</p>
