@@ -91,7 +91,7 @@ body::before{content:"";position:fixed;top:0;left:0;width:100%;height:200%;point
 /* Noise texture */
 body::after{content:"";position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9998;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");opacity:.03;animation:noise-flicker 3s steps(5) infinite}
 body.graph-tab::before{opacity:.14}
-body.graph-tab::after{opacity:.012}
+body.graph-tab::after{opacity:.012;animation:none}
 @media(prefers-reduced-motion:reduce){body::before,body::after{animation:none;display:none}}
 :root[data-theme="light"]{
   color-scheme:light;
