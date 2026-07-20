@@ -66,6 +66,18 @@ _T = {
         "ko": "점수 구성: 버려도 되는 조각 비율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(머리말 정보\u00b7죽은 링크) 10점. 공식은 README에 있습니다.\n",
     },
     "table_header": { "en": "| Axis | Score | Max |", "ko": "| 축 | 점수 | 만점 |" },
+    "waste_heading": { "en": "\n## What this score costs you\n", "ko": "\n## 이 점수의 비용: 낭비 추정\n" },
+    "waste_body": {
+        "en": "- **About {waste_pct}% of this record is waste**: duplicates ~{dup_pct}% + discardable fragments {junk_str}.\n"
+              "- The whole vault is roughly **{vault_tokens} tokens** of memory text, and about **{wasted_tokens} tokens** of that is waste sitting in place.\n"
+              "- Every time an AI reads this record as context, those ~{wasted_tokens} tokens are paid again for nothing. Cleaned up, you save **about {waste_pct}% of memory tokens vs today**.\n"
+              "- Method: measured bytes of {notes} scanned notes, extrapolated to all {total} notes, conservative 4 bytes = 1 token. An estimate, not a bill.",
+        "ko": "- 지금 이 기록은 **약 {waste_pct}%가 낭비 상태**입니다: 중복 약 {dup_pct}% + 버려도 되는 조각 {junk_str}.\n"
+              "- 볼트 전체는 약 **{vault_tokens} 토큰** 분량의 기억 텍스트이고, 그중 **약 {wasted_tokens} 토큰**이 낭비분으로 깔려 있습니다.\n"
+              "- AI가 이 기록을 컨텍스트로 읽을 때마다 그 약 {wasted_tokens} 토큰을 매번 다시 지불합니다. 정리하면 **지금 대비 약 {waste_pct}% 메모리 토큰 절약**입니다.\n"
+              "- 추정 방식: 스캔 노트 {notes}개의 실측 바이트를 전체 {total}개로 외삽, 4바이트=1토큰 보수 추정. 청구서가 아니라 추정치입니다.",
+    },
+    "waste_junk_missing": { "en": "not measured", "ko": "측정 안 됨" },
     "scan_heading": { "en": "\n## Vault scan summary\n", "ko": "\n## 볼트 스캔 요약\n" },
     "scan_notes": {
         "en": "- **{notes}** notes ({kb}KB), {fm_pct}% have frontmatter",
@@ -76,8 +88,8 @@ _T = {
         "ko": "- 위키링크 {wikilinks}개 중 **죽은 링크 {dead}개** ({dl_pct}%). 대상 노트가 없는 `[[링크]]`입니다.",
     },
     "scan_atoms": {
-        "en": "- **{atoms:,}** memory fragments extracted from notes, {pairs:,} candidate pairs judged",
-        "ko": "- 노트에서 추출한 기억 조각 **{atoms:,}건**, 서로 비슷한 후보쌍 {pairs:,}건 판정",
+        "en": "- **{atoms}** memory fragments extracted from notes, {pairs} candidate pairs judged",
+        "ko": "- 노트에서 추출한 기억 조각 **{atoms}건**, 서로 비슷한 후보쌍 {pairs}건 판정",
     },
     "scan_sources": {
         "en": "- Sample files per source: {samples}",
@@ -204,11 +216,11 @@ _T = {
         "ko": "   빼고 싶은 폴더가 목록에 있으면 --exclude <폴더> 로 제외하고 다시 확인하라.",
     },
     "main_step3": { "en": "[3/6] Extracting facts ({model}, parallel {p})...", "ko": "[3/6] fact 추출 ({model}, 병렬 {p})..." },
-    "main_step3_result": { "en": "      {atoms:,} atoms", "ko": "      atom {atoms:,}건" },
+    "main_step3_result": { "en": "      {atoms} atoms", "ko": "      atom {atoms}건" },
     "main_step4": { "en": "[4/6] Computing candidate pairs...", "ko": "[4/6] 후보쌍 계산..." },
-    "main_step4_result": { "en": "      {pairs:,} candidate pairs", "ko": "      후보쌍 {pairs:,}건" },
+    "main_step4_result": { "en": "      {pairs} candidate pairs", "ko": "      후보쌍 {pairs}건" },
     "main_step5": { "en": "[5/6] Judging duplicates/contradictions ({model}, parallel {p})...", "ko": "[5/6] 중복\u00b7모순 판정 ({model}, 병렬 {p})..." },
-    "main_step5_result": { "en": "      {judgments:,} judgments", "ko": "      판정 {judgments:,}건" },
+    "main_step5_result": { "en": "      {judgments} judgments", "ko": "      판정 {judgments}건" },
     "main_step6": { "en": "[6/6] Checking discardable fragments (sample {sample}) + report...", "ko": "[6/6] 버려도 되는 조각 확인 (표본 {sample}) + 리포트..." },
     "main_limit_warn": {
         "en": "\n\u26a0\ufe0f Rate limit/network issue detected {hits} time(s). Re-run if there are failures",
@@ -785,6 +797,44 @@ def health_score(scan, atoms_n, dup_n, contra_n, junk_rate):
         {"junk": round(s_junk), "contradiction": round(s_contra), "duplicate": round(s_dup), "structure": round(s_struct)}
 
 
+def count_all_notes(ctx, cap=20000):
+    """스캔 캡과 무관한 전체 .md 개수 — 낭비 외삽의 분모 (읽지 않고 세기만 한다)."""
+    total = 0
+    for source in ctx.sources:
+        root = source["root"]
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+            for fn in filenames:
+                if not fn.endswith(".md"):
+                    continue
+                if is_excluded(os.path.relpath(os.path.join(dirpath, fn), root), ctx.excludes):
+                    continue
+                total += 1
+                if total >= cap:
+                    return total
+    return total
+
+
+def waste_estimate(ctx, scan, atoms_n, dup_n, junk_rate):
+    """실측 기반 낭비 정량화: 낭비율 = 중복 원자 비율 + junk 비율, 토큰은 4바이트=1토큰 보수 외삽."""
+    if not atoms_n or not scan["notes"] or not scan["bytes"]:
+        return None
+    dup_rate = dup_n / atoms_n
+    waste_rate = min(0.9, dup_rate + (junk_rate or 0.0))
+    if waste_rate <= 0:
+        return None
+    notes_total = max(scan["notes"], count_all_notes(ctx))
+    est_vault_tokens = int(scan["bytes"] / scan["notes"] * notes_total / 4)
+    return {
+        "waste_rate": round(waste_rate, 3),
+        "waste_dup_rate": round(dup_rate, 3),
+        "waste_junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
+        "notes_total": notes_total,
+        "est_vault_tokens": est_vault_tokens,
+        "est_wasted_tokens": int(est_vault_tokens * waste_rate),
+    }
+
+
 def build_cards(pairs, js, limit=10):
     by_id = {f'{p["a"]}|{p["b"]}': p for p in pairs}
     cards = []
@@ -834,10 +884,22 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     for k, t_key, full in (("junk", "axis_junk", 40), ("contradiction", "axis_contradiction", 30),
                            ("duplicate", "axis_duplicate", 20), ("structure", "axis_structure", 10)):
         L.append(f"| {_t(t_key)} | {axes[k]} | {full} |")
+    waste = waste_estimate(ctx, scan, len(atoms), len(dups), junk_rate)
+    if waste:
+        junk_str = _t("waste_junk_missing") if waste["waste_junk_rate"] is None \
+            else f'~{round(waste["waste_junk_rate"] * 100)}%'
+        L.append(_t("waste_heading"))
+        L.append(_t("waste_body",
+                    waste_pct=round(waste["waste_rate"] * 100),
+                    dup_pct=round(waste["waste_dup_rate"] * 100),
+                    junk_str=junk_str,
+                    vault_tokens=f'{waste["est_vault_tokens"]:,}',
+                    wasted_tokens=f'{waste["est_wasted_tokens"]:,}',
+                    notes=scan["notes"], total=waste["notes_total"]))
     L.append(_t("scan_heading"))
     L.append(_t("scan_notes", notes=scan["notes"], kb=scan["bytes"] // 1024, fm_pct=round(scan["frontmatter_rate"] * 100)))
     L.append(_t("scan_dead_links", wikilinks=scan["wikilinks"], dead=scan["dead_links"], dl_pct=round(scan["dead_link_rate"] * 100)))
-    L.append(_t("scan_atoms", atoms=len(atoms), pairs=len(pairs)))
+    L.append(_t("scan_atoms", atoms=f"{len(atoms):,}", pairs=f"{len(pairs):,}"))
     samples_str = ", ".join(f"{label} **{count}**" for label, count in sorted(source_samples.items())) or _t("none")
     L.append(_t("scan_sources", samples=samples_str))
     L.append(_t("findings_heading"))
@@ -889,7 +951,8 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
                "cross_source_contradictions": cross_source_contradictions,
                "junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
                "review_cards": n_contra_cards + n_dup_cards,
-               "failed_extract_batches": failed_batches, "report": report_path}
+               "failed_extract_batches": failed_batches, "report": report_path,
+               **(waste or {})}
     json.dump(summary, open(ctx.path("summary.json"), "w", encoding="utf-8"),
               ensure_ascii=False, indent=1)
     return summary
@@ -969,13 +1032,13 @@ def main():
         return
     print(_t("main_step3", model=args.extract_model, p=EXTRACT_PARALLEL))
     atoms = stage_extract(ctx, man, args.extract_model)
-    print(_t("main_step3_result", atoms=len(atoms)))
+    print(_t("main_step3_result", atoms=f"{len(atoms):,}"))
     print(_t("main_step4"))
     pairs = stage_pair(ctx, atoms, args.max_judge_pairs)
-    print(_t("main_step4_result", pairs=len(pairs)))
+    print(_t("main_step4_result", pairs=f"{len(pairs):,}"))
     print(_t("main_step5", model=args.judge_model, p=JUDGE_PARALLEL))
     js = stage_judge(ctx, pairs, args.judge_model)
-    print(_t("main_step5_result", judgments=len(js)))
+    print(_t("main_step5_result", judgments=f"{len(js):,}"))
     print(_t("main_step6", sample=args.junk_sample))
     junk = stage_junk(ctx, atoms, args.judge_model, args.junk_sample)
     summary = stage_report(ctx, scan, man, atoms, pairs, js, junk)
