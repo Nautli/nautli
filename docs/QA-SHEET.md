@@ -20,7 +20,8 @@
 | SCAN-09 | 방문자로서, 리포트 하단에서 nautli 설치로 넘어갈 수 있다 (퍼널의 목적지) | 리포트 "Install nautli" → `nautli.ai/install` 랜딩 | 설치 페이지 정상 도달 | ✅ | ✅ | ✅ | 2026-07-20 (링크 확인) |
 
 **릴리스 게이트 메모**
-- CLI ja(SCAN-02~07의 ja 컬럼)는 **npm publish 전까지 로컬 검증만** — `npx nautli@latest`엔 미반영. publish 후 SCAN-06을 ja로 1회 재실행해 갱신할 것.
+- ✅ 0.2.2 발행됨(2026-07-20, GitHub Actions trusted publishing). `npx nautli@0.2.2 scan --lang ja` 신선 다운로드 스모크 통과 — SCAN-02~07 ja 컬럼은 발행본 기준 재검증 완료.
+- 릴리스 절차: 버전 범프 커밋 → `git tag vX.Y.Z && git push origin vX.Y.Z` (토큰·OTP 불필요. ⚠️package.json repository.url은 `Nautli/nautli` 대소문자 유지 — provenance 검증이 대소문자까지 대조).
 - scan 외 명령(usage·checkup·dashboard)의 ja는 en 폴백이 스펙 (전체 번역 = 백로그 nautli/TASK-082).
 - 사이트는 언어 자동 리다이렉트 없음(루트=en + 언어 메뉴 + hreflang) — 의도된 스펙.
 
