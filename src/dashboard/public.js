@@ -294,6 +294,41 @@ textarea.field{min-height:88px;resize:vertical}
 .graph-canvas.panning{cursor:grabbing}
 .graph-tooltip{position:absolute;max-width:280px;pointer-events:none;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 9px;color:var(--foreground);font-size:12px;line-height:1.45}
 .graph-note{color:var(--muted-foreground);font-size:12px;margin-top:8px}
+.graph-filter{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.graph-filter input[type="text"]{flex:1;min-width:160px;padding:6px 10px;background:var(--secondary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--foreground);font-size:13px}
+.graph-filter select{padding:6px 8px;background:var(--secondary);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--foreground);font-size:13px}
+.cluster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:16px}
+.cluster-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px 16px;cursor:pointer;transition:border-color .15s}
+.cluster-card:hover{border-color:var(--ring)}
+.cluster-card.expanded{border-color:var(--graph-hub);grid-column:1/-1}
+.cluster-name{font-size:15px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+.cluster-name .scope-dot{width:8px;height:8px;border-radius:999px;background:var(--graph-hub);flex-shrink:0}
+.cluster-stats{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted-foreground)}
+.cluster-stat{display:inline-flex;align-items:center;gap:4px}
+.cluster-stat .dot{width:6px;height:6px;border-radius:999px}
+.cluster-stat .dot.facts{background:var(--graph-node)}
+.cluster-stat .dot.related{background:var(--graph-related)}
+.cluster-stat .dot.contradiction{background:var(--graph-contradiction)}
+.cluster-stat .dot.duplicate{background:var(--graph-duplicate)}
+.cluster-stat .dot.supersedes{background:var(--graph-superseded)}
+.cluster-detail{margin-top:12px;border-top:1px solid var(--border);padding-top:10px}
+.cluster-detail-facts{display:grid;gap:4px;max-height:260px;overflow-y:auto;font-size:12px}
+.cluster-fact{padding:4px 6px;background:var(--secondary);border-radius:var(--radius-sm);display:flex;gap:6px;align-items:baseline}
+.cluster-fact .scope-badge{flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:var(--radius-sm);background:var(--border);color:var(--muted-foreground)}
+.insight-panel{margin-bottom:16px}
+.insight-panel h2{font-size:15px;margin:0 0 10px;color:var(--foreground)}
+.insight-list{display:grid;gap:8px}
+.insight-row{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;display:grid;gap:6px}
+.insight-kind{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.insight-kind.contradiction{color:var(--graph-contradiction)}
+.insight-kind.duplicate{color:var(--graph-duplicate)}
+.insight-kind.related{color:var(--graph-hub)}
+.insight-claims{display:grid;gap:4px;font-size:12px;color:var(--foreground)}
+.insight-claim{display:flex;gap:6px;align-items:baseline}
+.insight-claim .scope-badge{flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:var(--radius-sm);background:var(--border);color:var(--muted-foreground)}
+.insight-actions{display:flex;gap:6px;margin-top:2px}
+.graph-section-title{font-size:13px;font-weight:600;color:var(--muted-foreground);margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em}
+.graph-empty-insights{color:var(--muted-foreground);font-size:13px;padding:10px 0}
 .continuity{border-color:var(--ring);padding:24px}
 .continuity-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}
 .continuity-head h1{font-size:24px}
@@ -346,6 +381,9 @@ textarea.field{min-height:88px;resize:vertical}
   .toolbar,.add,.inline-field{grid-template-columns:1fr}
   .review-context{flex-direction:column;gap:4px}
   .graph-stage{height:65vh;min-height:360px}
+  .cluster-grid{grid-template-columns:1fr}
+  .graph-filter{flex-direction:column}
+  .graph-filter input[type="text"]{min-width:0}
   .continuity-head{display:block}
 }
 </style>
@@ -367,6 +405,7 @@ textarea.field{min-height:88px;resize:vertical}
   Object.assign(DASH_EN,{"첫 주에는 기억이 쌓이는 과정을 보여드려요":"During the first week, this shows memory building up","번":" times","토큰":" tokens","정리한 기록":"Records organized","현재 이어지는 사실":"Facts currently carried forward","이번 주 ":"This week ","계산 기준 보기":"View calculation basis","집계 기간":"Measurement period","부터":"to","hits가 1개 이상인 recall의 세션을 중복 없이 셌어요.":"Distinct sessions from recalls with at least one hit.","세션 식별자가 없는 기록은 시각의 10분 구간과 scope 조합으로 묶은 근사값이에요.":"Records without a session identifier are approximated by grouping the 10 minute time bucket with scope.","recall이 반환한 기억 텍스트의 총 문자 수를 4로 나눈 추정치예요. 이전 기록에 반환 문자 수가 없으면 조회 가능한 fact claim 문자 수를 사용해요.":"Estimated by dividing the total characters in memory text returned by recall by 4. Older records without returned character counts use the available fact claim characters.","handled_at이 기간 안에 있고 상태가 answered, dismissed, routed인 큐의 pair_id를 중복 없이 셌어요. 실패와 pending은 제외해요.":"Distinct queue pair IDs with handled_at in the period and status answered, dismissed, or routed. Failed and pending entries are excluded.","현재 active fact 수예요. 이번 주 증감은 fact.added에서 invalidated와 superseded를 빼서 계산해요.":"The current active fact count. This week's change is fact.added minus invalidated and superseded events."});
   Object.assign(DASH_EN,{"기억 영수증":"Memory receipt","최근 2일":"Last 2 days","최근 7일":"Last 7 days","최근 30일":"Last 30 days","지금까지":"Lifetime","설치일":"Installed","설치 ":"day ","일째":"","스스로 정정한 기억":"Memories self-corrected"});
   Object.assign(DASH_EN,{"다음":"next","일":" days","nautli의 껍데기":"nautli's shell","일 전 기억 ":" days ago: ","지금 ":"now ","반복 설명을 피한 대화 ":"Re-explanation avoided: ","반복 설명을 피한 대화":"Conversations without re-explaining","AI에게 전달한 기억 ":"Memory delivered to AI: ","AI에게 전달한 기억":"Memory delivered to AI","이번 주 반복 설명을 피한 대화 ":"This week, re-explanation avoided: ","실제 사례":"Real examples","개 기억 사용":" memories used","판정 메타 수집":"Judgment metadata collection","카드 개수와 판정 통계만 보내요. 노트나 기억 내용은 절대 보내지 않아요.":"Only card counts and judgment stats are sent. Note and memory contents are never sent.","끄기":"Turn off"});
+  Object.assign(DASH_EN,{"프로젝트 간 공유된 기억":"Memories shared across projects","개 기억":" memories","프로젝트나 기억 검색":"Search projects or memories","전체 프로젝트":"All projects","프로젝트":"Project","연관 기억":"Related memories","대체":"Superseded","모순":"Contradiction","중복 확인 필요":"Duplicate, needs review","확인할 항목":"Action needed","건":"","프로젝트 간 연결":"Cross-project connections","공유 기억":"Shared memory","프로젝트 요약":"Project summary","연결":"connections","중복":"duplicates","외":" and","개":""});
   Object.assign(DASH_EN,{"정리 내역":"Cleanup history","정리 내역 ":"Cleanup history ","nautli가 자동으로 정리한 기억 내역이에요. 잘못된 건 되돌릴 수 있어요.":"Memories auto-organized by nautli. You can undo any of them.","정리 내역은 순찰이 만들어요. 먼저 설정을 완료해 주세요.":"Cleanup history is created by the patrol. Finish setup first.","아직 자동 정리 내역이 없어요. 순찰이 돌면 여기에 기록돼요.":"No cleanup history yet. Records appear after the patrol runs.","자동 정리":"Auto-organized","되돌리기":"Undo","되돌림":"Undone","중복 합침":"Duplicates merged","자동 기억":"Auto-remembered","보류 (자동 판단)":"Held (auto-judged)","모순 해결":"Contradiction resolved","되돌렸어요.":"Undone successfully.","자동 정리 ":"Auto-organized "});
   function resolveDashLang(){var saved=null;try{saved=localStorage.getItem("nautli-lang");}catch(error){}
     if(saved!=="en"&&saved!=="ko"&&saved!=="auto")saved="auto";
@@ -394,7 +433,7 @@ textarea.field{min-height:88px;resize:vertical}
     themeToggle.parentNode.insertBefore(button,themeToggle);
   })();
   var TABS=["setup","graph","review","memory"];
-  var initialTab=location.hash.slice(1);var state={status:null,statusError:null,tab:TABS.includes(initialTab)?initialTab:"setup",cards:[],cardsBacklog:0,cardsLoaded:false,reviewTotal:0,reviewProgress:null,reviewCompleteTimer:null,memory:[],receipt:null,receiptMulti:null,receiptWindow:"lifetime",memoryLoaded:false,memoryLoading:false,memoryError:null,memoryQuery:"",memoryScope:"",includeDead:false,graph:null,graphLoaded:false,graphLoading:false,graphError:null,graphCleanup:null,statusTimer:null,digesting:false,checkup:null,checkupError:null,checkupTimer:null,checkupPath:"",checkupPreflight:null,continuityTimer:null,continuityPolling:false,continuity:null,shareCard:null,scan:null,scanLoading:false,scanError:null,scanErrorToastShown:false,scanAutoRefreshAttempted:false,checklistOpen:"",checklistExpanded:false};
+  var initialTab=location.hash.slice(1);var state={status:null,statusError:null,tab:TABS.includes(initialTab)?initialTab:"setup",cards:[],cardsBacklog:0,cardsLoaded:false,reviewTotal:0,reviewProgress:null,reviewCompleteTimer:null,memory:[],receipt:null,receiptMulti:null,receiptWindow:"lifetime",memoryLoaded:false,memoryLoading:false,memoryError:null,memoryQuery:"",memoryScope:"",includeDead:false,graph:null,graphLoaded:false,graphLoading:false,graphError:null,graphCleanup:null,graphSearch:"",statusTimer:null,digesting:false,checkup:null,checkupError:null,checkupTimer:null,checkupPath:"",checkupPreflight:null,continuityTimer:null,continuityPolling:false,continuity:null,shareCard:null,scan:null,scanLoading:false,scanError:null,scanErrorToastShown:false,scanAutoRefreshAttempted:false,checklistOpen:"",checklistExpanded:false};
   var cmdkState={since:"30d",scope:"",scopeInitialized:false,items:[],selected:-1,timer:null,request:0};
   try{state.continuity=JSON.parse(localStorage.getItem("nautli-continuity")||"null");}catch(error){}
   if(!state.continuity)state.continuity={choice:T("나는 커밋 메시지를 한국어로 쓴다"),custom:"",a:"ready",b:"locked",c:"ready",factId:"",factClaim:"",since:"",crossSince:"",recalled:null,candidate:null,ignoredCandidate:""};
@@ -581,12 +620,143 @@ textarea.field{min-height:88px;resize:vertical}
   }
   function graphView(){
     if(state.graphCleanup){state.graphCleanup();state.graphCleanup=null;}
-    var graph=state.graph||{nodes:[],links:[]};var facts=graph.nodes.filter(function(node){return node.kind==="fact";});
-    var head='<div class="page-head"><div><h1>'+T("그래프")+'</h1><p class="lead">'+T("기억이 스코프와 서로 어떻게 연결됐는지 보여줘요.")+'</p></div><button class="btn" data-refresh-graph>'+T("새로고침")+'</button></div>';
+    var graph=state.graph||{nodes:[],links:[],clusters:[],insights:[]};
+    var facts=graph.nodes.filter(function(node){return node.kind==="fact";});
+    var clusters=graph.clusters||[];
+    var insights=graph.insights||[];
+    var totalFacts=0;clusters.forEach(function(c){totalFacts+=c.facts;});
+    var head='<div class="page-head"><div><h1>'+T("그래프")+'</h1><p class="lead">'+T("프로젝트 간 공유된 기억")+(totalFacts?' · '+totalFacts+T("개 기억"):'')+'</p></div><button class="btn" data-refresh-graph>'+T("새로고침")+'</button></div>';
     if(facts.length===0){app.innerHTML=head+'<div class="card empty">'+T("아직 기억이 없어요. 설정을 마치면 여기서 기억이 자라는 걸 볼 수 있어요.")+'<div class="actions"><button class="btn primary" data-tab="setup">'+T("설정으로 가기")+'</button></div></div>';return;}
+
+    // search + filter bar
+    var filterBar='<div class="graph-filter"><input type="text" id="graph-search" placeholder="'+T("프로젝트나 기억 검색")+'" value="'+esc(state.graphSearch||"")+'"><select id="graph-scope-filter"><option value="">'+T("전체 프로젝트")+'</option>'+clusters.map(function(c){return '<option value="'+esc(c.scope)+'">'+esc(c.label)+'</option>';}).join("")+'</select></div>';
+
+    // legend
+    var legend='<div class="graph-legend" aria-label="'+T("범례")+'"><span class="legend-item"><i class="legend-dot hub"></i>'+T("프로젝트")+'</span><span class="legend-item"><i class="legend-line related"></i>'+T("연관 기억")+'</span><span class="legend-item"><i class="legend-line"></i>'+T("대체")+'</span><span class="legend-item"><i class="legend-line contradiction"></i>'+T("모순")+'</span><span class="legend-item"><i class="legend-line duplicate"></i>'+T("중복 확인 필요")+'</span></div>';
+
+    // insights panel
+    var insightHtml='';
+    if(insights.length>0){
+      var actionable=insights.filter(function(i){return i.kind==="contradiction"||i.kind==="duplicate";});
+      var crossScope=insights.filter(function(i){return i.kind==="related";});
+      insightHtml='<div class="insight-panel">';
+      if(actionable.length>0){
+        insightHtml+='<p class="graph-section-title">'+T("확인할 항목")+' '+actionable.length+T("건")+'</p><div class="insight-list">';
+        actionable.forEach(function(ins){
+          var kindLabel=ins.kind==="contradiction"?T("모순"):T("중복 확인 필요");
+          insightHtml+='<div class="insight-row"><div class="insight-kind '+ins.kind+'">'+esc(kindLabel)+'</div><div class="insight-claims"><div class="insight-claim"><span class="scope-badge">'+esc(scopeLabel(ins.a.scope))+'</span> '+esc(ins.a.claim)+'</div><div class="insight-claim"><span class="scope-badge">'+esc(scopeLabel(ins.b.scope))+'</span> '+esc(ins.b.claim)+'</div></div></div>';
+        });
+        insightHtml+='</div>';
+      }
+      if(crossScope.length>0){
+        insightHtml+='<p class="graph-section-title" style="margin-top:16px">'+T("프로젝트 간 연결")+' '+crossScope.length+T("건")+'</p><div class="insight-list">';
+        crossScope.forEach(function(ins){
+          insightHtml+='<div class="insight-row"><div class="insight-kind related">'+T("공유 기억")+'</div><div class="insight-claims"><div class="insight-claim"><span class="scope-badge">'+esc(scopeLabel(ins.a.scope))+'</span> '+esc(ins.a.claim)+'</div><div class="insight-claim"><span class="scope-badge">'+esc(scopeLabel(ins.b.scope))+'</span> '+esc(ins.b.claim)+'</div></div></div>';
+        });
+        insightHtml+='</div>';
+      }
+      insightHtml+='</div>';
+    }
+
+    // cluster cards
+    var clusterHtml='<p class="graph-section-title">'+T("프로젝트 요약")+'</p><div class="cluster-grid" id="cluster-grid">';
+    clusters.forEach(function(c){
+      var stats='<span class="cluster-stat"><i class="dot facts"></i>'+c.facts+T("개 기억")+'</span>';
+      if(c.related)stats+='<span class="cluster-stat"><i class="dot related"></i>'+T("연결")+' '+c.related+'</span>';
+      if(c.contradictions)stats+='<span class="cluster-stat"><i class="dot contradiction"></i>'+T("모순")+' '+c.contradictions+'</span>';
+      if(c.duplicates)stats+='<span class="cluster-stat"><i class="dot duplicate"></i>'+T("중복")+' '+c.duplicates+'</span>';
+      clusterHtml+='<div class="cluster-card" data-cluster-scope="'+esc(c.scope)+'"><p class="cluster-name"><i class="scope-dot"></i>'+esc(c.label)+'</p><div class="cluster-stats">'+stats+'</div></div>';
+    });
+    clusterHtml+='</div>';
+
     var note=graph.truncated?'<div class="graph-note">'+T("최신 기억 600개를 표시하고 있어요.")+'</div>':'';
-    app.innerHTML=head+'<div class="graph-legend" aria-label="'+T("그래프 범례")+'"><span class="legend-item"><i class="legend-dot hub"></i>'+T("허브=프로젝트")+'</span><span class="legend-item"><i class="legend-line related"></i>'+T("청록=연관 기억")+'</span><span class="legend-item"><i class="legend-line"></i>'+T("보라=대체")+'</span><span class="legend-item"><i class="legend-line contradiction"></i>'+T("빨강=모순")+'</span><span class="legend-item"><i class="legend-line duplicate"></i>'+T("노랑=중복 확인 필요")+'</span></div><div class="graph-stage"><canvas class="graph-canvas" aria-label="'+T("기억 연결 그래프")+'"></canvas><div class="graph-tooltip hidden" role="tooltip"></div></div>'+note;
-    requestAnimationFrame(function(){startGraph(graph);});
+
+    // mini canvas for expanded cluster
+    var canvasSection='<div id="graph-canvas-wrap" class="hidden"><div class="graph-stage"><canvas class="graph-canvas" aria-label="'+T("기억 연결 그래프")+'"></canvas><div class="graph-tooltip hidden" role="tooltip"></div></div></div>';
+
+    app.innerHTML=head+filterBar+legend+insightHtml+clusterHtml+canvasSection+note;
+
+    // --- cluster expand/collapse + search/filter ---
+    var expandedScope=null;
+    var searchInput=document.getElementById("graph-search");
+    var scopeFilter=document.getElementById("graph-scope-filter");
+
+    function filterClusters(){
+      var q=(searchInput.value||"").toLowerCase();
+      var sf=scopeFilter.value;
+      var cards=app.querySelectorAll("[data-cluster-scope]");
+      cards.forEach(function(card){
+        var scope=card.getAttribute("data-cluster-scope");
+        var c=clusters.find(function(cl){return cl.scope===scope;});
+        if(!c){card.classList.add("hidden");return;}
+        var matchScope=!sf||scope===sf;
+        var matchSearch=!q||c.label.toLowerCase().indexOf(q)>=0||scope.toLowerCase().indexOf(q)>=0;
+        card.classList.toggle("hidden",!(matchScope&&matchSearch));
+      });
+      // also filter insights
+      var insightRows=app.querySelectorAll(".insight-row");
+      insightRows.forEach(function(row){
+        if(!q&&!sf){row.classList.remove("hidden");return;}
+        var text=row.textContent.toLowerCase();
+        var matchQ=!q||text.indexOf(q)>=0;
+        row.classList.toggle("hidden",!matchQ);
+      });
+    }
+
+    if(searchInput)searchInput.addEventListener("input",function(){state.graphSearch=searchInput.value;filterClusters();});
+    if(scopeFilter)scopeFilter.addEventListener("change",filterClusters);
+
+    app.querySelector("#cluster-grid").addEventListener("click",function(event){
+      var card=event.target.closest("[data-cluster-scope]");
+      if(!card)return;
+      var scope=card.getAttribute("data-cluster-scope");
+      var wrap=document.getElementById("graph-canvas-wrap");
+      // collapse if same
+      if(expandedScope===scope){
+        card.classList.remove("expanded");
+        wrap.classList.add("hidden");
+        if(state.graphCleanup){state.graphCleanup();state.graphCleanup=null;}
+        expandedScope=null;
+
+        // show detail list of facts in this scope instead of canvas
+        var detailEl=card.querySelector(".cluster-detail");
+        if(detailEl){detailEl.remove();}
+        return;
+      }
+      // collapse previous
+      var prev=app.querySelector(".cluster-card.expanded");
+      if(prev){prev.classList.remove("expanded");var prevDetail=prev.querySelector(".cluster-detail");if(prevDetail)prevDetail.remove();}
+      if(state.graphCleanup){state.graphCleanup();state.graphCleanup=null;}
+      expandedScope=scope;
+      card.classList.add("expanded");
+
+      // add detail facts list
+      var scopeFacts=graph.nodes.filter(function(n){return n.kind==="fact"&&n.scope===scope;});
+      var detailHtml='<div class="cluster-detail"><div class="cluster-detail-facts">';
+      scopeFacts.slice(0,50).forEach(function(f){
+        detailHtml+='<div class="cluster-fact" data-fact-scope="'+esc(f.scope)+'" data-fact-id="'+esc(f.id)+'"><span class="scope-badge">'+esc(f.status==="active"?"":"past")+'</span>'+esc(f.label)+'</div>';
+      });
+      if(scopeFacts.length>50)detailHtml+='<div class="cluster-fact" style="color:var(--muted-foreground)">… '+T("외")+' '+(scopeFacts.length-50)+T("개")+'</div>';
+      detailHtml+='</div></div>';
+      card.insertAdjacentHTML("beforeend",detailHtml);
+
+      // show and start filtered canvas
+      wrap.classList.remove("hidden");
+      wrap.scrollIntoView({behavior:"smooth",block:"nearest"});
+      var filteredNodes=graph.nodes.filter(function(n){return n.scope===scope;});
+      var filteredIds=new Set(filteredNodes.map(function(n){return n.id;}));
+      filteredIds.add("scope:"+scope);
+      var filteredLinks=graph.links.filter(function(l){return filteredIds.has(l.a)&&filteredIds.has(l.b);});
+      requestAnimationFrame(function(){startGraph({nodes:filteredNodes,links:filteredLinks});});
+    });
+
+    // clicking a fact in cluster detail navigates to memory tab
+    app.addEventListener("click",function(event){
+      var factEl=event.target.closest(".cluster-fact[data-fact-id]");
+      if(!factEl)return;
+      var scope=factEl.getAttribute("data-fact-scope");
+      if(scope){state.memoryScope=scope;state.memoryQuery="";state.memoryLoaded=false;state.memoryError=null;state.tab="memory";location.hash="memory";render();}
+    });
   }
   function startGraph(graph){
     var canvas=app.querySelector(".graph-canvas");if(!canvas)return;var stage=canvas.parentElement;var tooltip=stage.querySelector(".graph-tooltip");var ctx=canvas.getContext("2d");if(!ctx)return;

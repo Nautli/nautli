@@ -579,9 +579,72 @@ function graphFor(home, t) {
       });
     }
 
+    // --- cluster summaries ---
+    const clusterMap = new Map();
+    for (const scope of scopes) {
+      clusterMap.set(scope, {
+        scope,
+        label: graphScopeLabel(scope, t),
+        facts: 0,
+        related: 0,
+        contradictions: 0,
+        duplicates: 0,
+        supersedes: 0,
+      });
+    }
+    for (const fact of facts.values()) {
+      const cs = clusterMap.get(fact.scope);
+      if (cs) cs.facts += 1;
+    }
+    for (const link of links) {
+      if (link.kind === "scope") continue;
+      const factA = facts.get(link.a);
+      const factB = facts.get(link.b);
+      const scopeA = factA ? factA.scope : null;
+      const scopeB = factB ? factB.scope : null;
+      const affectedScopes = new Set([scopeA, scopeB].filter(Boolean));
+      for (const scope of affectedScopes) {
+        const cs = clusterMap.get(scope);
+        if (!cs) continue;
+        if (link.kind === "related") cs.related += 1;
+        else if (link.kind === "contradiction") cs.contradictions += 1;
+        else if (link.kind === "duplicate") cs.duplicates += 1;
+        else if (link.kind === "supersedes") cs.supersedes += 1;
+      }
+    }
+    const clusters = [...clusterMap.values()].sort(
+      (a, b) => b.facts - a.facts,
+    );
+
+    // --- actionable insights (cross-scope related + contradictions/duplicates) ---
+    const insights = [];
+    for (const link of links) {
+      if (link.kind === "scope") continue;
+      const factA = facts.get(link.a);
+      const factB = facts.get(link.b);
+      if (!factA || !factB) continue;
+      if (
+        link.kind === "contradiction"
+        || link.kind === "duplicate"
+        || (link.kind === "related" && factA.scope !== factB.scope)
+      ) {
+        insights.push({
+          kind: link.kind,
+          a: { id: factA.id, claim: factA.claim.slice(0, 80), scope: factA.scope },
+          b: { id: factB.id, claim: factB.claim.slice(0, 80), scope: factB.scope },
+        });
+      }
+    }
+    insights.sort((a, b) => {
+      const order = { contradiction: 0, duplicate: 1, related: 2 };
+      return (order[a.kind] ?? 3) - (order[b.kind] ?? 3);
+    });
+
     return {
       nodes,
       links,
+      clusters,
+      insights: insights.slice(0, 30),
       ...(truncated ? { truncated: true } : {}),
     };
   } finally {
