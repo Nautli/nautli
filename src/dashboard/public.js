@@ -328,6 +328,8 @@ textarea.field{min-height:88px;resize:vertical}
 .insight-claim .scope-badge{flex-shrink:0;font-size:10px;padding:1px 5px;border-radius:var(--radius-sm);background:var(--border);color:var(--muted-foreground)}
 .insight-actions{display:flex;gap:6px;margin-top:2px}
 .graph-section-title{font-size:13px;font-weight:600;color:var(--muted-foreground);margin:0 0 10px;text-transform:uppercase;letter-spacing:.04em}
+.graph-section-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:0}
+.graph-section-header .graph-section-title{margin-bottom:0}
 .graph-empty-insights{color:var(--muted-foreground);font-size:13px;padding:10px 0}
 .continuity{border-color:var(--ring);padding:24px}
 .continuity-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}
@@ -651,7 +653,7 @@ textarea.field{min-height:88px;resize:vertical}
       if(crossScope.length>0){
         insightHtml+='<p class="graph-section-title" style="margin-top:16px">'+T("프로젝트 간 연결")+' '+crossScope.length+T("건")+'</p><div class="insight-list">';
         crossScope.forEach(function(ins){
-          insightHtml+='<div class="insight-row"><div class="insight-kind related">'+T("공유 기억")+'</div><div class="insight-claims"><div class="insight-claim"><span class="scope-badge">'+esc(scopeLabel(ins.a.scope))+'</span> '+esc(ins.a.claim)+'</div><div class="insight-claim"><span class="scope-badge">'+esc(scopeLabel(ins.b.scope))+'</span> '+esc(ins.b.claim)+'</div></div></div>';
+          insightHtml+='<div class="insight-row"><div class="insight-kind related">'+T("공유 기억")+'</div><div class="insight-claims"><div class="insight-claim"><span class="scope-badge">'+esc(scopeLabel(ins.a.scope))+'</span> '+esc(ins.a.claim)+'</div><div class="insight-claim"><span class="scope-badge">'+esc(scopeLabel(ins.b.scope))+'</span> '+esc(ins.b.claim)+'</div></div><div class="insight-actions"><button class="btn quiet" data-tab="review">'+T("정리 내역에서 확인")+'</button></div></div>';
         });
         insightHtml+='</div>';
       }
@@ -659,7 +661,7 @@ textarea.field{min-height:88px;resize:vertical}
     }
 
     // cluster cards
-    var clusterHtml='<p class="graph-section-title">'+T("프로젝트 요약")+'</p><div class="cluster-grid" id="cluster-grid">';
+    var clusterHtml='<div class="graph-section-header"><p class="graph-section-title">'+T("프로젝트 요약")+'</p><button class="btn quiet" id="graph-show-all">'+T("전체 보기")+'</button></div><div class="cluster-grid" id="cluster-grid">';
     clusters.forEach(function(c){
       var stats='<span class="cluster-stat"><i class="dot facts"></i>'+c.facts+T("개 기억")+'</span>';
       if(c.related)stats+='<span class="cluster-stat"><i class="dot related"></i>'+T("연결")+' '+c.related+'</span>';
@@ -705,6 +707,19 @@ textarea.field{min-height:88px;resize:vertical}
 
     if(searchInput)searchInput.addEventListener("input",function(){state.graphSearch=searchInput.value;filterClusters();});
     if(scopeFilter)scopeFilter.addEventListener("change",filterClusters);
+
+    var showAllBtn=document.getElementById("graph-show-all");
+    if(showAllBtn)showAllBtn.addEventListener("click",function(){
+      // collapse any expanded cluster
+      var prev=app.querySelector(".cluster-card.expanded");
+      if(prev){prev.classList.remove("expanded");var prevDetail=prev.querySelector(".cluster-detail");if(prevDetail)prevDetail.remove();}
+      if(state.graphCleanup){state.graphCleanup();state.graphCleanup=null;}
+      expandedScope=null;
+      var wrap=document.getElementById("graph-canvas-wrap");
+      wrap.classList.remove("hidden");
+      wrap.scrollIntoView({behavior:"smooth",block:"nearest"});
+      requestAnimationFrame(function(){startGraph(graph);});
+    });
 
     app.querySelector("#cluster-grid").addEventListener("click",function(event){
       var card=event.target.closest("[data-cluster-scope]");
