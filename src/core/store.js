@@ -379,7 +379,13 @@ export class Store {
         }
 
         const status = EVENT_STATUS[evt?.ev];
-        if (!status || typeof evt.id !== "string") {
+        // 알 수 없는 ev = fact 변이가 아닌 활동/텔레메트리 이벤트(recall·capture.decided·
+        // shadow.resolve_cycle 등)로 fact 이벤트와 append-only 정본을 공유하지만 파생 인덱스
+        // 대상이 아니다. rebuild를 오염시키지 않게 throw 대신 스킵한다(새 텔레메트리 ev가 추가돼도
+        // 스킵 화이트리스트 갱신을 잊어 rebuild가 죽는 재발 footgun 차단, 사고 2026-07-19).
+        if (!status) return;
+        // EVENT_STATUS를 가진 정식 fact 변이 이벤트인데 id가 없으면 정본 손상 — 그대로 실패시킨다.
+        if (typeof evt.id !== "string") {
           throw codedError(ERR.E_INVALID_INPUT);
         }
 

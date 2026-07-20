@@ -87,6 +87,36 @@ test("deleting the index and rebuilding preserves query and recall results", (t)
   }), beforeRecall);
 });
 
+test("rebuild skips telemetry events (shadow.resolve_cycle) instead of throwing", (t) => {
+  const state = isolatedStore(t);
+  for (let index = 0; index < 3; index += 1) state.store.addFact(fact(index));
+  // 텔레메트리 활동 이벤트는 fact 이벤트와 append-only 정본을 공유한다. rebuild가 이를
+  // 만나도 죽지 않아야 한다(사고 2026-07-19: shadow.resolve_cycle 스킵 누락으로 소화 데몬 3일 정지).
+  state.store.appendEvent({
+    ev: "shadow.resolve_cycle",
+    checked: 20,
+    corroborated: 2,
+    contradicted: 0,
+    no_signal: 18,
+    at: new Date().toISOString(),
+  });
+  const before = state.store.query({ scope: "project:alpha", status: STATUS.ACTIVE });
+
+  state.store.close();
+  for (const suffix of ["", "-wal", "-shm"]) {
+    fs.rmSync(path.join(state.home, `index.sqlite${suffix}`), { force: true });
+  }
+  const rebuilt = new Store(state.home);
+  state.replace(rebuilt);
+  assert.doesNotThrow(() => rebuilt.rebuild());
+  assert.deepEqual(rebuilt.query({ scope: "project:alpha", status: STATUS.ACTIVE }), before);
+});
+
+test("rebuild still throws on a corrupt fact-mutation event with no id", (t) => {
+  const state = isolatedStore(t);
+  assert.throws(() => state.store.applyEvent({ ev: "fact.superseded" }), /E_INVALID_INPUT/);
+});
+
 test("applying the same event twice is idempotent", (t) => {
   const state = isolatedStore(t);
   const added = fact(0);

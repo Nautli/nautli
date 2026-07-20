@@ -613,7 +613,7 @@ export async function runDaemon(home, args, {
   const trigger = initialSpool.count > 0 ? "spool" : "patrol";
   const eventRun = trigger === "spool" && !parsed.values.dry && !parsed.values.force;
 
-  // 스풀 이벤트가 없을 때만 3:30 정기 실행과 RunAtLoad의 catch-up 게이트를 적용한다.
+  // 스풀 이벤트가 없을 때만 2:00 정기 실행과 RunAtLoad의 catch-up 게이트를 적용한다.
   if (!parsed.values.dry && !parsed.values.force && initialSpool.count === 0) {
     const freshness = freshnessReader(home);
     if (freshness.fresh) {

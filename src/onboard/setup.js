@@ -206,10 +206,10 @@ function readHealth(home) {
   };
 }
 
-export const DIGEST_SCHEDULE_HOUR = 3;
-export const DIGEST_SCHEDULE_MINUTE = 30;
+export const DIGEST_SCHEDULE_HOUR = 2;
+export const DIGEST_SCHEDULE_MINUTE = 0;
 
-// 가장 최근의 예약 슬롯(매일 03:30) 시각. now가 03:30 이전이면 전날 03:30.
+// 가장 최근의 예약 슬롯(매일 02:00) 시각. now가 02:00 이전이면 전날 02:00.
 export function lastScheduledDigestAt(now = new Date()) {
   const boundary = new Date(now);
   boundary.setHours(DIGEST_SCHEDULE_HOUR, DIGEST_SCHEDULE_MINUTE, 0, 0);
@@ -217,7 +217,7 @@ export function lastScheduledDigestAt(now = new Date()) {
   return boundary;
 }
 
-// anacron식 catch-up 게이트 — RunAtLoad(부팅/로그인)와 3:30 정기 실행이 공유한다.
+// anacron식 catch-up 게이트 — RunAtLoad(부팅/로그인)와 2:00 정기 실행이 공유한다.
 // 가장 최근 예약 슬롯 이후에 이미 성공 소화가 있으면 이번 실행을 건너뛴다.
 // (고정 24h 윈도우는 종료시각 기록 vs 정시 발사의 수십초 차로 다음날 정기 실행을 항상 스킵시켰다.)
 export function digestFreshness(home, { now = new Date() } = {}) {
@@ -733,7 +733,7 @@ function daemonPlist(home) {
   <key>Label</key><string>${DAEMON_LABEL}</string>
   <key>ProgramArguments</key><array><string>${xml(process.execPath)}</string><string>${xml(CLI_FILE)}</string><string>daemon-run</string></array>
   <key>EnvironmentVariables</key><dict><key>NAUTLI_HOME</key><string>${xml(home)}</string><key>PATH</key><string>${xml(launchdPath())}</string></dict>
-  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>
   <key>RunAtLoad</key><true/>
   <key>WatchPaths</key><array><string>${xml(spool)}</string></array>
   <key>ThrottleInterval</key><integer>60</integer>
