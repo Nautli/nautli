@@ -778,7 +778,7 @@ export function createDashboardServer(home, options = {}) {
 
   function refreshClaudeStatus() {
     if (claudeRefresh) return;
-    claudeRefresh = checkClaudeStatus(runner)
+    claudeRefresh = checkClaudeStatus(runner, userHome)
       .then((value) => {
         claudeCache = {
           value,

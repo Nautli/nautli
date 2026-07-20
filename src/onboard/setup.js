@@ -258,7 +258,36 @@ function instructionInstalled(file) {
     && fs.readFileSync(file, "utf8").includes(INSTRUCTIONS_START);
 }
 
-function claudeStatus(runner) {
+// `claude mcp list`는 원격 MCP 서버 헬스체크 핑까지 돌려 수 초 걸린다 —
+// 2초 타임아웃에 걸려 등록을 놓쳤다(NA: "Claude Code 연결"이 영영 미완료로 뜸).
+// 등록의 진짜 SSOT는 `claude mcp add -s user`가 쓰는 ~/.claude.json 이므로 그걸 직접 읽는다.
+// 파일이 없을 때만(테스트/CLI 미실행) CLI 프로브로 폴백.
+function claudeConfigRegistration(userHome = os.homedir()) {
+  let raw;
+  try {
+    raw = fs.readFileSync(path.join(userHome, ".claude.json"), "utf8");
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { cli_exists: true, registered: false };
+  }
+  const entry = parsed?.mcpServers?.nautli;
+  const registered = Boolean(
+    entry
+    && Array.isArray(entry.args)
+    && entry.args.includes("mcp"),
+  );
+  return { cli_exists: true, registered };
+}
+
+function claudeStatus(runner, userHome = os.homedir()) {
+  const fromConfig = claudeConfigRegistration(userHome);
+  if (fromConfig) return fromConfig;
+
   try {
     runnerText(
       runner,
@@ -342,10 +371,13 @@ function execFileText(command, args) {
   });
 }
 
-export async function checkClaudeStatus(runner) {
+export async function checkClaudeStatus(runner, userHome = os.homedir()) {
+  const fromConfig = claudeConfigRegistration(userHome);
+  if (fromConfig) return fromConfig;
+
   if (runner) {
     await new Promise((resolve) => setImmediate(resolve));
-    return claudeStatus(runner);
+    return claudeStatus(runner, userHome);
   }
 
   try {
@@ -423,7 +455,7 @@ export function statusAll(home, {
   } = userPaths(userHome);
   const claude = suppliedClaude ?? (
     checkClaude
-      ? claudeStatus(runner)
+      ? claudeStatus(runner, userHome)
       : { cli_exists: null, registered: null, status: "checking" }
   );
   const codex = suppliedCodex ?? (
