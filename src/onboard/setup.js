@@ -1256,7 +1256,7 @@ export function checkAndEscalate(home, {
   }
 
   const msg = `⚠️ nautli 소화 데몬 ${consecutiveFails}일 연속 실패\n에러: ${lastError}\n확인: ~/.nautli/daemon/health.log`;
-  const discordBin = path.join(os.homedir(), ".local", "bin", "discord-notify");
+  const discordBin = process.env.NAUTLI_DISCORD_BIN ?? path.join(os.homedir(), ".local", "bin", "discord-notify");
   try {
     // defaultRunner의 ALLOWED_COMMANDS를 우회 — discord-notify는 데몬 인프라 명령이지
     // nautli 설치 도구(claude/launchctl/osascript)가 아니라 allowlist에 넣지 않는다.
