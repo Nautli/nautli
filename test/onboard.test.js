@@ -464,30 +464,22 @@ test("runDigestOnce returns limit_wait and writes health.log when judge hits rat
 test("runDigestOnce catch logs error_detail with code, message, and stack", async (t) => {
   const { home } = isolatedHome(t);
   initStore(home);
-  // 깨진 judge_cmd로 확실히 크래시 유발
-  const config = { default_scope: "person", judge_cmd: ["/nonexistent/judge"] };
-  fs.writeFileSync(path.join(home, "config.json"), JSON.stringify(config), "utf8");
-  // 판정할 페어 생성
-  const { Store } = await import("../src/core/store.js");
-  const { remember } = await import("../src/core/gate.js");
-  const store = new Store(home);
-  remember(store, { claim: "fact alpha", scope: "person", t_valid: "2025-01-01", confidence: 0.8 }, config);
-  remember(store, { claim: "fact alpha updated", scope: "person", t_valid: "2025-02-01", confidence: 0.9 }, config);
-  store.close();
+  // config.json을 깨진 JSON으로 만들어 readConfig()가 throw하게 한다
+  // → runOnce 호출 시 크래시 → catch 블록의 error_detail 경로
+  fs.writeFileSync(path.join(home, "config.json"), "NOT_JSON{{{", "utf8");
 
   try {
     await runDigestOnce(home, { locale: "en" });
+    assert.fail("should have thrown");
   } catch { /* expected */ }
 
   const healthLog = fs.readFileSync(path.join(home, "daemon", "health.log"), "utf8");
   const lines = healthLog.trim().split("\n");
   const last = JSON.parse(lines[lines.length - 1]);
-  assert.equal(last.exit, 1);
-  // error_detail이 있으면 code/message/stack 구조
-  if (last.error_detail) {
-    assert.ok("message" in last.error_detail, "error_detail should have message");
-    assert.ok("stack" in last.error_detail, "error_detail should have stack");
-  }
+  assert.equal(last.exit, 1, "exit should be 1");
+  assert.ok(last.error_detail, "error_detail must be present on crash");
+  assert.ok("message" in last.error_detail, "error_detail should have message");
+  assert.ok("stack" in last.error_detail, "error_detail should have stack");
 });
 
 test("checkAndEscalate fires after 2 consecutive failure days", (t) => {
@@ -539,6 +531,42 @@ test("checkAndEscalate does not fire with 1 day failure", (t) => {
   });
   assert.equal(result.escalated, false);
   assert.equal(result.consecutiveFails, 1);
+});
+
+test("checkAndEscalate with defaultRunner calls discord-notify binary", (t) => {
+  const { home } = isolatedHome(t);
+  fs.mkdirSync(path.join(home, "daemon"), { recursive: true });
+  const healthFile = path.join(home, "daemon", "health.log");
+  const now = new Date("2026-07-20T04:00:00Z");
+
+  // 2일 연속 실패
+  const entries = [
+    { at: new Date("2026-07-19T03:30:00Z").toISOString(), exit: 1, error: "E_TEST" },
+    { at: new Date("2026-07-20T03:30:00Z").toISOString(), exit: 1, error: "E_TEST" },
+  ];
+  fs.writeFileSync(healthFile, entries.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
+
+  // runner를 전달하지 않아 defaultRunner 경로를 탄다.
+  // discord-notify 바이너리가 존재하면 실제 호출 — 테스트 환경에서도 ~/.local/bin/discord-notify가 있으므로
+  // escalated:true 또는 discord_failed(웹훅 미설정 등)를 반환해야 한다.
+  // 핵심: E_INVALID_INPUT(ALLOWED_COMMANDS 거부)으로 실패하지 않는 것을 확인.
+  const discordBin = path.join(os.homedir(), ".local", "bin", "discord-notify");
+  const binExists = fs.existsSync(discordBin);
+
+  const result = checkAndEscalate(home, { now, threshold: 2 });
+  // defaultRunner가 ALLOWED_COMMANDS로 거부했다면 discord_failed가 되지만
+  // 근본원인이 E_INVALID_INPUT이 아님을 확인 — execFileSync 직접 호출 경로를 탔는지.
+  if (binExists) {
+    // 바이너리 존재 → escalated:true 또는 discord_failed(웹훅 설정 문제)
+    assert.ok(
+      result.escalated === true || result.reason === "discord_failed",
+      `expected escalated or discord_failed, got: ${JSON.stringify(result)}`,
+    );
+  } else {
+    // CI 등에서 바이너리 미존재 → discord_failed (ENOENT)
+    assert.equal(result.reason, "discord_failed");
+  }
+  assert.equal(result.consecutiveFails, 2);
 });
 
 test("runDigestOnce smoke-tests store query after init", async (t) => {

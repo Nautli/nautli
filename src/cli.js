@@ -654,7 +654,7 @@ export async function runDaemon(home, args, {
       result = { ...digestResult, trigger };
       if (!parsed.values.dry) {
         notifier(result, { home, locale, config });
-        if (!result.ok) checkAndEscalate(home);
+        if (!result.ok && !result.limit_wait) checkAndEscalate(home);
       }
 
       const succeeded = result.ok === true && !result.skipped_run;

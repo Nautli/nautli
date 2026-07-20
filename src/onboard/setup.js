@@ -1256,8 +1256,16 @@ export function checkAndEscalate(home, {
   }
 
   const msg = `⚠️ nautli 소화 데몬 ${consecutiveFails}일 연속 실패\n에러: ${lastError}\n확인: ~/.nautli/daemon/health.log`;
+  const discordBin = path.join(os.homedir(), ".local", "bin", "discord-notify");
   try {
-    runnerText(runner, path.join(os.homedir(), ".local", "bin", "discord-notify"), ["general", msg]);
+    // defaultRunner의 ALLOWED_COMMANDS를 우회 — discord-notify는 데몬 인프라 명령이지
+    // nautli 설치 도구(claude/launchctl/osascript)가 아니라 allowlist에 넣지 않는다.
+    // 테스트에서는 runner 주입으로 검증한다.
+    if (runner === defaultRunner) {
+      execFileSync(discordBin, ["general", msg], { encoding: "utf8", stdio: "ignore" });
+    } else {
+      runner(discordBin, ["general", msg]);
+    }
     fs.mkdirSync(path.dirname(stateFile), { recursive: true });
     fs.writeFileSync(stateFile, JSON.stringify({ last_escalation_day: today }), "utf8");
     return { escalated: true, consecutiveFails };
