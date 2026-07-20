@@ -505,7 +505,7 @@ function relatedPairs(facts, excluded) {
 
 function graphFor(home, t) {
   if (!fs.existsSync(path.join(home, "index.sqlite"))) {
-    return { nodes: [], links: [] };
+    return { nodes: [], links: [], clusters: [], insights: [] };
   }
 
   const store = new Store(home);
@@ -602,6 +602,8 @@ function graphFor(home, t) {
       const factB = facts.get(link.b);
       const scopeA = factA ? factA.scope : null;
       const scopeB = factB ? factB.scope : null;
+      // Count each link once per cluster. For same-scope links, only
+      // increment the shared scope once (not twice).
       const affectedScopes = new Set([scopeA, scopeB].filter(Boolean));
       for (const scope of affectedScopes) {
         const cs = clusterMap.get(scope);

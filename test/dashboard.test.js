@@ -106,6 +106,27 @@ test("dashboard graph includes scope, supersedes, and pending review links", asy
   assert.ok(graph.links.some((link) => link.kind === "scope"));
   assert.ok(graph.links.some((link) => link.kind === "supersedes"));
   assert.ok(graph.links.some((link) => link.kind === "contradiction"));
+
+  // clusters and insights arrays exist and contain expected data
+  assert.ok(Array.isArray(graph.clusters), "clusters is array");
+  assert.ok(graph.clusters.length > 0, "clusters not empty");
+  const graphCluster = graph.clusters.find((c) => c.scope === "project:graph");
+  assert.ok(graphCluster, "cluster for project:graph exists");
+  assert.equal(graphCluster.facts, 2, "cluster fact count");
+  assert.ok(Array.isArray(graph.insights), "insights is array");
+  // contradiction between same-scope facts appears in insights
+  assert.ok(graph.insights.some((i) => i.kind === "contradiction"), "contradiction insight present");
+});
+
+test("dashboard graph returns empty clusters and insights for empty store", async (t) => {
+  const target = await dashboard(t);
+  const response = await fetch(`${target.url}/api/graph`);
+  assert.equal(response.status, 200);
+  const graph = await response.json();
+  assert.deepEqual(graph.clusters, []);
+  assert.deepEqual(graph.insights, []);
+  assert.deepEqual(graph.nodes, []);
+  assert.deepEqual(graph.links, []);
 });
 
 test("dashboard graph links related memories by shared claim tokens", async (t) => {
