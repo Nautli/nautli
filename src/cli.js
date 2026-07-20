@@ -167,7 +167,7 @@ async function scanCommand(args) {
   });
   requirePositionals(parsed.positionals, 0);
   const lang = parsed.values.lang ?? locale;
-  if (lang !== "en" && lang !== "ko") throw codedError(ERR.E_INVALID_INPUT);
+  if (lang !== "en" && lang !== "ko" && lang !== "ja") throw codedError(ERR.E_INVALID_INPUT);
 
   const { runScan } = await import("./scan/index.js");
   const scan = await runScan({

@@ -67,6 +67,37 @@ const COPY = Object.freeze({
     cardStats: (tools, tokens, findings) => `AI ${tools}개 · 기억 ${tokens}tok · 신호 ${findings}건`,
     partial: "안전 제한에 도달해 일부만 진단한 결과입니다.",
   },
+  ja: {
+    title: "AI記憶診断",
+    eyebrow: "ローカル・読み取り専用の診断",
+    score: "記憶スコア",
+    top: (value) => `上位 ${value}%`,
+    monthly: (value) => `毎月 約$${value}を古い記憶の再読み込みに支払っています`,
+    assumption: "推定値です。入力トークン100万個あたり$3、1日10セッション、月30日を仮定しています。",
+    tools: "ツール別の記憶",
+    tool: "ツール",
+    files: "ファイル数",
+    tokens: "推定トークン",
+    findings: "確認すべきシグナル",
+    clean: "発見したファイルにスコアへ反映するシグナルはありませんでした。",
+    evidence: (count) => `ローカルファイルのパス${count}件を表示`,
+    share: "スコアを共有",
+    shareBody: "カードには集計の数値のみが入ります。PNG保存でアップロードは行いません。",
+    nick: "ニックネーム（任意）",
+    png: "カードPNGを保存",
+    sharing: "リンクを作成中...",
+    shareButton: "共有リンクを作成",
+    shareError: "リンクを作成できませんでした",
+    pngError: "PNGを保存できませんでした",
+    copied: "リンクをコピーしました",
+    ready: "共有リンクの準備ができました",
+    footerSent: "送信済み: 匿名の集計フィールド7つのみ（score, tools, tokens, alTokens, findings, os, v）。ファイル名と内容はこの端末を離れません。",
+    footerFailed: "送信失敗: 診断の集計を送信できませんでした。ファイル名と内容はこの端末を離れません。",
+    footerDisabled: "Ping無効: 診断の集計は送信していません。ファイル名と内容はこの端末を離れません。",
+    install: "nautliをインストール",
+    cardStats: (tools, tokens, findings) => `AIツール${tools}個 · 記憶 ${tokens}tok · シグナル${findings}件`,
+    partial: "安全上限に達したため、一部のみ診断した結果です。",
+  },
 });
 
 const GRADE_COLORS = Object.freeze({
@@ -118,7 +149,7 @@ function findingCards(result, text) {
 }
 
 export function renderReportHtml(result, { lang = "en", percentile, pingStatus = "disabled" } = {}) {
-  const selectedLang = lang === "ko" ? "ko" : "en";
+  const selectedLang = lang === "ko" || lang === "ja" ? lang : "en";
   const text = COPY[selectedLang];
   const accent = GRADE_COLORS[result.grade] ?? GRADE_COLORS.F;
   const topPercent = Number.isInteger(percentile) ? Math.max(1, 100 - percentile) : null;
@@ -156,7 +187,7 @@ export function renderReportHtml(result, { lang = "en", percentile, pingStatus =
   <meta name="color-scheme" content="dark">
   <title>${escapeHtml(text.title)} · nautli</title>
   <style>
-    :root{color-scheme:dark;--bg:#141414;--card:#1c1c1a;--border:#2a2a27;--text:#F7F7F5;--dim:#a3a39e;--faint:#87877f;--accent:#00E6A1;--accent-soft:#00E6A114;--grade:${accent};font-family:Inter,Pretendard,"Noto Sans KR",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    :root{color-scheme:dark;--bg:#141414;--card:#1c1c1a;--border:#2a2a27;--text:#F7F7F5;--dim:#a3a39e;--faint:#87877f;--accent:#00E6A1;--accent-soft:#00E6A114;--grade:${accent};font-family:${selectedLang === "ja" ? 'Inter,"Noto Sans JP","Hiragino Sans","Noto Sans KR"' : 'Inter,Pretendard,"Noto Sans KR","Noto Sans JP"'},-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     *{box-sizing:border-box}body{min-width:320px;margin:0;background:var(--bg);color:var(--text);font-size:16px;line-height:1.6}a{color:var(--accent);text-underline-offset:4px}button,input{font:inherit}:focus-visible{outline:2px solid var(--accent);outline-offset:3px}.shell{width:min(90%,1080px);margin:auto;padding:64px 0}.eyebrow,.group,.weight{color:var(--faint);font:700 12px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase}.hero{display:grid;grid-template-columns:minmax(230px,.75fr) minmax(280px,1.25fr);gap:48px;align-items:end;padding-bottom:56px;border-bottom:1px solid var(--border)}.score-line{display:flex;align-items:center;gap:18px}.score{font-size:clamp(86px,15vw,168px);font-weight:800;line-height:.8;letter-spacing:-.08em}.grade{display:grid;width:64px;height:64px;place-items:center;border:1px solid var(--grade);border-radius:12px;background:color-mix(in srgb,var(--grade) 12%,transparent);color:var(--grade);font-size:30px;font-weight:800}.score-label,.percentile{margin:18px 0 0;color:var(--dim)}.percentile{display:inline-block;margin-left:12px;padding:4px 10px;border:1px solid var(--grade);border-radius:999px;color:var(--grade)}h1{max-width:700px;margin:0 0 16px;font-size:clamp(34px,5vw,60px);line-height:1.08;letter-spacing:-.04em}.assumption{max-width:700px;margin:0;color:var(--faint);font-size:13px}.partial{margin-top:20px;padding:12px 16px;border:1px solid var(--grade);border-radius:8px;color:var(--dim)}section{padding:56px 0;border-bottom:1px solid var(--border)}h2{margin:0 0 24px;font-size:32px;letter-spacing:-.03em}table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden}th,td{padding:15px 18px;border-bottom:1px solid var(--border);text-align:right}th{color:var(--faint);font-size:13px}th:first-child,td:first-child{text-align:left}tr:last-child td{border-bottom:0}.findings{display:grid;gap:16px}.finding{padding:24px;border:1px solid var(--border);border-radius:12px;background:var(--card)}.finding-crossTool{border-color:var(--grade)}.finding-head{display:flex;justify-content:space-between}.finding h3{margin:12px 0 6px;font-size:20px}.finding p{margin:8px 0;color:var(--dim)}.finding .measure{color:var(--text);font-weight:650}details{margin-top:16px}summary{min-height:44px;color:var(--faint);cursor:pointer}li{overflow-wrap:anywhere;color:var(--dim);font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}.share-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(260px,.7fr);gap:32px;align-items:center}.share-card{position:relative;aspect-ratio:1200/630;padding:clamp(24px,4vw,52px);overflow:hidden;border:1px solid var(--border);border-radius:12px;background:#1c1c1a}.card-wordmark{font-size:24px;font-weight:800}.card-score{position:absolute;top:50%;left:50%;display:flex;align-items:center;gap:24px;transform:translate(-50%,-54%)}.card-score strong{font-size:clamp(74px,13vw,150px);line-height:1;letter-spacing:-.08em}.card-grade{color:var(--grade);font-size:clamp(36px,6vw,68px);font-weight:800}.card-stats{position:absolute;left:clamp(24px,4vw,52px);bottom:clamp(24px,4vw,52px);margin:0;color:var(--dim)}.card-domain{position:absolute;right:clamp(24px,4vw,52px);bottom:clamp(24px,4vw,52px);color:var(--faint);font-weight:700}.share-copy p{color:var(--dim)}label{display:block;margin:20px 0 6px;color:var(--faint);font-size:13px}input{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text)}.actions{display:grid;gap:10px;margin-top:14px}button,.install{display:inline-flex;min-height:44px;align-items:center;justify-content:center;padding:10px 16px;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text);font-weight:700;cursor:pointer}.primary{border-color:var(--accent);background:var(--accent);color:#141414}.status{min-height:26px;margin:12px 0 0;color:var(--dim);overflow-wrap:anywhere}.status a{display:block}.privacy{padding:36px 0;color:var(--dim)}.privacy-inner{display:flex;align-items:center;justify-content:space-between;gap:24px}.privacy p{max-width:760px;margin:0}.install{text-decoration:none;white-space:nowrap}@media(max-width:760px){.shell{padding-top:36px}.hero,.share-grid{grid-template-columns:1fr;gap:28px}.score{font-size:112px}.share-card{padding:22px}.card-stats{left:22px;bottom:22px;max-width:68%;font-size:12px}.card-domain{right:22px;bottom:22px;font-size:12px}.privacy-inner{align-items:stretch;flex-direction:column}.install{width:100%}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
   </style>
 </head>

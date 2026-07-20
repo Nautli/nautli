@@ -61,6 +61,29 @@ const COPY = Object.freeze({
     staleMeasure: (count) => `오래된 파일 ${count}개, 점수에서는 제외`,
     staleWhy: "오래됐다는 사실만으로 문제는 아니므로 검토 정보로만 표시합니다.",
   },
+  ja: {
+    alwaysTitle: (name) => `${name}は毎セッション読み込まれます`,
+    alwaysMeasure: (tokens) => `常時読み込み 約${tokens.toLocaleString("ja")}トークン`,
+    alwaysWhy: "実際の作業を始める前に、毎セッション同じコンテキストコストを払っています。",
+    crossTitle: (tools) => `同じルールが${tools.join("と")}に別々に存在します`,
+    crossMeasure: (files) => `正規化した同一の段落が${files}個のファイルにあります`,
+    crossWhy: "ツールごとのコピーは別々に古くなり、更新漏れが起きやすくなります。",
+    repeatedTitle: (count, tool) => `同じ段落が${tool}のファイル${count}個で繰り返されています`,
+    repeatedMeasure: (chars) => `原文${chars.toLocaleString("ja")}文字が繰り返されています`,
+    repeatedWhy: "1つの原本を共有すれば、再読み込みコストと内容のずれを減らせます。",
+    largeTitle: (name) => `${name}が通常よりかなり大きいです`,
+    largeMeasure: (size, tokens) => `${formatBytes(size)} · 約${tokens.toLocaleString("ja")}トークン`,
+    largeWhy: "大きな記憶ファイルは焦点を保ちにくく、再読み込みコストも高くつきます。",
+    emptyTitle: (count) => `ほぼ空の記憶ファイル ${count}個`,
+    emptyMeasure: (count) => `${count}個のファイルが20文字以下です`,
+    emptyWhy: "空の残骸は有用な記憶を持たないまま、検索ノイズだけを増やします。",
+    todoTitle: (count) => `未完了マーカーが${count}個残っています`,
+    todoMeasure: (files) => `${files}個のファイルで発見`,
+    todoWhy: "古いTODO、FIXME、XXX、WIPマーカーは現在の指示を曖昧にします。",
+    staleTitle: (count) => `1年以上変更されていないファイル ${count}個`,
+    staleMeasure: (count) => `古いファイル${count}個、スコアからは除外`,
+    staleWhy: "古いこと自体は欠陥ではないため、確認用の情報としてのみ表示します。",
+  },
 });
 
 function formatBytes(value) {
@@ -117,7 +140,7 @@ function normalizedDoc(doc) {
 export function analyze(input, { os, partial, lang = "en", now = Date.now() } = {}) {
   const discovery = Array.isArray(input) ? { docs: input } : (input ?? { docs: [] });
   const docs = (discovery.docs ?? []).map(normalizedDoc);
-  const text = COPY[lang === "ko" ? "ko" : "en"];
+  const text = Object.hasOwn(COPY, lang) ? COPY[lang] : COPY.en;
   const findings = [];
 
   const alwaysLoaded = docs.filter((doc) => ALWAYS_LOADED.test(doc.name));

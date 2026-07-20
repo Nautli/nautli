@@ -48,3 +48,21 @@ test("grade and estimated monthly cost match the schema boundaries", () => {
   assert.equal(gradeForScore(49), "F");
   assert.equal(estimateMonthlyUsd(1_000_000), 900);
 });
+
+test("analyze renders Japanese copy for lang ja and falls back safely on prototype keys", () => {
+  const doc = {
+    tool: "claude-code",
+    path: "/fixture/claude/CLAUDE.md",
+    name: "CLAUDE.md",
+    body: "가".repeat(8_000),
+    size: 8_000,
+    modified: Date.now(),
+  };
+  const ja = analyze([doc], { os: "mac", lang: "ja" });
+  const always = ja.findings.find((finding) => finding.group === "alwaysLoaded");
+  assert.ok(always.title.includes("毎セッション"));
+
+  const hostile = analyze([doc], { os: "mac", lang: "toString" });
+  const hostileAlways = hostile.findings.find((finding) => finding.group === "alwaysLoaded");
+  assert.ok(hostileAlways.title.includes("loaded every session"));
+});

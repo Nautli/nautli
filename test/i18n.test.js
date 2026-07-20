@@ -16,3 +16,9 @@ test("resolveLocale gives NAUTLI_LANG priority", () => {
   assert.equal(resolveLocale({ NAUTLI_LANG: "en", LC_ALL: "ko_KR.UTF-8" }), "en");
   assert.equal(resolveLocale({ NAUTLI_LANG: "ko", LC_ALL: "en_US.UTF-8" }), "ko");
 });
+
+test("resolveLocale detects Japanese from env or NAUTLI_LANG", () => {
+  assert.equal(resolveLocale({ LANG: "ja_JP.UTF-8" }), "ja");
+  assert.equal(resolveLocale({ LC_ALL: "ja-JP", LANG: "en_US.UTF-8" }), "ja");
+  assert.equal(resolveLocale({ NAUTLI_LANG: "ja", LC_ALL: "en_US.UTF-8" }), "ja");
+});

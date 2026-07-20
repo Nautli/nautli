@@ -3,7 +3,7 @@ export const STRINGS = Object.freeze({
     en: `nautli - One shared brain for every AI
 
 dashboard  Open the dashboard to manage setup and memories
-scan       Scan local AI memory files. Options: --json --no-open --no-ping --lang en|ko
+scan       Scan local AI memory files. Options: --json --no-open --no-ping --lang en|ko|ja
 init       Initialize the memory store
 setup      Configure AI connections and patrol
 remember   Save a new memory
@@ -23,7 +23,7 @@ New here? npx nautli dashboard`,
     ko: `nautli - 모든 AI가 공유하는 하나의 뇌
 
 dashboard  설정과 기억을 관리하는 대시보드를 열어요.
-scan       로컬 AI 기억 파일을 진단해요. 옵션: --json --no-open --no-ping --lang en|ko
+scan       로컬 AI 기억 파일을 진단해요. 옵션: --json --no-open --no-ping --lang en|ko|ja
 init       기억 저장소를 초기화해요.
 setup      AI 연결과 순찰을 설정해요.
 remember   새 기억을 저장해요.
@@ -41,15 +41,15 @@ mcp        MCP 서버를 실행해요.
 
 처음이면: npx nautli dashboard`,
   },
-  "cli.error.invalid_input": { en: "Check your input", ko: "입력 내용을 확인해 주세요." },
-  "cli.scan.score": { en: "Score {score}/100 · grade {grade}", ko: "점수 {score}/100 · 등급 {grade}" },
-  "cli.scan.tools": { en: "Detected tools: {count}", ko: "감지한 도구: {count}개" },
-  "cli.scan.top": { en: "Top signal: {finding}", ko: "상위 신호: {finding}" },
-  "cli.scan.clean": { en: "No weighted signals found", ko: "점수에 반영할 신호 없음" },
-  "cli.scan.report": { en: "Report: {file}", ko: "리포트: {file}" },
-  "cli.scan.privacy_sent": { en: "Sent = 7 anonymous aggregate fields. Disable with --no-ping", ko: "전송됨=익명 집계 필드 7개. --no-ping으로 끌 수 있음" },
-  "cli.scan.privacy_failed": { en: "Sending failed. No scan aggregate was sent", ko: "전송 실패. 진단 집계를 보내지 못함" },
-  "cli.scan.privacy_disabled": { en: "Ping disabled. No scan aggregate was sent", ko: "핑 비활성화. 진단 집계를 보내지 않음" },
+  "cli.error.invalid_input": { en: "Check your input", ko: "입력 내용을 확인해 주세요.", ja: "入力内容を確認してください。" },
+  "cli.scan.score": { en: "Score {score}/100 · grade {grade}", ko: "점수 {score}/100 · 등급 {grade}", ja: "スコア {score}/100 · グレード {grade}" },
+  "cli.scan.tools": { en: "Detected tools: {count}", ko: "감지한 도구: {count}개", ja: "検出したツール: {count}個" },
+  "cli.scan.top": { en: "Top signal: {finding}", ko: "상위 신호: {finding}", ja: "上位シグナル: {finding}" },
+  "cli.scan.clean": { en: "No weighted signals found", ko: "점수에 반영할 신호 없음", ja: "スコアに反映するシグナルなし" },
+  "cli.scan.report": { en: "Report: {file}", ko: "리포트: {file}", ja: "レポート: {file}" },
+  "cli.scan.privacy_sent": { en: "Sent = 7 anonymous aggregate fields. Disable with --no-ping", ko: "전송됨=익명 집계 필드 7개. --no-ping으로 끌 수 있음", ja: "送信=匿名の集計フィールド7つのみ。--no-pingで無効化できます" },
+  "cli.scan.privacy_failed": { en: "Sending failed. No scan aggregate was sent", ko: "전송 실패. 진단 집계를 보내지 못함", ja: "送信失敗。診断の集計は送信されませんでした" },
+  "cli.scan.privacy_disabled": { en: "Ping disabled. No scan aggregate was sent", ko: "핑 비활성화. 진단 집계를 보내지 않음", ja: "Ping無効。診断の集計は送信されませんでした" },
   "cli.checkup.other_running": { en: "A checkup is already running for another folder: {vault}. Try again when it finishes", ko: "다른 폴더 진단이 돌고 있어요: {vault}. 끝난 뒤 다시 시도해 주세요." },
   "cli.checkup.already_running": { en: "A checkup is already running for this folder. Watching it now", ko: "이미 이 폴더 진단이 돌고 있어요. 이어서 지켜볼게요." },
   "cli.checkup.claude_missing": { en: "Claude CLI is required. Install it with npm install -g @anthropic-ai/claude-code, then try again", ko: "claude CLI가 필요해요. npm install -g @anthropic-ai/claude-code 후 다시 실행해 주세요." },
@@ -220,14 +220,16 @@ mcp        MCP 서버를 실행해요.
 
 export function resolveLocale(env = process.env) {
   const override = String(env?.NAUTLI_LANG ?? "").toLowerCase();
-  if (override === "ko" || override === "en") return override;
+  if (override === "ko" || override === "en" || override === "ja") return override;
 
-  const detected = env?.LC_ALL || env?.LANG || "";
-  return String(detected).toLowerCase().startsWith("ko") ? "ko" : "en";
+  const detected = String(env?.LC_ALL || env?.LANG || "").toLowerCase();
+  if (detected.startsWith("ko")) return "ko";
+  if (detected.startsWith("ja")) return "ja";
+  return "en";
 }
 
 export function makeT(locale) {
-  const selected = locale === "ko" ? "ko" : "en";
+  const selected = locale === "ko" || locale === "ja" ? locale : "en";
   return (key, vars = {}) => {
     const entry = STRINGS[key];
     if (!entry) return key;
