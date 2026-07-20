@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    # nautli targets macOS (launchd, osascript notifications) — test on the real platform
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
