@@ -22,6 +22,8 @@ jobs:
       # OIDC publish needs npm 11.5.1+
       - run: npm install -g npm@latest
 
+      - run: npm ci
+
       - name: Tag must match package.json version
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
