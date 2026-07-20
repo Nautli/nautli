@@ -463,13 +463,13 @@ function relatedPairs(facts, excluded) {
   }
   const scores = new Map();
   for (const ids of byToken.values()) {
-    if (ids.length < 2 || ids.length > 20) continue;
+    if (ids.length < 2 || ids.length > 40) continue;
     const weight = ids.length <= 3 ? 3 : ids.length <= 8 ? 2 : 1;
     for (let i = 0; i < ids.length; i += 1) {
       for (let j = i + 1; j < ids.length; j += 1) {
         const key = ids[i] < ids[j]
-          ? `${ids[i]}:${ids[j]}`
-          : `${ids[j]}:${ids[i]}`;
+          ? `${ids[i]}\u0000${ids[j]}`
+          : `${ids[j]}\u0000${ids[i]}`;
         scores.set(key, (scores.get(key) ?? 0) + weight);
       }
     }
@@ -482,7 +482,7 @@ function relatedPairs(facts, excluded) {
     .filter(([key, score]) => score >= 4 && !excluded.has(key))
     .sort((a, b) => b[1] - a[1]);
   for (const [key, score] of ranked) {
-    const [a, b] = key.split(":");
+    const [a, b] = key.split("\u0000");
     const countA = perFact.get(a) ?? 0;
     const countB = perFact.get(b) ?? 0;
     if (countA >= 3 || countB >= 3) continue;
@@ -545,7 +545,7 @@ function graphFor(home, t) {
     }
 
     const semanticPairs = new Set(
-      links.map(({ a, b }) => (a < b ? `${a}:${b}` : `${b}:${a}`)),
+      links.map(({ a, b }) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`)),
     );
     for (const [a, b] of relatedPairs(selected, semanticPairs)) {
       addLink(a, b, "related");
