@@ -108,6 +108,36 @@ test("dashboard graph includes scope, supersedes, and pending review links", asy
   assert.ok(graph.links.some((link) => link.kind === "contradiction"));
 });
 
+test("dashboard graph links related memories by shared claim tokens", async (t) => {
+  const target = await dashboard(t);
+  const store = new Store(target.home);
+  const paymentA = remember(store, {
+    claim: "결제 웹훅 서명 검증 로직을 고쳤다",
+    scope: "project:graph",
+    t_valid: "2025-01-01",
+  }, config);
+  const paymentB = remember(store, {
+    claim: "결제 웹훅 서명 키를 새로 발급했다",
+    scope: "project:graph",
+    t_valid: "2025-02-01",
+  }, config);
+  const unrelated = remember(store, {
+    claim: "휴가 일정은 8월 첫 주다",
+    scope: "person",
+    t_valid: "2025-02-01",
+  }, config);
+  store.close();
+
+  const response = await fetch(`${target.url}/api/graph`);
+  assert.equal(response.status, 200);
+  const graph = await response.json();
+  const pairKey = [paymentA.id, paymentB.id].sort().join(":");
+  assert.ok(graph.links.some((link) => link.kind === "related"
+    && [link.a, link.b].sort().join(":") === pairKey));
+  assert.ok(!graph.links.some((link) => link.kind === "related"
+    && (link.a === unrelated.id || link.b === unrelated.id)));
+});
+
 test("dashboard card POST delegates pair-id idempotency to review", async (t) => {
   const target = await dashboard(t);
   const store = new Store(target.home);

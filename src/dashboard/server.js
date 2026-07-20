@@ -430,6 +430,79 @@ function graphScopeLabel(scope, t) {
   });
 }
 
+const RELATED_TOKEN_RE = /[a-z0-9][a-z0-9._-]+|[가-힣]{2,}/gu;
+const RELATED_PARTICLES = new Set([
+  "을", "를", "이", "가", "은", "는", "의", "에", "로", "와", "과", "도", "만", "서",
+]);
+
+function relatedTokens(claim) {
+  const tokens = new Set();
+  const matched = String(claim ?? "").toLowerCase().match(RELATED_TOKEN_RE) ?? [];
+  for (const raw of matched) {
+    if (/^[\d._-]+$/u.test(raw)) continue;
+    tokens.add(raw);
+    if (
+      raw.length >= 3
+      && /^[가-힣]+$/u.test(raw)
+      && RELATED_PARTICLES.has(raw.at(-1))
+    ) {
+      tokens.add(raw.slice(0, -1));
+    }
+  }
+  return tokens;
+}
+
+function relatedPairs(facts, excluded) {
+  const byToken = new Map();
+  for (const fact of facts) {
+    for (const token of relatedTokens(fact.claim)) {
+      const bucket = byToken.get(token) ?? [];
+      bucket.push(fact.id);
+      byToken.set(token, bucket);
+    }
+  }
+  const scores = new Map();
+  for (const ids of byToken.values()) {
+    if (ids.length < 2 || ids.length > 20) continue;
+    const weight = ids.length <= 3 ? 3 : ids.length <= 8 ? 2 : 1;
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const key = ids[i] < ids[j]
+          ? `${ids[i]}:${ids[j]}`
+          : `${ids[j]}:${ids[i]}`;
+        scores.set(key, (scores.get(key) ?? 0) + weight);
+      }
+    }
+  }
+  const scopeOf = new Map(facts.map((fact) => [fact.id, fact.scope]));
+  const perFact = new Map();
+  const perFactCross = new Map();
+  const kept = [];
+  const ranked = [...scores.entries()]
+    .filter(([key, score]) => score >= 4 && !excluded.has(key))
+    .sort((a, b) => b[1] - a[1]);
+  for (const [key, score] of ranked) {
+    const [a, b] = key.split(":");
+    const countA = perFact.get(a) ?? 0;
+    const countB = perFact.get(b) ?? 0;
+    if (countA >= 3 || countB >= 3) continue;
+    const cross = scopeOf.get(a) !== scopeOf.get(b);
+    if (cross) {
+      if (score < 7) continue;
+      if ((perFactCross.get(a) ?? 0) >= 1 || (perFactCross.get(b) ?? 0) >= 1) {
+        continue;
+      }
+      perFactCross.set(a, 1);
+      perFactCross.set(b, 1);
+    }
+    perFact.set(a, countA + 1);
+    perFact.set(b, countB + 1);
+    kept.push([a, b]);
+    if (kept.length >= 800) break;
+  }
+  return kept;
+}
+
 function graphFor(home, t) {
   if (!fs.existsSync(path.join(home, "index.sqlite"))) {
     return { nodes: [], links: [] };
@@ -469,6 +542,13 @@ function graphFor(home, t) {
       }
       const [a, b] = card.pair_id.split(":");
       addLink(a, b, card.verdict);
+    }
+
+    const semanticPairs = new Set(
+      links.map(({ a, b }) => (a < b ? `${a}:${b}` : `${b}:${a}`)),
+    );
+    for (const [a, b] of relatedPairs(selected, semanticPairs)) {
+      addLink(a, b, "related");
     }
 
     const scopes = [
