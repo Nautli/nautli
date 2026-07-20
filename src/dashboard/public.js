@@ -697,9 +697,10 @@ textarea.field{min-height:88px;resize:vertical}
     var note=graph.truncated?'<div class="graph-note">'+T("최신 기억 600개를 표시하고 있어요.")+'</div>':'';
 
     // mini canvas for expanded cluster
-    var canvasSection='<div id="graph-canvas-wrap" class="hidden"><div class="graph-stage"><canvas class="graph-canvas" aria-label="'+T("기억 연결 그래프")+'"></canvas><div class="graph-tooltip hidden" role="tooltip"></div></div></div>';
+    var canvasSection='<div id="graph-canvas-wrap"><div class="graph-stage"><canvas class="graph-canvas" aria-label="'+T("기억 연결 그래프")+'"></canvas><div class="graph-tooltip hidden" role="tooltip"></div></div></div>';
 
-    app.innerHTML=head+filterBar+legend+insightHtml+clusterHtml+canvasSection+note;
+    app.innerHTML=head+filterBar+legend+canvasSection+note+insightHtml+clusterHtml;
+    requestAnimationFrame(function(){startGraph(graph);});
 
     // --- cluster expand/collapse + search/filter ---
     var expandedScope=null;
@@ -735,15 +736,8 @@ textarea.field{min-height:88px;resize:vertical}
 
     var showAllBtn=document.getElementById("graph-show-all");
     if(showAllBtn)showAllBtn.addEventListener("click",function(){
-      // collapse any expanded cluster
-      var prev=app.querySelector(".cluster-card.expanded");
-      if(prev){prev.classList.remove("expanded");var prevDetail=prev.querySelector(".cluster-detail");if(prevDetail)prevDetail.remove();}
-      if(state.graphCleanup){state.graphCleanup();state.graphCleanup=null;}
-      expandedScope=null;
       var wrap=document.getElementById("graph-canvas-wrap");
-      wrap.classList.remove("hidden");
-      wrap.scrollIntoView({behavior:"smooth",block:"nearest"});
-      requestAnimationFrame(function(){startGraph(graph);});
+      wrap.scrollIntoView({behavior:"smooth",block:"center"});
     });
 
     app.querySelector("#cluster-grid").addEventListener("click",function(event){
@@ -754,8 +748,6 @@ textarea.field{min-height:88px;resize:vertical}
       // collapse if same
       if(expandedScope===scope){
         card.classList.remove("expanded");
-        wrap.classList.add("hidden");
-        if(state.graphCleanup){state.graphCleanup();state.graphCleanup=null;}
         expandedScope=null;
 
         // show detail list of facts in this scope instead of canvas
@@ -766,7 +758,6 @@ textarea.field{min-height:88px;resize:vertical}
       // collapse previous
       var prev=app.querySelector(".cluster-card.expanded");
       if(prev){prev.classList.remove("expanded");var prevDetail=prev.querySelector(".cluster-detail");if(prevDetail)prevDetail.remove();}
-      if(state.graphCleanup){state.graphCleanup();state.graphCleanup=null;}
       expandedScope=scope;
       card.classList.add("expanded");
 
