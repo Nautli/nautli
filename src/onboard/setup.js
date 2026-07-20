@@ -1192,6 +1192,80 @@ export function notifyDigestResult(result, {
   }
 }
 
+// 연속 실패 시 디스코드 에스컬레이션 — macOS 알림은 daily cap으로 묻히므로 별도 채널.
+// health.log의 최근 N일분 실행을 역순 탐색해 연속 실패 일수를 센다.
+const ESCALATION_CONSECUTIVE_DAYS = 2;
+
+export function checkAndEscalate(home, {
+  runner = defaultRunner,
+  now = new Date(),
+  threshold = ESCALATION_CONSECUTIVE_DAYS,
+} = {}) {
+  const file = path.join(home, "daemon", "health.log");
+  if (!fs.existsSync(file)) return { escalated: false, reason: "no_health_log" };
+
+  const lines = fs.readFileSync(file, "utf8").split("\n").filter((l) => l.trim() !== "");
+  // 날짜별 최종 exit 상태 수집 (역순)
+  const dayResults = new Map();
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    try {
+      const entry = JSON.parse(lines[i]);
+      if (entry.skipped_run) continue;
+      if (entry.exit === undefined) continue;
+      const day = localDay(new Date(entry.at));
+      if (!dayResults.has(day)) dayResults.set(day, entry.exit);
+    } catch { /* skip malformed */ }
+  }
+
+  // 오늘부터 역순으로 연속 실패 일수
+  let consecutiveFails = 0;
+  const today = localDay(now);
+  const checkDate = new Date(now);
+  for (let d = 0; d < 14; d += 1) {
+    const day = localDay(checkDate);
+    const exit = dayResults.get(day);
+    if (exit === 0) break; // 성공 있으면 연속 끊김
+    if (exit !== undefined && exit !== 0) consecutiveFails += 1;
+    else if (d > 0) break; // 기록 없는 날은 연속 끊김 (오늘 제외)
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  if (consecutiveFails < threshold) return { escalated: false, consecutiveFails };
+
+  // 에스컬레이션 일일 1회 cap
+  const stateFile = path.join(home, "daemon", "escalation-state.json");
+  try {
+    const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+    if (state.last_escalation_day === today) {
+      return { escalated: false, reason: "daily_cap", consecutiveFails };
+    }
+  } catch { /* no state yet */ }
+
+  // 최근 에러 요약
+  let lastError = "unknown";
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    try {
+      const entry = JSON.parse(lines[i]);
+      if (entry.exit === 1) {
+        lastError = entry.error_detail
+          ? `${entry.error_detail.code ?? ""}: ${entry.error_detail.message ?? ""}`
+          : (entry.error ?? "unknown");
+        break;
+      }
+    } catch { /* skip */ }
+  }
+
+  const msg = `⚠️ nautli 소화 데몬 ${consecutiveFails}일 연속 실패\n에러: ${lastError}\n확인: ~/.nautli/daemon/health.log`;
+  try {
+    runnerText(runner, path.join(os.homedir(), ".local", "bin", "discord-notify"), ["general", msg]);
+    fs.mkdirSync(path.dirname(stateFile), { recursive: true });
+    fs.writeFileSync(stateFile, JSON.stringify({ last_escalation_day: today }), "utf8");
+    return { escalated: true, consecutiveFails };
+  } catch {
+    return { escalated: false, reason: "discord_failed", consecutiveFails };
+  }
+}
+
 // 스킵도 health.log에 1줄 남긴다. exit 필드를 일부러 넣지 않는다 —
 // digestFreshness가 이 기록을 성공으로 오인해 게이트를 연장하면 안 된다.
 export function recordDigestSkip(home, reason, trigger) {
@@ -1236,6 +1310,28 @@ export async function runDigestOnce(home, { dry = false, locale, trigger } = {})
   }
 
   const store = new Store(home);
+
+  // 스모크: rebuild/open 후 인덱스 왕복 확인 — 깨진 인덱스로 파이프라인 진입 방지.
+  try {
+    store.query({ limit: 1 });
+  } catch (smokeErr) {
+    store.close();
+    fs.rmSync(lockFile, { force: true });
+    const detail = {
+      code: smokeErr?.code ?? undefined,
+      message: smokeErr?.message ?? String(smokeErr),
+      stack: (smokeErr?.stack ?? "").split("\n").find((l) => l.trimStart().startsWith("at "))?.trim() ?? null,
+    };
+    appendHealth(home, {
+      at: new Date().toISOString(),
+      exit: 1,
+      phase: "store_smoke",
+      ...(trigger ? { trigger } : {}),
+      error: detail.code ?? detail.message,
+      error_detail: detail,
+    });
+    throw smokeErr;
+  }
 
   try {
     const result = await runOnce(store, home, readConfig(home), { dry });
@@ -1305,11 +1401,18 @@ export async function runDigestOnce(home, { dry = false, locale, trigger } = {})
     });
     return success;
   } catch (error) {
+    const code = error?.code ?? undefined;
+    const message = error?.message ?? String(error);
+    // stack 첫 의미있는 줄(호출위치)만 남긴다 — 전체 stack은 launchd stderr로 간다.
+    const stackLine = (error?.stack ?? "")
+      .split("\n")
+      .find((line) => line.trimStart().startsWith("at "));
     appendHealth(home, {
       at: new Date().toISOString(),
       exit: 1,
       ...(trigger ? { trigger } : {}),
-      error: error?.code ?? error?.message ?? String(error),
+      error: code ?? message,
+      error_detail: { code, message, stack: stackLine?.trim() ?? null },
     });
     throw error;
   } finally {

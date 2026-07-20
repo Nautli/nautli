@@ -53,6 +53,7 @@ import {
   removeInstructions,
   removeSampleFacts,
   runDigestOnce,
+  checkAndEscalate,
   seedSampleFacts,
   statusAll,
   uninstallApp,
@@ -651,7 +652,10 @@ export async function runDaemon(home, args, {
         trigger,
       });
       result = { ...digestResult, trigger };
-      if (!parsed.values.dry) notifier(result, { home, locale, config });
+      if (!parsed.values.dry) {
+        notifier(result, { home, locale, config });
+        if (!result.ok) checkAndEscalate(home);
+      }
 
       const succeeded = result.ok === true && !result.skipped_run;
       if (eventRun && succeeded) spoolConsumer(home, snapshot.names ?? []);
@@ -661,6 +665,7 @@ export async function runDaemon(home, args, {
   } catch (error) {
     if (!parsed.values.dry) {
       notifier({ ok: false, trigger }, { home, locale, config });
+      checkAndEscalate(home);
     }
     throw error;
   } finally {

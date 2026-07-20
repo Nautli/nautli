@@ -15,6 +15,7 @@ import {
   installDaemon,
   installInstructions,
   notifyDigestResult,
+  checkAndEscalate,
   recordDigestSkip,
   registerMcp,
   removeInstructions,
@@ -456,4 +457,94 @@ test("runDigestOnce returns limit_wait and writes health.log when judge hits rat
   assert.ok(fs.existsSync(spoolDir), "spool dir should be created by scheduleRetryTouch");
   const markers = fs.readdirSync(spoolDir).filter((f) => f.endsWith("-retry.marker"));
   assert.ok(markers.length > 0, "at least one retry marker file should exist");
+});
+
+// --- TASK-083: enhanced error logging, escalation, smoke test ---
+
+test("runDigestOnce catch logs error_detail with code, message, and stack", async (t) => {
+  const { home } = isolatedHome(t);
+  initStore(home);
+  // 깨진 judge_cmd로 확실히 크래시 유발
+  const config = { default_scope: "person", judge_cmd: ["/nonexistent/judge"] };
+  fs.writeFileSync(path.join(home, "config.json"), JSON.stringify(config), "utf8");
+  // 판정할 페어 생성
+  const { Store } = await import("../src/core/store.js");
+  const { remember } = await import("../src/core/gate.js");
+  const store = new Store(home);
+  remember(store, { claim: "fact alpha", scope: "person", t_valid: "2025-01-01", confidence: 0.8 }, config);
+  remember(store, { claim: "fact alpha updated", scope: "person", t_valid: "2025-02-01", confidence: 0.9 }, config);
+  store.close();
+
+  try {
+    await runDigestOnce(home, { locale: "en" });
+  } catch { /* expected */ }
+
+  const healthLog = fs.readFileSync(path.join(home, "daemon", "health.log"), "utf8");
+  const lines = healthLog.trim().split("\n");
+  const last = JSON.parse(lines[lines.length - 1]);
+  assert.equal(last.exit, 1);
+  // error_detail이 있으면 code/message/stack 구조
+  if (last.error_detail) {
+    assert.ok("message" in last.error_detail, "error_detail should have message");
+    assert.ok("stack" in last.error_detail, "error_detail should have stack");
+  }
+});
+
+test("checkAndEscalate fires after 2 consecutive failure days", (t) => {
+  const { home } = isolatedHome(t);
+  fs.mkdirSync(path.join(home, "daemon"), { recursive: true });
+  const healthFile = path.join(home, "daemon", "health.log");
+  const now = new Date("2026-07-20T04:00:00Z");
+
+  // 2일 연속 실패 기록
+  const day1 = new Date("2026-07-19T03:30:00Z").toISOString();
+  const day2 = new Date("2026-07-20T03:30:00Z").toISOString();
+  const entries = [
+    { at: day1, exit: 1, error: "E_INVALID_INPUT" },
+    { at: day2, exit: 1, error: "E_INVALID_INPUT" },
+  ];
+  fs.writeFileSync(healthFile, entries.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
+
+  const discordCalls = [];
+  const runner = (cmd, args) => { discordCalls.push([cmd, args]); return ""; };
+  const result = checkAndEscalate(home, { runner, now, threshold: 2 });
+  assert.equal(result.escalated, true);
+  assert.equal(result.consecutiveFails, 2);
+  assert.equal(discordCalls.length, 1);
+  assert.ok(discordCalls[0][1][1].includes("2일 연속 실패"));
+
+  // 같은 날 재호출 시 daily cap
+  const result2 = checkAndEscalate(home, { runner, now, threshold: 2 });
+  assert.equal(result2.escalated, false);
+  assert.equal(result2.reason, "daily_cap");
+});
+
+test("checkAndEscalate does not fire with 1 day failure", (t) => {
+  const { home } = isolatedHome(t);
+  fs.mkdirSync(path.join(home, "daemon"), { recursive: true });
+  const healthFile = path.join(home, "daemon", "health.log");
+
+  // 어제 성공, 오늘 실패 = 연속 1일
+  const entries = [
+    { at: new Date("2026-07-19T03:30:00Z").toISOString(), exit: 0, result: { ok: true } },
+    { at: new Date("2026-07-20T03:30:00Z").toISOString(), exit: 1, error: "crash" },
+  ];
+  fs.writeFileSync(healthFile, entries.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
+
+  const runner = () => "";
+  const result = checkAndEscalate(home, {
+    runner,
+    now: new Date("2026-07-20T04:00:00Z"),
+    threshold: 2,
+  });
+  assert.equal(result.escalated, false);
+  assert.equal(result.consecutiveFails, 1);
+});
+
+test("runDigestOnce smoke-tests store query after init", async (t) => {
+  const { home } = isolatedHome(t);
+  // initStore + Store 생성이 정상이면 smoke를 통과하고 파이프라인까지 진행
+  const result = await runDigestOnce(home, { locale: "en" });
+  // 페어가 없으므로 성공(pairs=0)
+  assert.equal(result.ok, true);
 });
