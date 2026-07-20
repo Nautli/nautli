@@ -15,10 +15,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No registry-url: setup-node would write a ${NODE_AUTH_TOKEN} placeholder
+      # into .npmrc, which preempts the OIDC (trusted publishing) exchange.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
 
       # OIDC publish needs npm 11.5.1+
       - run: npm install -g npm@latest
