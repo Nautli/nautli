@@ -61,7 +61,7 @@
     const foot = document.createElement("div");
     foot.className = "gallery-card-foot";
     const percentile = document.createElement("span");
-    percentile.textContent = Number.isFinite(Number(card.percentile))
+    percentile.textContent = Number.isInteger(card.percentile)
       ? format(copy.topPercent, {
           percent: number.format(Math.max(1, 100 - numeric(card.percentile))),
         })

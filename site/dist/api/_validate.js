@@ -98,7 +98,7 @@ export function percentileFromHistogram(histogram, score) {
   }
   return {
     count,
-    ...(count > 0 ? { percentile: Math.min(99, Math.floor((100 * lower) / count)) } : {}),
+    percentile: count > 1 ? Math.min(99, Math.floor((100 * lower) / count)) : null,
   };
 }
 
