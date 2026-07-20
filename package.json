@@ -20,11 +20,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nautli/nautli.git"
+    "url": "git+https://github.com/Nautli/nautli.git"
   },
-  "homepage": "https://github.com/nautli/nautli#readme",
+  "homepage": "https://github.com/Nautli/nautli#readme",
   "bugs": {
-    "url": "https://github.com/nautli/nautli/issues"
+    "url": "https://github.com/Nautli/nautli/issues"
   },
   "engines": {
     "node": ">=20"
