@@ -405,7 +405,7 @@ textarea.field{min-height:88px;resize:vertical}
 .checklist-detail .continuity,.checklist-detail>.card{margin-bottom:0}
 @media(max-width:720px){
   .shell{display:block}
-  .receipt-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .receipt-grid{grid-template-columns:minmax(0,1fr)}
   .sidebar{position:sticky;height:auto;border-right:0;border-bottom:1px solid var(--sidebar-border)}
   .top{display:flex;align-items:center}
   .header{min-height:52px;padding:10px 130px 10px 14px;flex:1;flex-direction:row;align-items:center;justify-content:space-between}
