@@ -29,7 +29,18 @@ test("empty receipt treats the store as having no activity", (t) => {
   assert.equal(receipt.tokens_delivered, 0);
   assert.equal(receipt.organized, 0);
   assert.equal(receipt.facts_active, 0);
+  assert.equal(receipt.corpus_tokens, 0);
   assert.equal(receipt.sample_ok, false);
+});
+
+test("corpus tokens fall back to zero when a mock store has no database", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-receipt-mock-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const store = { stats: () => ({ byStatus: { active: 2 } }) };
+
+  const receipt = buildReceipt(home, store, { now: NOW });
+
+  assert.equal(receipt.corpus_tokens, 0);
 });
 
 test("recall events count distinct conversations without counting retries twice", (t) => {
@@ -80,6 +91,34 @@ test("weekly fact change keeps a negative value", (t) => {
   }, { apply: false });
 
   assert.equal(buildReceipt(home, store, { now: NOW }).facts_delta, -2);
+});
+
+test("receipt includes recent superseded claim pairs as corrected examples", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-receipt-corrections-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(home, "events"), { recursive: true });
+  fs.appendFileSync(path.join(home, "events", "2026-07.jsonl"), `${JSON.stringify({
+    ev: "fact.superseded",
+    id: "fa_old",
+    patch: { superseded_by: "fa_new" },
+    at: "2026-07-16T10:00:00.000Z",
+  })}\n`);
+  const facts = new Map([
+    ["fa_old", { claim: "배포일은 목요일이에요." }],
+    ["fa_new", { claim: "배포일은 금요일이에요." }],
+  ]);
+  const store = {
+    stats: () => ({ byStatus: { active: 1 } }),
+    getFact: (id) => facts.get(id) ?? null,
+  };
+
+  const receipt = buildReceipt(home, store, { now: NOW });
+
+  assert.deepEqual(receipt.corrected_examples, [{
+    at: "2026-07-16T10:00:00.000Z",
+    old_claim: "배포일은 목요일이에요.",
+    new_claim: "배포일은 금요일이에요.",
+  }]);
 });
 
 test("buildReceiptMulti returns four windows with lifetime flag and milestone", (t) => {

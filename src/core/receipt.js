@@ -87,6 +87,41 @@ function activeCount(store) {
   }
 }
 
+function corpusChars(store) {
+  try {
+    const row = store?.db?.prepare?.(
+      "SELECT COALESCE(SUM(LENGTH(claim)),0) AS chars FROM facts WHERE status = 'active'",
+    )?.get?.();
+    return Number(row?.chars ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+function correctedExamples(events, store, cutoff, now) {
+  if (!store || typeof store.getFact !== "function") return [];
+  try {
+    const examples = [];
+    const superseded = events
+      .filter((event) => event.ev === "fact.superseded" && inWindow(event.at, cutoff, now))
+      .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+    for (const event of superseded) {
+      const oldFact = store.getFact(event.id);
+      const newFact = store.getFact(event.patch?.superseded_by);
+      if (typeof oldFact?.claim !== "string" || typeof newFact?.claim !== "string") continue;
+      examples.push({
+        at: event.at,
+        old_claim: oldFact.claim.length > 80 ? `${oldFact.claim.slice(0, 80)}…` : oldFact.claim,
+        new_claim: newFact.claim.length > 80 ? `${newFact.claim.slice(0, 80)}…` : newFact.claim,
+      });
+      if (examples.length === 2) break;
+    }
+    return examples;
+  } catch {
+    return [];
+  }
+}
+
 export function buildReceipt(home, store, { days = 7, now, installed: installedOpt } = {}) {
   const windowDays = Number.isFinite(Number(days)) && Number(days) > 0
     ? Number(days)
@@ -190,6 +225,7 @@ export function buildReceipt(home, store, { days = 7, now, installed: installedO
   const conversationCount = conversations.size;
   const organized = handledByPair.size;
   const factsActive = activeCount(store);
+  const corpusTokens = Math.ceil(corpusChars(store) / 4);
   const factsActiveAtStart = Math.max(0, factsActive - factsDelta);
   const activity = conversationCount + organized + factsActive + Math.abs(factsDelta);
   return {
@@ -203,9 +239,11 @@ export function buildReceipt(home, store, { days = 7, now, installed: installedO
     organized,
     organized_by: organizedBy,
     facts_active: factsActive,
+    corpus_tokens: corpusTokens,
     facts_active_at_start: factsActiveAtStart,
     facts_delta: factsDelta,
     self_corrected: selfCorrected,
+    corrected_examples: correctedExamples(events, store, cutoff, nowTime),
     evidence,
     memory_age_days: memoryAgeDays,
     installed_at: installed != null ? new Date(installed).toISOString() : null,
