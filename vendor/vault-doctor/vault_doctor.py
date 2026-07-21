@@ -29,6 +29,7 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 
 # ── 브랜드 (이름 미정 — 여기 한 곳만 바꾸면 전체 반영) ──────────────────────
 BRAND = "vault-doctor"
@@ -60,24 +61,37 @@ _T = {
         "en": "\nGenerated {today} \u00b7 vault `{vault}` \u00b7 no third-party servers \u00b7 AI judgments via your own Claude subscription \u00b7 report is a local file\n",
         "ko": "\n생성일 {today} \u00b7 볼트 `{vault}` \u00b7 제3자 서버 0 \u00b7 AI 판정은 본인 Claude 구독 경유 \u00b7 리포트는 로컬 파일\n",
     },
-    "score_heading": { "en": "## Memory health score: **{score}/100**\n", "ko": "## 기억 건강 점수: **{score}/100**\n" },
+    "score_heading": { "en": "## AI taste-test signal: **{score}/100**\n", "ko": "## AI 맛보기 신호: **{score}/100**\n" },
     "score_breakdown": {
-        "en": "Score breakdown: discardable fragment ratio 40pts + contradiction density 30pts + duplicate density 20pts + structure (frontmatter, dead links) 10pts. Formula in README.\n",
-        "ko": "점수 구성: 버려도 되는 조각 비율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(머리말 정보\u00b7죽은 링크) 10점. 공식은 README에 있습니다.\n",
+        "en": "Taste-test signal breakdown: discardable fragment ratio 40pts + contradiction density 30pts + duplicate density 20pts + structure (frontmatter, dead links) 10pts. Formula in README.\n",
+        "ko": "맛보기 신호 구성: 버려도 되는 조각 비율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(머리말 정보\u00b7죽은 링크) 10점. 공식은 README에 있습니다.\n",
     },
     "table_header": { "en": "| Axis | Score | Max |", "ko": "| 축 | 점수 | 만점 |" },
-    "waste_heading": { "en": "\n## What this score costs you\n", "ko": "\n## 이 점수의 비용: 낭비 추정\n" },
-    "waste_body": {
-        "en": "- **About {waste_pct}% of this record is waste**: duplicates ~{dup_pct}% + discardable fragments {junk_str}.\n"
-              "- The whole vault is roughly **{vault_tokens} tokens** of memory text, and about **{wasted_tokens} tokens** of that is waste sitting in place.\n"
-              "- Every time an AI reads this record as context, those ~{wasted_tokens} tokens are paid again for nothing. Cleaned up, you save **about {waste_pct}% of memory tokens vs today**.\n"
-              "- Method: measured bytes of {notes} scanned notes, extrapolated to all {total} notes, conservative 4 bytes = 1 token. An estimate, not a bill.",
-        "ko": "- 지금 이 기록은 **약 {waste_pct}%가 낭비 상태**입니다: 중복 약 {dup_pct}% + 버려도 되는 조각 {junk_str}.\n"
-              "- 볼트 전체는 약 **{vault_tokens} 토큰** 분량의 기억 텍스트이고, 그중 **약 {wasted_tokens} 토큰**이 낭비분으로 깔려 있습니다.\n"
-              "- AI가 이 기록을 컨텍스트로 읽을 때마다 그 약 {wasted_tokens} 토큰을 매번 다시 지불합니다. 정리하면 **지금 대비 약 {waste_pct}% 메모리 토큰 절약**입니다.\n"
-              "- 추정 방식: 스캔 노트 {notes}개의 실측 바이트를 전체 {total}개로 외삽, 4바이트=1토큰 보수 추정. 청구서가 아니라 추정치입니다.",
+    "waste_heading": { "en": "\n## Waste signals: local facts and AI taste-test signals\n", "ko": "\n## 낭비 신호: 로컬 실측과 AI 맛보기 신호\n" },
+    "waste_local_confirmed": {
+        "en": "- Local exact-duplicate scan: **confirmed duplicate text, at least {dup_kb}KB**.",
+        "ko": "- 로컬 정확중복 검사: **확인된 중복 텍스트 최소 {dup_kb}KB**.",
     },
-    "waste_junk_missing": { "en": "not measured", "ko": "측정 안 됨" },
+    "waste_local_none": {
+        "en": "- Local exact-duplicate scan found 0KB of confirmed duplicate text.",
+        "ko": "- 로컬 정확중복 검사에서 확인된 중복 텍스트는 0KB입니다.",
+    },
+    "waste_local_unmeasured": {
+        "en": "- Local exact-duplicate text was not measured for this legacy run.",
+        "ko": "- 이 레거시 실행에서는 로컬 정확중복 텍스트를 측정하지 못했습니다.",
+    },
+    "waste_ai_positive": {
+        "en": "- AI taste-test signal: about **{waste_pct}%** duplicate or stale-fragment signals. This was calculated from a selected sample that prioritizes records likely to be duplicates; it is not the whole vault's waste rate or an estimated savings rate.",
+        "ko": "- AI 맛보기 신호: 중복\u00b7낡은 조각 신호 약 **{waste_pct}%**. 중복 가능성이 높은 기록을 우선 포함한 선택 표본에서 계산했습니다. 전체 볼트의 낭비율이나 예상 절감률이 아닙니다.",
+    },
+    "waste_ai_none": {
+        "en": "- This AI taste test found no waste signals. Not finding one does not mean the whole vault is clean.",
+        "ko": "- 이번 AI 맛보기에서는 낭비 신호를 찾지 못했습니다. 미발견은 전체 볼트가 깨끗하다는 뜻이 아닙니다.",
+    },
+    "waste_ai_unmeasured": {
+        "en": "- This AI taste test could not measure waste signals. The state of the whole vault cannot be determined.",
+        "ko": "- 이번 AI 맛보기의 낭비 신호를 측정하지 못했습니다. 전체 볼트 상태는 판단할 수 없습니다.",
+    },
     "scan_heading": { "en": "\n## Vault scan summary\n", "ko": "\n## 볼트 스캔 요약\n" },
     "scan_notes": {
         "en": "- **{notes}** notes ({kb}KB), {fm_pct}% have frontmatter",
@@ -230,7 +244,7 @@ _T = {
         "en": "\n\u26a0\ufe0f {failed} extraction batch(es) failed. Re-run to resume",
         "ko": "\n\u26a0\ufe0f 추출 실패 배치 {failed}개. 같은 명령 재실행으로 이어받기 가능",
     },
-    "main_done": { "en": "\n\u2705 Done. Memory health score {score}/100", "ko": "\n\u2705 완료. 기억 건강 점수 {score}/100" },
+    "main_done": { "en": "\n\u2705 Done. AI taste-test signal {score}/100", "ko": "\n\u2705 완료. AI 맛보기 신호 {score}/100" },
     "main_summary": {
         "en": "   {dups} duplicate pair(s) \u00b7 {contras} contradiction pair(s) \u00b7 {cross} cross-source contradiction pair(s) \u00b7 discardable {junk} \u00b7 {cards} question(s)",
         "ko": "   중복 {dups}쌍 \u00b7 모순 {contras}쌍 \u00b7 교차소스 모순 {cross}쌍 \u00b7 버려도 되는 조각 {junk} \u00b7 질문 {cards}건",
@@ -467,12 +481,221 @@ def scope_of(rel):
     return "project:vault-root" if top == "(root)" else f"project:{top}"
 
 
+# NEARDUP-SAMPLER v1
+POSTINGS_CAP = 32
+CAND_PER_FILE = 64
+
+
+def prescan_near_dup(root_files, read_text):
+    """로컬 bottom-k 스케치로 near-dup 클러스터와 중복 바이트 하한을 구한다."""
+    sketches = []
+    exact_groups = collections.defaultdict(list)
+    for i, f in enumerate(root_files):
+        text = unicodedata.normalize("NFC", read_text(f)).casefold()
+        normalized = re.sub(r"\s+", " ", text).strip()
+        words = normalized.split()
+        shingles = ({" ".join(words[j:j + 4]) for j in range(len(words) - 3)}
+                    if len(words) >= 4 else set(words))
+        sketch = set(sorted(
+            int(hashlib.sha1(shingle.encode()).hexdigest(), 16)
+            for shingle in shingles
+        )[:48])
+        normalized_hash = hashlib.sha1(normalized.encode()).hexdigest()
+        sketches.append(sketch)
+        exact_groups[normalized_hash].append(i)
+
+    parent = list(range(len(root_files)))
+    rank = [0] * len(root_files)
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(a, b):
+        a, b = find(a), find(b)
+        if a == b:
+            return
+        if rank[a] < rank[b]:
+            a, b = b, a
+        parent[b] = a
+        if rank[a] == rank[b]:
+            rank[a] += 1
+
+    # 정확 중복은 star edge로 먼저 합치고 대표 하나만 역색인에 넣는다. 동일 파일이
+    # 수천 개여도 postings와 후보쌍이 제곱으로 불어나는 것을 막는다. 이 edge들은
+    # 아래 postings/candidate cap과 무관하므로 정확 중복을 빠뜨리지 않는다.
+    representatives = []
+    exact_edges = []
+    for members in exact_groups.values():
+        representative = members[0]
+        representatives.append(representative)
+        for member in members[1:]:
+            exact_edges.append((representative, member))
+            union(representative, member)
+
+    # normalized content가 같은 그룹만 보수적인 중복 바이트 하한에 포함한다.
+    dup_bytes = sum(
+        (len(members) - 1) * min(root_files[i]["size"] for i in members)
+        for members in exact_groups.values()
+        if len(members) >= 2
+    )
+
+    inverted = collections.defaultdict(list)
+    for i in representatives:
+        for shingle_hash in sorted(sketches[i]):
+            inverted[shingle_hash].append(i)
+
+    # 흔한 shingle은 변별력이 낮으면서 quadratic pair를 만들므로 버린다.
+    # cap 이하 postings에서 생기는 pair 수는 shingle당 상수이고, 이후 각 파일의
+    # 후보 degree도 제한해 전체 후보 그래프를 입력 파일 수에 선형으로 묶는다.
+    shared = collections.Counter()
+    for shingle_hash in sorted(inverted):
+        postings = inverted[shingle_hash]
+        if len(postings) > POSTINGS_CAP:
+            continue
+        for pos, left in enumerate(postings):
+            for right in postings[pos + 1:]:
+                pair = (left, right) if left < right else (right, left)
+                shared[pair] += 1
+
+    candidate_degree = [0] * len(root_files)
+    candidates = []
+    for (left, right), common in sorted(
+            shared.items(), key=lambda item: (-item[1], item[0])):
+        if (candidate_degree[left] >= CAND_PER_FILE or
+                candidate_degree[right] >= CAND_PER_FILE):
+            continue
+        candidate_degree[left] += 1
+        candidate_degree[right] += 1
+        candidates.append((left, right, common))
+
+    near_dup_edges = []
+    for left, right, common in candidates:
+        smaller_sketch = min(len(sketches[left]), len(sketches[right]))
+        thresh = max(1, min(8, math.ceil(smaller_sketch * 0.25)))
+        if common < thresh:
+            continue
+        union_sketch = sketches[left] | sketches[right]
+        jaccard = (len(sketches[left] & sketches[right]) / len(union_sketch)
+                   if union_sketch else 0.0)
+        if jaccard >= 0.5:
+            # exact 그룹에서는 대표 하나만 후보 생성에 참여하므로 이 목록은
+            # 실제 near-dup 판정을 통과한 non-exact edge만 담는다.
+            near_dup_edges.append((left, right))
+            union(left, right)
+
+    grouped = collections.defaultdict(set)
+    for i in range(len(root_files)):
+        grouped[find(i)].add(i)
+    near_edges_by_root = collections.defaultdict(list)
+    exact_edges_by_root = collections.defaultdict(list)
+    for edge in near_dup_edges:
+        near_edges_by_root[find(edge[0])].append(edge)
+    for edge in exact_edges:
+        exact_edges_by_root[find(edge[0])].append(edge)
+    clusters = []
+    for cluster_root, members in grouped.items():
+        if len(members) < 2:
+            continue
+        clusters.append({
+            "members": members,
+            "near_edges": near_edges_by_root[cluster_root],
+            "exact_edges": exact_edges_by_root[cluster_root],
+        })
+    clusters.sort(key=lambda cluster: min(cluster["members"]))
+    return clusters, dup_bytes, len(near_dup_edges)
+
+
+# NEARDUP-SAMPLER v1
+def select_sample(root_files, clusters, max_files, seed):
+    """중복 클러스터 쌍을 우선하고 나머지는 최상위 폴더별로 층화한다."""
+    total = len(root_files)
+    if not max_files or total <= max_files:
+        return list(root_files)
+
+    target = min(max_files, total)
+    risk_budget = round(max_files * 0.6)
+    chosen = []
+    chosen_indices = set()
+    ordered_clusters = sorted(
+        clusters,
+        key=lambda cluster: (
+            -len(cluster["members"]),
+            min(root_files[i]["rel"] for i in cluster["members"]),
+        ),
+    )
+    for cluster in ordered_clusters:
+        edges = cluster["near_edges"] or cluster["exact_edges"]
+        if not edges:
+            continue
+        representative_edge = min(
+            edges,
+            key=lambda edge: tuple(sorted(
+                (root_files[edge[0]]["rel"], root_files[edge[1]]["rel"]),
+            )),
+        )
+        representatives = sorted(
+            representative_edge, key=lambda i: root_files[i]["rel"])
+        if len(representatives) < 2 or len(chosen) + 2 > risk_budget:
+            continue
+        for i in representatives:
+            if i not in chosen_indices:
+                root_files[i]["sampling_reason"] = "dup-cluster"
+                chosen.append(root_files[i])
+                chosen_indices.add(i)
+
+    folders = collections.defaultdict(list)
+    for i, f in enumerate(root_files):
+        if i in chosen_indices:
+            continue
+        rel = f["rel"].replace(os.path.sep, "/")
+        folder = rel.split("/", 1)[0] if "/" in rel else "(root)"
+        folders[folder].append(i)
+
+    rng = random.Random(seed)
+    folder_names = sorted(folders)
+    rng.shuffle(folder_names)
+    for folder in folder_names:
+        rng.shuffle(folders[folder])
+
+    positions = {folder: 0 for folder in folder_names}
+    while len(chosen) < target:
+        added = False
+        for folder in folder_names:
+            pos = positions[folder]
+            if pos >= len(folders[folder]):
+                continue
+            i = folders[folder][pos]
+            positions[folder] += 1
+            root_files[i]["sampling_reason"] = "stratified"
+            chosen.append(root_files[i])
+            chosen_indices.add(i)
+            added = True
+            if len(chosen) == target:
+                break
+        if not added:
+            break
+    return chosen
+
+
+def _read_prescan_text(f):
+    with open(f["abs"], encoding="utf-8", errors="replace") as handle:
+        return handle.read(MAX_FILE_BYTES)
+
+
 def stage_manifest(ctx):
     out = ctx.path("manifest.json")
     if os.path.exists(out):
-        return json.load(open(out, encoding="utf-8"))
+        man = json.load(open(out, encoding="utf-8"))
+        man.setdefault("near_dup_pairs", 0)
+        man.setdefault("dup_bytes", None)
+        return man
     files = []
     source_samples = collections.Counter()
+    near_dup_pairs = 0
+    dup_bytes = 0
     for source in ctx.sources:
         root_files = []
         root = source["root"]
@@ -500,9 +723,16 @@ def stage_manifest(ctx):
         root_files.sort(key=lambda f: f["rel"])
         seed = (ctx.sample_seed + "\x1f" + root if ctx.sample_seed
                 else hashlib.sha1(root.encode()).hexdigest())
-        random.Random(seed).shuffle(root_files)
-        if ctx.max_files:
-            root_files = root_files[:ctx.max_files]
+        clusters, source_dup_bytes, source_near_dup_pairs = prescan_near_dup(
+            root_files, _read_prescan_text)
+        near_dup_pairs += source_near_dup_pairs
+        dup_bytes += source_dup_bytes
+        if ctx.max_files and len(root_files) > ctx.max_files:
+            root_files = select_sample(
+                root_files, clusters, ctx.max_files, seed)
+        else:
+            # 풀 모드는 표본 편향 없이 기존의 결정적 전량 순서를 유지한다.
+            random.Random(seed).shuffle(root_files)
         files.extend(root_files)
         source_samples[source["source_label"]] += len(root_files)
     batches, cur, cur_sz = [], [], 0
@@ -518,7 +748,8 @@ def stage_manifest(ctx):
     if cur:
         batches.append(cur)
     man = {"vault": ctx.vault, "vaults": ctx.vaults, "files": len(files),
-           "source_samples": dict(source_samples), "batches": batches}
+           "source_samples": dict(source_samples), "batches": batches,
+           "near_dup_pairs": near_dup_pairs, "dup_bytes": dup_bytes}
     json.dump(man, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     ctx.log(f"manifest files={len(files)} batches={len(batches)}")
     return man
@@ -817,22 +1048,29 @@ def count_all_notes(ctx, cap=20000):
 
 def waste_estimate(ctx, scan, atoms_n, dup_n, junk_rate):
     """실측 기반 낭비 정량화: 낭비율 = 중복 원자 비율 + junk 비율, 토큰은 4바이트=1토큰 보수 외삽."""
-    if not atoms_n or not scan["notes"] or not scan["bytes"]:
-        return None
+    result = {
+        "waste_rate": None,
+        "waste_dup_rate": None,
+        "waste_junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
+    }
+    if not atoms_n:
+        return result
     dup_rate = dup_n / atoms_n
-    waste_rate = min(0.9, dup_rate + (junk_rate or 0.0))
-    if waste_rate <= 0:
-        return None
+    result["waste_dup_rate"] = round(dup_rate, 3)
+    if junk_rate is None:
+        return result
+    waste_rate = min(0.9, dup_rate + junk_rate)
+    result["waste_rate"] = round(waste_rate, 3)
+    if not scan["notes"] or not scan["bytes"]:
+        return result
     notes_total = max(scan["notes"], count_all_notes(ctx))
     est_vault_tokens = int(scan["bytes"] / scan["notes"] * notes_total / 4)
-    return {
-        "waste_rate": round(waste_rate, 3),
-        "waste_dup_rate": round(dup_rate, 3),
-        "waste_junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
+    result.update({
         "notes_total": notes_total,
         "est_vault_tokens": est_vault_tokens,
         "est_wasted_tokens": int(est_vault_tokens * waste_rate),
-    }
+    })
+    return result
 
 
 def build_cards(pairs, js, limit=10):
@@ -885,17 +1123,22 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
                            ("duplicate", "axis_duplicate", 20), ("structure", "axis_structure", 10)):
         L.append(f"| {_t(t_key)} | {axes[k]} | {full} |")
     waste = waste_estimate(ctx, scan, len(atoms), len(dups), junk_rate)
-    if waste:
-        junk_str = _t("waste_junk_missing") if waste["waste_junk_rate"] is None \
-            else f'~{round(waste["waste_junk_rate"] * 100)}%'
-        L.append(_t("waste_heading"))
-        L.append(_t("waste_body",
-                    waste_pct=round(waste["waste_rate"] * 100),
-                    dup_pct=round(waste["waste_dup_rate"] * 100),
-                    junk_str=junk_str,
-                    vault_tokens=f'{waste["est_vault_tokens"]:,}',
-                    wasted_tokens=f'{waste["est_wasted_tokens"]:,}',
-                    notes=scan["notes"], total=waste["notes_total"]))
+    L.append(_t("waste_heading"))
+    dup_bytes = man.get("dup_bytes")
+    if dup_bytes is None:
+        L.append(_t("waste_local_unmeasured"))
+    elif dup_bytes > 0:
+        L.append(_t("waste_local_confirmed",
+                    dup_kb=max(1, round(dup_bytes / 1024))))
+    else:
+        L.append(_t("waste_local_none"))
+    if waste["waste_rate"] is None:
+        L.append(_t("waste_ai_unmeasured"))
+    elif waste["waste_rate"] > 0:
+        L.append(_t("waste_ai_positive",
+                    waste_pct=round(waste["waste_rate"] * 100)))
+    else:
+        L.append(_t("waste_ai_none"))
     L.append(_t("scan_heading"))
     L.append(_t("scan_notes", notes=scan["notes"], kb=scan["bytes"] // 1024, fm_pct=round(scan["frontmatter_rate"] * 100)))
     L.append(_t("scan_dead_links", wikilinks=scan["wikilinks"], dead=scan["dead_links"], dl_pct=round(scan["dead_link_rate"] * 100)))
@@ -950,6 +1193,7 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
                "source_samples": source_samples,
                "cross_source_contradictions": cross_source_contradictions,
                "junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
+               "dup_bytes": man.get("dup_bytes"),
                "review_cards": n_contra_cards + n_dup_cards,
                "failed_extract_batches": failed_batches, "report": report_path,
                **(waste or {})}

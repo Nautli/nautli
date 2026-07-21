@@ -282,7 +282,9 @@ export function checkupPreflight(home, vaultPathOrPaths, options = {}) {
     claude,
     files,
     sampled_files: sampledFiles,
-    estimated_minutes: Math.max(1, Math.ceil(sampledFiles / 30 * 8)),
+    // 실측 보정(2026-07-21): 40파일 맛보기 ≈ 5분(throughput ~8파일/분). 옛 상수(3.75파일/분)는 ~2배 과대였다.
+    // 소폭 버퍼를 둬 ~7파일/분으로 추정하고 최소 2분 바닥을 둔다.
+    estimated_minutes: Math.max(2, Math.ceil(sampledFiles / 7)),
     top_level_dirs: topLevel,
     directories: topLevel,
     excluded_dirs: excluded,

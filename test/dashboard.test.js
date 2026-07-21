@@ -519,3 +519,106 @@ test("dashboard served script parses after template-literal unescaping (i18n reg
   const dict = HTML.match(/var DASH_EN=\{/);
   assert.ok(dict, "DASH_EN dictionary embedded");
 });
+
+async function renderDoneCheckup(summary, lang = "ko") {
+  const { HTML } = await import("../src/dashboard/public.js");
+  const dictStart = HTML.indexOf("  var DASH_EN=");
+  const dictEnd = HTML.indexOf("  function resolveDashLang", dictStart);
+  const blockStart = HTML.indexOf("  function checkupBlock(){", dictEnd);
+  const blockEnd = HTML.indexOf("  function checkupSlot()", blockStart);
+  assert.ok(dictStart >= 0 && dictEnd > dictStart && blockStart >= 0 && blockEnd > blockStart);
+  const source = [
+    HTML.slice(dictStart, dictEnd),
+    "var LANG=" + JSON.stringify(lang) + ";",
+    "function T(s){if(LANG===\"ko\")return s;var v=DASH_EN[s];return v===undefined?s:v;}",
+    "function esc(value){return String(value==null?\"\":value).replace(/[&<>\"']/g,function(ch){return {\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\",\"'\":\"&#39;\"}[ch];});}",
+    "var state={checkup:" + JSON.stringify({
+      state: "done",
+      vault: "/taste-vault",
+      files_sampled: 30,
+      cards: [],
+      summary,
+    }) + "};",
+    HTML.slice(blockStart, blockEnd),
+    "result=checkupBlock();",
+  ].join("\n");
+  const context = { result: "" };
+  new vm.Script(source).runInNewContext(context);
+  return context.result;
+}
+
+test("done checkup always renders dup_bytes as a separate confirmed local fact", async () => {
+  const base = {
+    score: 62,
+    notes: 30,
+    atoms: 3,
+    duplicates: 0,
+    contradictions: 0,
+    junk_rate: null,
+    waste_rate: 0,
+  };
+  const confirmed = await renderDoneCheckup({ ...base, dup_bytes: 512 });
+  const zero = await renderDoneCheckup({ ...base, dup_bytes: 0 });
+  const unmeasured = await renderDoneCheckup({ ...base, dup_bytes: null });
+
+  for (const rendered of [confirmed, zero, unmeasured]) {
+    assert.match(rendered, /class="checkup-waste neutral"/u);
+    assert.match(rendered, /이번 AI 맛보기에서는 낭비 신호를 찾지 못했어요/u);
+  }
+  assert.match(confirmed, /확인된 중복 텍스트 최소 1KB\./u);
+  assert.doesNotMatch(zero, /확인된 중복 텍스트 최소/u);
+  assert.doesNotMatch(unmeasured, /확인된 중복 텍스트 최소/u);
+});
+
+test("done checkup preserves positive, zero, and null waste signal meanings", async () => {
+  const base = {
+    score: 62,
+    notes: 30,
+    atoms: 3,
+    duplicates: 0,
+    contradictions: 0,
+    junk_rate: null,
+    dup_bytes: 0,
+  };
+  const positive = await renderDoneCheckup({ ...base, waste_rate: 0.126 });
+  const zero = await renderDoneCheckup({ ...base, waste_rate: 0 });
+  const unmeasured = await renderDoneCheckup({ ...base, waste_rate: null });
+
+  assert.match(positive, /class="checkup-waste warn"/u);
+  assert.match(positive, /중복·낡은 조각 신호 약 13%/u);
+  assert.match(positive, /전체 볼트의 낭비율이나 예상 절감률이 아닙니다/u);
+  assert.match(zero, /class="checkup-waste neutral"/u);
+  assert.match(zero, /미발견은 전체 볼트가 깨끗하다는 뜻이 아닙니다/u);
+  assert.match(unmeasured, /class="checkup-waste neutral"/u);
+  assert.match(unmeasured, /낭비 신호를 측정하지 못했어요/u);
+  assert.match(unmeasured, /전체 볼트 상태는 판단할 수 없습니다/u);
+});
+
+test("checkup taste-signal copy is mapped in English without savings or health framing", async () => {
+  const summary = {
+    score: 62,
+    notes: 30,
+    atoms: 3,
+    duplicates: 0,
+    contradictions: 0,
+    junk_rate: null,
+    dup_bytes: 2048,
+    waste_rate: 0.2,
+  };
+  const ko = await renderDoneCheckup(summary, "ko");
+  const en = await renderDoneCheckup(summary, "en");
+
+  assert.match(ko, /AI 맛보기 신호 62\/100 · 선택 표본 30개/u);
+  assert.match(ko, /이번 맛보기에서 바로 확인할 중복·모순을 찾지 못했어요/u);
+  assert.match(en, /AI taste signal 62\/100 · selected sample 30/u);
+  assert.match(en, /Confirmed duplicate text: at least 2KB\./u);
+  assert.match(en, /This AI taste test found about 20% duplicate or stale-fragment signals/u);
+  for (const rendered of [ko, en]) {
+    assert.doesNotMatch(rendered, /전체 클린|whole vault waste|health score|건강 점수|[0-9]+% 아껴요/iu);
+  }
+
+  const { HTML } = await import("../src/dashboard/public.js");
+  assert.match(HTML, /ctx\.fillText\("taste signal "\+data\.score\+"\/100"/u);
+  assert.match(HTML, /title:T\("맛보기 신호 "\)\+esc\(summary\.score\)/u);
+  assert.match(HTML, /"이번 AI 맛보기의 낭비 신호를 측정하지 못했어요\. 전체 볼트 상태는 판단할 수 없습니다\.":"This AI taste test could not measure waste signals\. The state of the whole vault cannot be determined\."/u);
+});
