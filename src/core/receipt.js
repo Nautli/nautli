@@ -255,10 +255,10 @@ export function buildReceipt(home, store, { days = 7, now, installed: installedO
 const RECEIPT_WINDOWS = [2, 7, 30];
 
 const CHAMBER_MILESTONES = [
-  { days: 7, ko: "첫 번째 방", en: "First Chamber" },
-  { days: 30, ko: "두 번째 방", en: "Second Chamber" },
-  { days: 100, ko: "세 번째 방", en: "Third Chamber" },
-  { days: 365, ko: "네 번째 방", en: "Fourth Chamber" },
+  { days: 7, ko: "첫 번째 방", en: "First Chamber", ja: "最初の部屋" },
+  { days: 30, ko: "두 번째 방", en: "Second Chamber", ja: "二番目の部屋" },
+  { days: 100, ko: "세 번째 방", en: "Third Chamber", ja: "三番目の部屋" },
+  { days: 365, ko: "네 번째 방", en: "Fourth Chamber", ja: "四番目の部屋" },
 ];
 
 // TODO(perf): 월파일 ≥ 3개 시 summary-cache.json 도입 — 4회 풀 스캔 대신 캐시 집계
