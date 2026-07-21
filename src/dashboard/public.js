@@ -843,15 +843,15 @@ textarea.field{min-height:88px;resize:vertical}
         if(node===hovered){alpha=1;priority=3;}
         else if(node.kind==="scope"){var hubRamp=Math.max(0,Math.min(1,(camera.zoom-.35)/.2));if(hubRamp<=0&&!isNeighbor)return;alpha=(hovered&&!isNeighbor?dimLabel:1)*(isNeighbor?1:hubRamp);priority=2;}
         else if(isNeighbor&&neighbors.size<=24){alpha=.9;priority=1;}
-        else if(!hovered){alpha=Math.max(0,Math.min(.85,(sr-3.2)/2.5));}
+        else if(!hovered){alpha=Math.max(0,Math.min(.85,(sr-4.6)/3.2));}
         if(alpha<=0)return;candidates.push({node:node,sx:sx,sy:sy+sr,alpha:alpha,priority:priority,deg:degree.get(node.id)||0});});
       candidates.sort(function(a,b){return b.priority-a.priority||b.deg-a.deg;});
       ctx.textAlign="center";ctx.textBaseline="top";
       var placed=[];
-      for(var ci=0;ci<candidates.length&&placed.length<120;ci+=1){var cand=candidates[ci];var isHub=cand.node.kind==="scope";
+      for(var ci=0;ci<candidates.length&&placed.length<90;ci+=1){var cand=candidates[ci];var isHub=cand.node.kind==="scope";
         var label=isHub?cand.node.label.replace(/^(프로젝트|Project) +/,""):(cand.node.label.length>26?cand.node.label.slice(0,26)+"…":cand.node.label);
         ctx.font=(isHub?"500 11":"9")+'px system-ui,"Apple SD Gothic Neo","Noto Sans KR","Segoe UI",sans-serif';
-        var wKey=(isHub?"h|":"f|")+label;var w=labelWidths.get(wKey);if(w===undefined){w=ctx.measureText(label).width;labelWidths.set(wKey,w);}var top=cand.sy+4;var rect={l:cand.sx-w/2-3,r:cand.sx+w/2+3,t:top-2,b:top+(isHub?12:10)+2};
+        var wKey=(isHub?"h|":"f|")+label;var w=labelWidths.get(wKey);if(w===undefined){w=ctx.measureText(label).width;labelWidths.set(wKey,w);}var top=cand.sy+4;var rect={l:cand.sx-w/2-4,r:cand.sx+w/2+4,t:top-3,b:top+(isHub?12:10)+3};
         var clash=false;for(var pi=0;pi<placed.length;pi+=1){var other=placed[pi];if(rect.l<other.r&&rect.r>other.l&&rect.t<other.b&&rect.b>other.t){clash=true;break;}}
         if(clash&&cand.priority<3)continue;
         placed.push(rect);
