@@ -1808,6 +1808,24 @@ tbody th {
 }
 
 /* 프롬프트 본문은 화면에 없다 — 버튼 하나와 복사 후 안내만. */
+.dg-prompt-hero .section-intro {
+  margin-bottom: 28px;
+}
+
+.dg-prompt-box {
+  margin: 0 0 28px;
+}
+
+/* 복사 확인은 아래 안내 패널이 담당한다 — 인라인 status는 스크린리더 전용. */
+.dg-prompt-box .copy-status {
+  position: absolute;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  width: 1px;
+  height: 1px;
+  white-space: nowrap;
+}
+
 .dg-copy-main {
   min-height: 56px;
   padding: 16px 30px;

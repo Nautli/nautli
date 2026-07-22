@@ -51,7 +51,7 @@
   "home": {
     "eyebrow": "오픈소스 · MIT · 로컬 우선",
     "h1": "내 AI 기억, 얼마나 엉켜 있을까?",
-    "subline": "내 노트와 CLAUDE.md가 얼마나 엉켰는지 30초면 브라우저에서 무료로 훑어봅니다. 설치 후 연결하면 Claude, Codex, Cursor가 같은 로컬 기억을 읽습니다. 정리는 매일 밤 자동, 결정은 언제나 내 몫입니다.",
+    "subline": "브라우저에서 30초, 무료로 확인합니다. 그다음은 Claude, Codex, Cursor가 하나의 로컬 기억을 공유합니다.",
     "ctaPrimary": "30초 무료 진단 시작",
     "ctaSecondary": "설치하기",
     "ctaNote": "무료 · 설치 없음 · 업로드 없음",

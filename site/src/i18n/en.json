@@ -51,7 +51,7 @@
   "home": {
     "eyebrow": "Open source · MIT · Local-first",
     "h1": "How dirty is your AI's memory?",
-    "subline": "Find out free, in your browser, in about 30 seconds. Then keep it clean: private memory on your disk, shared across Claude, Codex, and Cursor, organized every night.",
+    "subline": "Free, in your browser, about 30 seconds. Then one clean local memory shared by Claude, Codex, and Cursor.",
     "ctaPrimary": "Scan my AI's memory",
     "ctaSecondary": "Install nautli",
     "ctaNote": "Free · No install · No upload",
