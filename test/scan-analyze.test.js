@@ -2,11 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   analyze,
-  estimateMonthlyUsd,
   gradeForScore,
 } from "../src/scan/analyze.js";
 
-test("analyze applies cross-tool, always-loaded, score, grade, and monthly formulas", () => {
+test("analyze applies cross-tool, always-loaded, score, and grade formulas", () => {
   const shared = "가".repeat(2_000);
   const result = analyze([
     {
@@ -37,16 +36,14 @@ test("analyze applies cross-tool, always-loaded, score, grade, and monthly formu
   assert.equal(result.findings[0].weight, 3);
   assert.equal(result.score, 72);
   assert.equal(result.grade, "B");
-  assert.equal(result.estMonthlyUsd, 3.6);
 });
 
-test("grade and estimated monthly cost match the schema boundaries", () => {
+test("grade matches the schema boundaries", () => {
   assert.equal(gradeForScore(90), "S");
   assert.equal(gradeForScore(78), "A");
   assert.equal(gradeForScore(65), "B");
   assert.equal(gradeForScore(50), "C");
   assert.equal(gradeForScore(49), "F");
-  assert.equal(estimateMonthlyUsd(1_000_000), 900);
 });
 
 test("analyze renders Japanese copy for lang ja and falls back safely on prototype keys", () => {
