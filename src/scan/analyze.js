@@ -120,10 +120,6 @@ export function scoreForFindings(findings) {
   return Math.max(20, 100 - Math.min(80, penalty));
 }
 
-export function estimateMonthlyUsd(alTokens) {
-  return Math.round((alTokens / 1e6) * 3 * 10 * 30 * 10) / 10;
-}
-
 function normalizedDoc(doc) {
   const body = String(doc.body ?? doc.content ?? "");
   return {
@@ -287,7 +283,6 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     findings,
     score,
     grade: gradeForScore(score),
-    estMonthlyUsd: estimateMonthlyUsd(alTokens),
     partial: Boolean(partial ?? discovery.partial),
   };
 }
