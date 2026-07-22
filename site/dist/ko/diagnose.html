@@ -22,10 +22,10 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css?v=4c2e75dd">
+  <link rel="stylesheet" href="/style.css?v=a21506bc">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"노트와 에이전트 지침 파일을 브라우저에서 스캔합니다. 반복 문단, 비대해진 상시 로드 파일, 남은 흔적을 보여줍니다. 업로드 없음.","url":"https://nautli.ai/ko/diagnose.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ko/faq.html"}</script>
   <script src="/main.js?v=5835d527" defer></script>
-  <script src="/diagnose.js?v=a55e37d7" defer></script>
+  <script src="/diagnose.js?v=69ed2bd7" defer></script>
   
 </head>
 <body class="" data-page="diagnose" data-copy-success="복사했습니다" data-copy-failure="복사하지 못했습니다. 명령을 선택해 직접 복사해 주세요." data-copy-prompt="이 명령을 직접 복사해 주세요:">
@@ -69,11 +69,9 @@
       <h1>이 프롬프트를 Claude Code(또는 Cursor·Codex)에 붙여넣으세요</h1>
       <p class="section-intro">내 AI가 여러 도구의 기억 파일을 찾아 완전한 로컬 진단을 실행합니다.</p>
       <div class="dg-prompt-box">
-        <pre><code>실행해 주세요: npx nautli@latest scan
-
-이 기기의 AI 기억 파일(CLAUDE.md, AGENTS.md, .cursorrules, 옵시디언 볼트와 유사 파일)을 읽기 전용으로 진단합니다. 익명 숫자 7개 외에는 아무것도 업로드하지 않습니다. 완료되면 로컬 HTML 리포트를 엽니다. 그런 다음 가장 중요한 발견 내용을 요약해 주세요.</code></pre>
-        <button class="primary-button copy-button" type="button" data-copy="실행해 주세요: npx nautli@latest scan&#10;&#10;이 기기의 AI 기억 파일(CLAUDE.md, AGENTS.md, .cursorrules, 옵시디언 볼트와 유사 파일)을 읽기 전용으로 진단합니다. 익명 숫자 7개 외에는 아무것도 업로드하지 않습니다. 완료되면 로컬 HTML 리포트를 엽니다. 그런 다음 가장 중요한 발견 내용을 요약해 주세요." aria-describedby="copy-status-diagnose-prompt">프롬프트 복사</button>
+        <button class="primary-button copy-button dg-copy-main" type="button" data-copy="실행해 주세요: npx nautli@latest scan&#10;&#10;이 기기의 AI 기억 파일(CLAUDE.md, AGENTS.md, .cursorrules, 옵시디언 볼트와 유사 파일)을 읽기 전용으로 진단합니다. 익명 숫자 7개 외에는 아무것도 업로드하지 않습니다. 완료되면 로컬 HTML 리포트를 엽니다. 그런 다음 가장 중요한 발견 내용을 요약해 주세요." aria-describedby="copy-status-diagnose-prompt">진단 프롬프트 복사</button>
         <span class="copy-status" id="copy-status-diagnose-prompt" role="status" aria-live="polite"></span>
+        <p class="dg-copy-next" data-copy-next hidden>복사됐어요. 지금 쓰는 AI(Claude Code·Cursor·Codex)에 붙여넣으면 진단이 시작됩니다.</p>
       </div>
       <p class="dg-prompt-why"><strong>왜 프롬프트인가?</strong> 폴더가 어디 있는지 몰라도 됩니다. 당신의 AI는 압니다.</p>
     </section>

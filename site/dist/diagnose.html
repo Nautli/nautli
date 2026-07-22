@@ -22,10 +22,10 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css?v=4c2e75dd">
+  <link rel="stylesheet" href="/style.css?v=a21506bc">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"Scan your notes and agent instruction files in the browser. See repeated blocks, oversized always-loaded files, and leftovers. Nothing is uploaded.","url":"https://nautli.ai/diagnose.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/faq.html"}</script>
   <script src="/main.js?v=5835d527" defer></script>
-  <script src="/diagnose.js?v=a55e37d7" defer></script>
+  <script src="/diagnose.js?v=69ed2bd7" defer></script>
   
 </head>
 <body class="" data-page="diagnose" data-copy-success="Copied" data-copy-failure="Copy failed. Select the command and copy it manually." data-copy-prompt="Copy this command manually:">
@@ -69,11 +69,9 @@
       <h1>Paste this prompt into Claude Code (or Cursor or Codex)</h1>
       <p class="section-intro">Your AI can find memory files across tools and run the complete local diagnosis for you.</p>
       <div class="dg-prompt-box">
-        <pre><code>Run: npx nautli@latest scan
-
-Read-only diagnosis of the AI memory files on this machine (CLAUDE.md, AGENTS.md, .cursorrules, Obsidian vaults and similar). Nothing is uploaded except 7 anonymous numbers. It opens a local HTML report when done — then summarize the top findings for me.</code></pre>
-        <button class="primary-button copy-button" type="button" data-copy="Run: npx nautli@latest scan&#10;&#10;Read-only diagnosis of the AI memory files on this machine (CLAUDE.md, AGENTS.md, .cursorrules, Obsidian vaults and similar). Nothing is uploaded except 7 anonymous numbers. It opens a local HTML report when done — then summarize the top findings for me." aria-describedby="copy-status-diagnose-prompt">Copy prompt</button>
+        <button class="primary-button copy-button dg-copy-main" type="button" data-copy="Run: npx nautli@latest scan&#10;&#10;Read-only diagnosis of the AI memory files on this machine (CLAUDE.md, AGENTS.md, .cursorrules, Obsidian vaults and similar). Nothing is uploaded except 7 anonymous numbers. It opens a local HTML report when done — then summarize the top findings for me." aria-describedby="copy-status-diagnose-prompt">Copy the diagnosis prompt</button>
         <span class="copy-status" id="copy-status-diagnose-prompt" role="status" aria-live="polite"></span>
+        <p class="dg-copy-next" data-copy-next hidden>Copied. Paste it into the AI you use (Claude Code, Cursor, Codex) and the diagnosis starts.</p>
       </div>
       <p class="dg-prompt-why"><strong>Why a prompt?</strong> You do not need to know where the folders are. Your AI does.</p>
     </section>

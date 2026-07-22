@@ -234,10 +234,6 @@
     "discordLink": "Open Discord",
     "stats": [
       [
-        "95%",
-        "fewer memory tokens per session"
-      ],
-      [
         "11% → 0.3%",
         "memory's share of your context window"
       ]
@@ -266,6 +262,12 @@
           "cursor · person"
         ]
       ]
+    },
+    "statCompare": {
+      "label": "Memory tokens per session (measured on the founder's vault)",
+      "before": "22,000",
+      "after": "570",
+      "delta": "−95%"
     }
   },
   "manifesto": {
@@ -444,7 +446,7 @@
     "promptTitle": "Paste this prompt into Claude Code (or Cursor or Codex)",
     "promptIntro": "Your AI can find memory files across tools and run the complete local diagnosis for you.",
     "prompt": "Run: npx nautli@latest scan\n\nRead-only diagnosis of the AI memory files on this machine (CLAUDE.md, AGENTS.md, .cursorrules, Obsidian vaults and similar). Nothing is uploaded except 7 anonymous numbers. It opens a local HTML report when done — then summarize the top findings for me.",
-    "promptCopy": "Copy prompt",
+    "promptCopy": "Copy the diagnosis prompt",
     "promptWhyTitle": "Why a prompt?",
     "promptWhy": "You do not need to know where the folders are. Your AI does.",
     "browserSummary": "Do it in the browser (for Obsidian vaults)",
@@ -520,7 +522,8 @@
     "sevLow": "Weak signal",
     "sevInfo": "FYI",
     "resultSignalsSub": "Surface signals from this scan only",
-    "ctaBenefits": "Local analysis · Notes never modified · Duplicates vs real conflicts, separated"
+    "ctaBenefits": "Local analysis · Notes never modified · Duplicates vs real conflicts, separated",
+    "promptCopied": "Copied. Paste it into the AI you use (Claude Code, Cursor, Codex) and the diagnosis starts."
   },
   "gallery": {
     "eyebrow": "Live memory scores",

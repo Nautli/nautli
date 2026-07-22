@@ -22,10 +22,10 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="alternate icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/style.css?v=4c2e75dd">
+  <link rel="stylesheet" href="/style.css?v=a21506bc">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"nautli","applicationCategory":"DeveloperApplication","operatingSystem":"macOS","description":"ノートとエージェント指示ファイルをブラウザでスキャンします。重複ブロック、肥大化した常時読み込みファイル、残骸を表示。アップロードなし。","url":"https://nautli.ai/ja/diagnose.html","license":"https://github.com/Nautli/nautli/blob/main/LICENSE","softwareHelp":"https://nautli.ai/ja/faq.html"}</script>
   <script src="/main.js?v=5835d527" defer></script>
-  <script src="/diagnose.js?v=a55e37d7" defer></script>
+  <script src="/diagnose.js?v=69ed2bd7" defer></script>
   
 </head>
 <body class="" data-page="diagnose" data-copy-success="コピーしました" data-copy-failure="コピーできませんでした。コマンドを選択して手動でコピーしてください。" data-copy-prompt="このコマンドを手動でコピーしてください:">
@@ -69,11 +69,9 @@
       <h1>このプロンプトをClaude Code（またはCursor・Codex）に貼り付けてください</h1>
       <p class="section-intro">AIが複数ツールの記憶ファイルを見つけ、完全なローカル診断を実行します。</p>
       <div class="dg-prompt-box">
-        <pre><code>実行してください: npx nautli@latest scan
-
-この端末にあるAI記憶ファイル（CLAUDE.md、AGENTS.md、.cursorrules、Obsidian保管庫など）を読み取り専用で診断します。匿名の数値7つ以外は何もアップロードしません。完了するとローカルHTMLレポートが開きます。その後、重要な検出結果を要約してください。</code></pre>
-        <button class="primary-button copy-button" type="button" data-copy="実行してください: npx nautli@latest scan&#10;&#10;この端末にあるAI記憶ファイル（CLAUDE.md、AGENTS.md、.cursorrules、Obsidian保管庫など）を読み取り専用で診断します。匿名の数値7つ以外は何もアップロードしません。完了するとローカルHTMLレポートが開きます。その後、重要な検出結果を要約してください。" aria-describedby="copy-status-diagnose-prompt">プロンプトをコピー</button>
+        <button class="primary-button copy-button dg-copy-main" type="button" data-copy="実行してください: npx nautli@latest scan&#10;&#10;この端末にあるAI記憶ファイル（CLAUDE.md、AGENTS.md、.cursorrules、Obsidian保管庫など）を読み取り専用で診断します。匿名の数値7つ以外は何もアップロードしません。完了するとローカルHTMLレポートが開きます。その後、重要な検出結果を要約してください。" aria-describedby="copy-status-diagnose-prompt">診断プロンプトをコピー</button>
         <span class="copy-status" id="copy-status-diagnose-prompt" role="status" aria-live="polite"></span>
+        <p class="dg-copy-next" data-copy-next hidden>コピーしました。お使いのAI（Claude Code・Cursor・Codex）に貼り付ければ診断が始まります。</p>
       </div>
       <p class="dg-prompt-why"><strong>なぜプロンプト?</strong> フォルダの場所を知らなくても大丈夫です。あなたのAIは知っています。</p>
     </section>

@@ -457,6 +457,11 @@ code {
   color: var(--accent);
 }
 
+/* 채움형(primary) 복사 버튼엔 아웃라인용 hover 색을 먹이면 글자가 배경에 묻힌다. */
+.primary-button.copy-button:hover {
+  color: var(--accent-on-fill);
+}
+
 .copy-status {
   grid-column: 1 / -1;
   min-height: 0;
@@ -1184,6 +1189,62 @@ tbody th {
   }
 }
 
+/* 95%를 숫자로 말하지 않고 보여준다 — 실측 전/후 바 비교. */
+.stat-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-width: 400px;
+  padding-top: 20px;
+}
+
+.stat-compare-label {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+.stat-compare-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stat-compare-num {
+  flex: 0 0 60px;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.stat-compare-row:last-child .stat-compare-num {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.stat-compare-bar {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.stat-compare-bar.is-before {
+  flex: 1 1 auto;
+  background: var(--border);
+}
+
+.stat-compare-bar.is-after {
+  flex: 0 0 auto;
+  width: 2.6%;
+  min-width: 7px;
+  background: var(--accent);
+}
+
+.stat-compare-delta {
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 700;
+}
+
 .stats-strip { display: flex; flex-wrap: wrap; gap: 12px 28px; list-style: none; padding: 20px 0 0; margin: 0; }
 .stats-strip li { display: flex; flex-direction: column; gap: 2px; }
 .stats-strip strong { font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
@@ -1746,10 +1807,21 @@ tbody th {
   text-transform: uppercase;
 }
 
-/* 프롬프트 전문은 한 줄 pre로 두면 페이지를 가로로 터뜨린다. */
-.dg-prompt-box pre {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+/* 프롬프트 본문은 화면에 없다 — 버튼 하나와 복사 후 안내만. */
+.dg-copy-main {
+  min-height: 56px;
+  padding: 16px 30px;
+  font-size: 17px;
+}
+
+.dg-copy-next {
+  max-width: 56ch;
+  margin: 14px 0 0;
+  padding: 14px 18px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text);
 }
 
 .dg-lede {

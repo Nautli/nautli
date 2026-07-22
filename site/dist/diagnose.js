@@ -472,6 +472,12 @@
 
   root.querySelector("[data-action='reset']")?.addEventListener("click", () => show("idle"));
 
+  // 프롬프트 본문은 안 보여준다 — 복사 후 "어디 가서 뭘 할지"만 크게 안내.
+  root.querySelector(".dg-copy-main")?.addEventListener("click", () => {
+    const next = root.querySelector("[data-copy-next]");
+    if (next) next.hidden = false;
+  });
+
   if (!window.showDirectoryPicker && !("webkitdirectory" in document.createElement("input"))) {
     root.querySelector("[data-unsupported]")?.removeAttribute("hidden");
   }

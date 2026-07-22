@@ -234,10 +234,6 @@
     "discordLink": "Discordを開く",
     "stats": [
       [
-        "95%",
-        "セッションあたりのメモリトークン削減"
-      ],
-      [
         "11% → 0.3%",
         "コンテキストウィンドウに占めるメモリの割合"
       ]
@@ -266,6 +262,12 @@
           "cursor · person"
         ]
       ]
+    },
+    "statCompare": {
+      "label": "セッションあたりのメモリトークン（創業者のVault実測）",
+      "before": "22,000",
+      "after": "570",
+      "delta": "−95%"
     }
   },
   "manifesto": {
@@ -444,7 +446,7 @@
     "promptTitle": "このプロンプトをClaude Code（またはCursor・Codex）に貼り付けてください",
     "promptIntro": "AIが複数ツールの記憶ファイルを見つけ、完全なローカル診断を実行します。",
     "prompt": "実行してください: npx nautli@latest scan\n\nこの端末にあるAI記憶ファイル（CLAUDE.md、AGENTS.md、.cursorrules、Obsidian保管庫など）を読み取り専用で診断します。匿名の数値7つ以外は何もアップロードしません。完了するとローカルHTMLレポートが開きます。その後、重要な検出結果を要約してください。",
-    "promptCopy": "プロンプトをコピー",
+    "promptCopy": "診断プロンプトをコピー",
     "promptWhyTitle": "なぜプロンプト?",
     "promptWhy": "フォルダの場所を知らなくても大丈夫です。あなたのAIは知っています。",
     "browserSummary": "ブラウザで行う（Obsidian保管庫向け）",
@@ -520,7 +522,8 @@
     "sevLow": "弱いシグナル",
     "sevInfo": "参考",
     "resultSignalsSub": "スキャンした{scanned}個のファイルが対象 · 表層シグナルのみ",
-    "ctaBenefits": "ローカル分析 · 元のノートは変更なし · 重複と本当の矛盾を仕分け"
+    "ctaBenefits": "ローカル分析 · 元のノートは変更なし · 重複と本当の矛盾を仕分け",
+    "promptCopied": "コピーしました。お使いのAI（Claude Code・Cursor・Codex）に貼り付ければ診断が始まります。"
   },
   "gallery": {
     "eyebrow": "ライブ記憶スコア",
