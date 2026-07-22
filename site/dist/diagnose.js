@@ -279,12 +279,13 @@
     return node;
   }
 
-  function findingCard(finding) {
-    const card = el("article", "dg-finding");
-    card.append(el("p", "dg-finding-measure", finding.measure));
-    card.append(el("h3", null, finding.title));
-    card.append(el("p", "dg-finding-why", finding.why));
+  // 신호 강도 라벨 — 위험 온도차를 팔레트 안에서(채움/외곽선) 구분한다.
+  const SEV_KEYS = { 3: "sevHigh", 2: "sevMid", 1: "sevLow", 0: "sevInfo" };
+  function sevChip(weight) {
+    return el("span", `dg-sev dg-sev-${weight}`, text(SEV_KEYS[weight] ?? "sevInfo"));
+  }
 
+  function evidenceBlock(finding) {
     const details = el("details", "dg-evidence");
     const summary = el("summary", null, fmt(text("evidenceToggle"), { count: finding.files.length }));
     details.append(summary);
@@ -295,9 +296,35 @@
     }
     details.append(list);
     // 본문 스니펫은 기본 접힘. 화면 공유 중 사적인 내용이 바로 노출되면 안 된다.
-    if (finding.snippet) details.append(el("pre", "dg-snippet", finding.snippet));
-    card.append(details);
+    // 스니펫만 덜렁 붙이면 카드 주제와의 관계가 안 보인다 — 라벨로 맥락을 준다.
+    if (finding.snippet) {
+      details.append(el("p", "dg-snippet-label", text("snippetLabel")));
+      details.append(el("pre", "dg-snippet", finding.snippet));
+    }
+    return details;
+  }
+
+  function findingCard(finding) {
+    const card = el("article", "dg-finding");
+    const measure = el("p", "dg-finding-measure");
+    measure.append(sevChip(finding.weight));
+    measure.append(document.createTextNode(finding.measure));
+    card.append(measure);
+    card.append(el("h3", null, finding.title));
+    card.append(el("p", "dg-finding-why", finding.why));
+    card.append(evidenceBlock(finding));
     return card;
+  }
+
+  function compactRow(finding) {
+    const row = el("article", "dg-rest-row");
+    const line = el("div", null);
+    line.append(sevChip(finding.weight));
+    line.append(el("h4", null, finding.title));
+    line.append(el("span", "dg-finding-measure", finding.measure));
+    row.append(line);
+    row.append(evidenceBlock(finding));
+    return row;
   }
 
   function render(analysis, meta) {
@@ -309,48 +336,52 @@
 
     out.append(el("p", "dg-eyebrow", fmt(text("resultEyebrow"), { folder: meta.folderLabel })));
 
-    // 맨 위는 점수가 아니라 "검토할 신호 수 / 영향 파일 수"다.
-    // 점수를 주인공으로 만들면 숫자만 보고 지나간다.
+    // 맨 위는 점수가 아니라 "영향 파일 수"다 — 위협의 핵심은 신호 개수보다
+    // "내 파일 대부분에 퍼져 있다"는 사실이라 큰 숫자는 affected가 갖는다.
     const lede = el("div", "dg-lede");
-    lede.append(el("strong", null, String(counted.length)));
+    lede.append(el("strong", null, String(affected)));
     lede.append(el("span", null, fmt(text("resultSignals"), {
-      affected,
       scanned: meta.scanned,
-      signalWord: word(counted.length, "Signal"),
       fileWord: word(meta.scanned, "File"),
     })));
-    out.append(lede);
-
-    const meta2 = el("p", "dg-meta", fmt(text("resultMeta"), {
+    // 보조 수치는 본문과 한 줄에 섞으면 괄호구가 어중간하게 꺾인다 — 제 줄을 준다.
+    lede.append(el("span", "dg-lede-sub", fmt(text("resultSignalsSub"), {
+      count: counted.length,
       scanned: meta.scanned,
-      size: bytes(meta.totalBytes),
-      skipped: meta.skippedBinary,
-      fileWord: word(meta.scanned, "File"),
-      skippedWord: word(meta.skippedBinary, "File"),
-    }));
-    out.append(meta2);
+      signalWord: word(counted.length, "Signal"),
+    })));
+    out.append(lede);
 
     if (meta.partial) out.append(el("p", "dg-warn", text("resultPartial")));
 
     if (!counted.length) {
       out.append(el("p", "dg-clean", text("resultClean")));
     } else {
+      // 한 번만 정렬해서 상위/나머지를 가른다 — 따로 자르면 중복·누락이 생긴다.
+      const ordered = [...findings].sort((a, b) => b.weight - a.weight);
       const top = el("div", "dg-findings");
-      for (const finding of [...findings].sort((a, b) => b.weight - a.weight).slice(0, 3)) {
-        top.append(findingCard(finding));
-      }
+      for (const finding of ordered.slice(0, 3)) top.append(findingCard(finding));
       out.append(top);
 
-      const rest = findings.slice(3);
+      const rest = ordered.slice(3);
       if (rest.length) {
-        const more = el("details", "dg-rest");
-        more.append(el("summary", null, fmt(text("restToggle"), { count: rest.length })));
-        const wrap = el("div", "dg-findings");
-        for (const finding of rest) wrap.append(findingCard(finding));
+        const more = el("section", "dg-rest");
+        more.append(el("p", "dg-rest-heading", fmt(text("restHeading"), { count: rest.length })));
+        const wrap = el("div", "dg-rest-list");
+        for (const finding of rest) wrap.append(compactRow(finding));
         more.append(wrap);
         out.append(more);
       }
     }
+
+    // 방법론 고지는 문제 인식 흐름을 끊지 않게 하단으로 — 점수 옆이 제자리다.
+    out.append(el("p", "dg-meta", fmt(text("resultMeta"), {
+      scanned: meta.scanned,
+      size: bytes(meta.totalBytes),
+      skipped: meta.skippedBinary,
+      fileWord: word(meta.scanned, "File"),
+      skippedWord: word(meta.skippedBinary, "File"),
+    })));
 
     // 표면 점수는 부분 스캔에서 만들지 않는다.
     if (!meta.partial && counted.length) {
@@ -358,6 +389,7 @@
       const scoreBox = el("div", "dg-score");
       scoreBox.append(el("span", "dg-score-label", text("scoreLabel")));
       scoreBox.append(el("strong", null, String(score)));
+      scoreBox.append(el("span", "dg-score-scale", "/ 100"));
       scoreBox.append(el("span", "dg-score-note", text("scoreNote")));
       out.append(scoreBox);
     }

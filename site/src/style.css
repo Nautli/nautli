@@ -142,6 +142,7 @@ h3 {
   line-height: 1.16;
 }
 
+:lang(ko) { word-break: keep-all; }
 :lang(ko) h1, :lang(ko) h2, :lang(ko) h3 { word-break: keep-all; overflow-wrap: anywhere; }
 
 h1 {
@@ -1738,11 +1739,17 @@ tbody th {
 /* 결과: 맨 위는 점수가 아니라 신호 수다. */
 .dg-eyebrow {
   margin-bottom: 8px;
-  color: var(--text-faint);
+  color: var(--text-dim);
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* 프롬프트 전문은 한 줄 pre로 두면 페이지를 가로로 터뜨린다. */
+.dg-prompt-box pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .dg-lede {
@@ -1762,9 +1769,17 @@ tbody th {
 }
 
 .dg-lede span {
-  max-width: 24ch;
+  max-width: 34ch;
   color: var(--text);
   font-size: clamp(18px, 2vw, 22px);
+}
+
+.dg-lede .dg-lede-sub {
+  /* 부모의 span max-width(34ch)가 남으면 가설 크기가 줄어 같은 줄에 끼어든다. */
+  flex-basis: 100%;
+  max-width: 100%;
+  color: var(--text-dim);
+  font-size: 15px;
 }
 
 .dg-meta,
@@ -1772,6 +1787,12 @@ tbody th {
 .dg-clean {
   color: var(--text-faint);
   font-size: 14px;
+}
+
+/* 방법론 고지는 발견 목록 아래로 강등 — 위쪽 여백만 준다. */
+[data-pane="result"] .dg-meta {
+  margin-top: 28px;
+  margin-bottom: 0;
 }
 
 .dg-warn,
@@ -1809,6 +1830,39 @@ tbody th {
   font-size: 13px;
 }
 
+/* 신호 강도 온도차 — 브랜드 팔레트(Ink+Teal) 안에서 채움/외곽선으로만 구분한다. */
+.dg-sev {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-family: var(--body-font, inherit);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+}
+
+.dg-sev-3 {
+  background: var(--accent-fill);
+  color: var(--accent-on-fill);
+}
+
+.dg-sev-2 {
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.dg-sev-1 {
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+
+.dg-sev-0 {
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+}
+
 .dg-finding-why {
   max-width: 68ch;
   margin-bottom: 0;
@@ -1843,45 +1897,94 @@ tbody th {
   color: var(--text-faint);
 }
 
+.dg-snippet-label {
+  margin: 12px 0 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
 .dg-snippet {
   max-height: 220px;
-  margin: 12px 0 0;
+  margin: 6px 0 0;
   padding: 12px;
   overflow: auto;
   border-radius: 8px;
   background: var(--bg);
   color: var(--text-dim);
-  font-size: 12px;
+  /* 노트 문단 인용이지 코드가 아니다 — generic monospace는 CJK 혼합에서
+     글자 폭이 널뛰어 리버가 생긴다. 본문 폰트로 인용답게. */
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.6;
   white-space: pre-wrap;
+  text-align: left;
 }
 
+/* 나머지 신호는 접지 않는다 — 접으면 체감 문제량이 실제보다 작아진다. 대신 압축 행으로. */
 .dg-rest {
   margin-top: 24px;
 }
 
-.dg-rest summary {
-  min-height: 44px;
-  padding-block: 10px;
-  color: var(--accent);
-  cursor: pointer;
+.dg-rest-heading {
+  margin-bottom: 10px;
+  color: var(--text-faint);
+  font-size: 14px;
+  font-weight: 700;
 }
 
+.dg-rest-list {
+  display: grid;
+  gap: 8px;
+}
+
+.dg-rest-row {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+}
+
+.dg-rest-row h4 {
+  display: inline;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dg-rest-row .dg-finding-measure {
+  display: inline;
+  margin: 0 0 0 8px;
+  color: var(--text-faint);
+}
+
+.dg-rest-row .dg-evidence {
+  margin-top: 8px;
+  border-top: 0;
+  padding-top: 0;
+}
+
+/* 점수는 결론이 아니라 각주다 — 히어로(리드 숫자)와 경쟁하지 않게 작게. */
 .dg-score {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px 12px;
   margin-top: 32px;
-  padding: 20px 24px;
+  padding: 16px 24px;
   border: 1px solid var(--border);
   border-radius: 12px;
 }
 
 .dg-score strong {
   color: var(--accent);
-  font-size: 40px;
+  font-size: 26px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+}
+
+.dg-score-scale {
+  color: var(--text-faint);
+  font-size: 15px;
 }
 
 .dg-score-label {
@@ -1894,12 +1997,17 @@ tbody th {
   font-size: 13px;
 }
 
-/* 경계 고지 → 그 다음에 설치 제안. 순서가 뒤집히면 과장이 된다. */
+/* 경계 고지 → 그 다음에 설치 제안. 순서가 뒤집히면 과장이 된다.
+   이 고지는 설치 CTA의 논리적 다리라 스킵되면 안 된다 — 패널로 강조하되,
+   액센트 색은 CTA 버튼 하나만 갖게 한다(온도 위계). */
 .dg-boundary {
   max-width: 68ch;
-  margin-top: 40px;
-  padding-left: 20px;
-  border-left: 2px solid var(--accent);
+  margin-top: 24px;
+  padding: 20px 24px 20px 21px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-faint);
+  border-radius: 12px;
+  background: var(--bg-card);
 }
 
 .dg-boundary h3 {
