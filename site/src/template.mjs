@@ -182,7 +182,7 @@ function diagnosePage(locale, copy) {
     "scoreLabel", "scoreNote", "evidenceToggle", "evidenceMore", "restHeading",
     "snippetLabel", "sevHigh", "sevMid", "sevLow", "sevInfo",
     "boundaryTitle", "boundaryBody", "ctaTitle", "ctaTitleClean", "ctaBody",
-    "ctaButton", "ctaNote",
+    "ctaButton", "ctaBenefits", "ctaNote",
     "wordFileOne", "wordFileMany", "wordMarkerOne", "wordMarkerMany",
     "wordSignalOne", "wordSignalMany",
     "findAlwaysLoadedTitle", "findAlwaysLoadedMeasure", "findAlwaysLoadedWhy",

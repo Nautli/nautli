@@ -1762,7 +1762,8 @@ tbody th {
 
 .dg-lede strong {
   color: var(--accent);
-  font-size: clamp(48px, 9vw, 88px);
+  /* 숫자 쇼케이스가 아니라 문장의 주어다 — 문장과 경쟁하지 않는 크기로. */
+  font-size: clamp(40px, 6vw, 64px);
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -1823,8 +1824,12 @@ tbody th {
   font-size: 20px;
 }
 
+.dg-finding-tag {
+  margin-bottom: 10px;
+}
+
 .dg-finding-measure {
-  margin-bottom: 6px;
+  margin: 2px 0 8px;
   color: var(--accent);
   font-family: var(--mono-font);
   font-size: 13px;
@@ -1866,7 +1871,8 @@ tbody th {
 .dg-finding-why {
   max-width: 68ch;
   margin-bottom: 0;
-  color: var(--text-dim);
+  /* 본문은 보조 정보가 아니다 — 다크 배경에서 읽히는 대비로. */
+  color: var(--text);
 }
 
 .dg-evidence {
@@ -1951,9 +1957,10 @@ tbody th {
   font-weight: 600;
 }
 
+/* 제목과 측정치를 한 줄에 섞으면 모바일에서 불규칙하게 꺾인다 — 행 분리. */
 .dg-rest-row .dg-finding-measure {
-  display: inline;
-  margin: 0 0 0 8px;
+  display: block;
+  margin: 4px 0 0;
   color: var(--text-faint);
 }
 
@@ -1998,16 +2005,13 @@ tbody th {
 }
 
 /* 경계 고지 → 그 다음에 설치 제안. 순서가 뒤집히면 과장이 된다.
-   이 고지는 설치 CTA의 논리적 다리라 스킵되면 안 된다 — 패널로 강조하되,
-   액센트 색은 CTA 버튼 하나만 갖게 한다(온도 위계). */
+   카드가 아니라 CTA로 넘어가는 브리지다 — 박스를 하나 줄여 CTA가 결론으로 보이게. */
 .dg-boundary {
   max-width: 68ch;
-  margin-top: 24px;
-  padding: 20px 24px 20px 21px;
-  border: 1px solid var(--border);
+  margin-top: 32px;
+  margin-bottom: -8px;
+  padding: 0 0 0 20px;
   border-left: 3px solid var(--text-faint);
-  border-radius: 12px;
-  background: var(--bg-card);
 }
 
 .dg-boundary h3 {
@@ -2017,7 +2021,7 @@ tbody th {
 
 .dg-boundary p {
   margin-bottom: 0;
-  color: var(--text-dim);
+  color: var(--text);
 }
 
 .dg-cta {
@@ -2049,8 +2053,14 @@ tbody th {
   text-decoration: none;
 }
 
+.dg-cta-benefits {
+  margin: 12px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
 .dg-cta-note {
-  margin: 16px 0 0 !important;
+  margin: 10px 0 0 !important;
   color: var(--text-faint) !important;
   font-size: 13px;
 }

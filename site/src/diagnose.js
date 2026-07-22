@@ -304,13 +304,14 @@
     return details;
   }
 
+  // 카드 위계는 3레벨 고정: 배지(상태) → 제목(유저 영향) → 수치(측정) 별도 행.
   function findingCard(finding) {
     const card = el("article", "dg-finding");
-    const measure = el("p", "dg-finding-measure");
-    measure.append(sevChip(finding.weight));
-    measure.append(document.createTextNode(finding.measure));
-    card.append(measure);
+    const tag = el("p", "dg-finding-tag");
+    tag.append(sevChip(finding.weight));
+    card.append(tag);
     card.append(el("h3", null, finding.title));
+    card.append(el("p", "dg-finding-measure", finding.measure));
     card.append(el("p", "dg-finding-why", finding.why));
     card.append(evidenceBlock(finding));
     return card;
@@ -321,8 +322,8 @@
     const line = el("div", null);
     line.append(sevChip(finding.weight));
     line.append(el("h4", null, finding.title));
-    line.append(el("span", "dg-finding-measure", finding.measure));
     row.append(line);
+    row.append(el("p", "dg-finding-measure", finding.measure));
     row.append(evidenceBlock(finding));
     return row;
   }
@@ -341,8 +342,10 @@
     const lede = el("div", "dg-lede");
     lede.append(el("strong", null, String(affected)));
     lede.append(el("span", null, fmt(text("resultSignals"), {
+      count: counted.length,
       scanned: meta.scanned,
       fileWord: word(meta.scanned, "File"),
+      signalWord: word(counted.length, "Signal"),
     })));
     // 보조 수치는 본문과 한 줄에 섞으면 괄호구가 어중간하게 꺾인다 — 제 줄을 준다.
     lede.append(el("span", "dg-lede-sub", fmt(text("resultSignalsSub"), {
@@ -406,6 +409,8 @@
     const link = el("a", "dg-cta-button", text("ctaButton"));
     link.href = root.dataset.installHref;
     cta.append(link);
+    // 설치는 수단이고 결과가 목적 — 버튼 바로 아래에 얻는 것을 명시한다.
+    cta.append(el("p", "dg-cta-benefits", text("ctaBenefits")));
     cta.append(el("p", "dg-cta-note", text("ctaNote")));
     out.append(cta);
 
