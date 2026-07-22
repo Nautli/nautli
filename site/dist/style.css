@@ -1189,62 +1189,6 @@ tbody th {
   }
 }
 
-/* 95%를 숫자로 말하지 않고 보여준다 — 실측 전/후 바 비교. */
-.stat-compare {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  max-width: 400px;
-  padding-top: 20px;
-}
-
-.stat-compare-label {
-  color: var(--text-dim);
-  font-size: 13px;
-}
-
-.stat-compare-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.stat-compare-num {
-  flex: 0 0 60px;
-  color: var(--text-dim);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-.stat-compare-row:last-child .stat-compare-num {
-  color: var(--text);
-  font-weight: 700;
-}
-
-.stat-compare-bar {
-  height: 10px;
-  border-radius: 5px;
-}
-
-.stat-compare-bar.is-before {
-  flex: 1 1 auto;
-  background: var(--border);
-}
-
-.stat-compare-bar.is-after {
-  flex: 0 0 auto;
-  width: 2.6%;
-  min-width: 7px;
-  background: var(--accent);
-}
-
-.stat-compare-delta {
-  color: var(--accent);
-  font-size: 18px;
-  font-weight: 700;
-}
-
 .stats-strip { display: flex; flex-wrap: wrap; gap: 12px 28px; list-style: none; padding: 20px 0 0; margin: 0; }
 .stats-strip li { display: flex; flex-direction: column; gap: 2px; }
 .stats-strip strong { font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }

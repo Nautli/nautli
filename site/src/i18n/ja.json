@@ -256,12 +256,6 @@
           "cursor · person"
         ]
       ]
-    },
-    "statCompare": {
-      "label": "セッションあたりのメモリトークン（創業者のVault実測）",
-      "before": "22,000",
-      "after": "570",
-      "delta": "−95%"
     }
   },
   "manifesto": {

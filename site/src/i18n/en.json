@@ -256,12 +256,6 @@
           "cursor · person"
         ]
       ]
-    },
-    "statCompare": {
-      "label": "Memory tokens per session (measured on the founder's vault)",
-      "before": "22,000",
-      "after": "570",
-      "delta": "−95%"
     }
   },
   "manifesto": {

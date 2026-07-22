@@ -256,12 +256,6 @@
           "cursor · person"
         ]
       ]
-    },
-    "statCompare": {
-      "label": "세션당 메모리 토큰 (창업자 볼트 실측)",
-      "before": "22,000",
-      "after": "570",
-      "delta": "−95%"
     }
   },
   "manifesto": {

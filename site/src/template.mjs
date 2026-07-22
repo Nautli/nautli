@@ -307,11 +307,6 @@ function homePage(locale, copy) {
           <a class="ghost-button" href="${pagePath(locale, "install")}">${escapeHtml(h.ctaSecondary)}</a>
         </div>
         <p class="hero-cta-note">${escapeHtml(h.ctaNote)}</p>
-        ${h.statCompare ? `<div class="stat-compare">
-          <span class="stat-compare-label">${escapeHtml(h.statCompare.label)}</span>
-          <div class="stat-compare-row"><span class="stat-compare-num">${escapeHtml(h.statCompare.before)}</span><span class="stat-compare-bar is-before"></span></div>
-          <div class="stat-compare-row"><span class="stat-compare-num">${escapeHtml(h.statCompare.after)}</span><span class="stat-compare-bar is-after"></span><strong class="stat-compare-delta">${escapeHtml(h.statCompare.delta)}</strong></div>
-        </div>` : ""}
         ${Array.isArray(h.stats) && h.stats.length ? `<ul class="stats-strip">${h.stats.map((st) => `<li><strong>${escapeHtml(st[0])}</strong><span>${escapeHtml(st[1])}</span></li>`).join("")}</ul>` : ""}
       </div>
       <p class="trust-line">🔒 ${escapeHtml(h.trustLine)}</p>
