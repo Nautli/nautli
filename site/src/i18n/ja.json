@@ -232,12 +232,6 @@
     "discordTitle": "メンテナーと話す",
     "discordBody": "実装の質問やプロジェクトの相談はDiscordで受け付けています。",
     "discordLink": "Discordを開く",
-    "stats": [
-      [
-        "11% → 0.3%",
-        "コンテキストウィンドウに占めるメモリの割合"
-      ]
-    ],
     "mock": {
       "tabPrimary": "夜間の整理",
       "tabSecondary": "事実",

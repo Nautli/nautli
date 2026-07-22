@@ -232,12 +232,6 @@
     "discordTitle": "만든 사람에게 직접 물어보기",
     "discordBody": "궁금한 점이나 제안은 Discord에서 바로 이야기할 수 있습니다.",
     "discordLink": "Discord 열기",
-    "stats": [
-      [
-        "11% → 0.3%",
-        "메모리가 차지하던 컨텍스트 창"
-      ]
-    ],
     "mock": {
       "tabPrimary": "밤사이 정리",
       "tabSecondary": "사실",

@@ -232,12 +232,6 @@
     "discordTitle": "Talk with maintainers",
     "discordBody": "Use Discord for implementation questions and project discussion.",
     "discordLink": "Open Discord",
-    "stats": [
-      [
-        "11% → 0.3%",
-        "memory's share of your context window"
-      ]
-    ],
     "mock": {
       "tabPrimary": "Overnight digest",
       "tabSecondary": "Facts",
