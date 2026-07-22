@@ -10,8 +10,8 @@ const COPY = Object.freeze({
     eyebrow: "LOCAL, READ-ONLY DIAGNOSIS",
     score: "memory score",
     top: (value) => `Top ${value}%`,
-    monthly: (value) => `About $${value} a month is spent reloading stale memory`,
-    assumption: "Estimate only. Assumes $3 per 1M input tokens, 10 sessions a day, and 30 days a month.",
+    hero: (tokens) => `About ${tokens} tokens of stale memory are reloaded every session`,
+    assumption: "Measured from your files. This context is paid before any work begins. As it grows, the model has less working room and drops instructions mid-task.",
     tools: "Memory by tool",
     tool: "Tool",
     files: "Files",
@@ -41,8 +41,8 @@ const COPY = Object.freeze({
     eyebrow: "로컬 읽기 전용 진단",
     score: "기억 점수",
     top: (value) => `상위 ${value}%`,
-    monthly: (value) => `매달 약 $${value}를 낡은 기억 재로드에 지불 중`,
-    assumption: "추정치입니다. 입력 토큰 100만 개당 $3, 하루 10세션, 월 30일을 가정했습니다.",
+    hero: (tokens) => `매 세션 약 ${tokens} 토큰을 낡은 기억 재로드에 낭비 중`,
+    assumption: "파일에서 실측한 값입니다. 일을 시작하기도 전에 지불하는 컨텍스트로, 커질수록 모델의 작업 공간이 줄고 중간에 지시를 잊는 일이 늘어납니다.",
     tools: "도구별 기억",
     tool: "도구",
     files: "파일 수",
@@ -72,8 +72,8 @@ const COPY = Object.freeze({
     eyebrow: "ローカル・読み取り専用の診断",
     score: "記憶スコア",
     top: (value) => `上位 ${value}%`,
-    monthly: (value) => `毎月 約$${value}を古い記憶の再読み込みに支払っています`,
-    assumption: "推定値です。入力トークン100万個あたり$3、1日10セッション、月30日を仮定しています。",
+    hero: (tokens) => `毎セッション約${tokens}トークンを古い記憶の再読み込みに浪費しています`,
+    assumption: "ファイルから実測した値です。作業を始める前に支払うコンテキストで、増えるほどモデルの作業領域が減り、途中で指示を忘れやすくなります。",
     tools: "ツール別の記憶",
     tool: "ツール",
     files: "ファイル数",
@@ -162,7 +162,6 @@ export function renderReportHtml(result, { lang = "en", percentile, pingStatus =
   const browserData = {
     payload: safeShareBase,
     grade: result.grade,
-    estMonthlyUsd: result.estMonthlyUsd,
     cardStats: text.cardStats(
       safeShareBase.tools,
       safeShareBase.tokens.toLocaleString(selectedLang),
@@ -200,7 +199,7 @@ export function renderReportHtml(result, { lang = "en", percentile, pingStatus =
         <span class="score-label">${escapeHtml(text.score)}</span>${topPercent === null ? "" : `<span class="percentile">${escapeHtml(text.top(topPercent))}</span>`}
       </div>
       <div>
-        <h1>${escapeHtml(text.monthly(result.estMonthlyUsd.toFixed(1)))}</h1>
+        <h1>${escapeHtml(text.hero(result.totals.alTokens.toLocaleString()))}</h1>
         <p class="assumption">${escapeHtml(text.assumption)}</p>
         ${result.partial ? `<p class="partial">${escapeHtml(text.partial)}</p>` : ""}
       </div>
