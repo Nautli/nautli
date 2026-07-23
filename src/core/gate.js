@@ -14,6 +14,13 @@ function rejected(reason) {
   return { status: "rejected", reason };
 }
 
+// TASK-003: degraded (not rejected) — the fact is durably logged but the index write failed.
+// status stays "added" so CLI/MCP/dashboard treat it as a creation; degraded/warning/ev_id
+// let consumers surface the failure (dashboard maps this to 202).
+function degradedAdded(id, ev_id) {
+  return { id, status: "added", degraded: true, warning: ERR.W_INDEX_DEGRADED, ev_id };
+}
+
 function validOptionalInputs(input) {
   if (input.type !== undefined && !FACT_TYPES.has(input.type)) return false;
   if (input.subject !== undefined && typeof input.subject !== "string") return false;
@@ -80,14 +87,18 @@ export function remember(store, input, config) {
     // active가 아닌 대상(stale id, 이미 대체/무효화됨)은 throw 대신 거부 반환 — remember()는 예외를 안 던진다
     if (!oldFact || oldFact.status !== STATUS.ACTIVE) return rejected(ERR.E_NOT_FOUND);
     const fact = makeFact(input, scope, claim);
-    store.addFact(fact);
+    // TASK-003: either the add or the supersede transition may hit an index-apply failure;
+    // surface the degraded warning (event is durably logged) instead of a false success.
+    const added = store.addFact(fact);
     // TASK-104: 유저의 remember 경유 supersede — 정해진 reason, policy는 "n/a"(직접 경로).
-    store.transition(oldFact.id, STATUS.SUPERSEDED, {
+    const transitioned = store.transition(oldFact.id, STATUS.SUPERSEDED, {
       superseded_by: fact.id,
       t_invalid: fact.t_valid,
     }, "client", { reason: "user supersedes via remember", policy_version: "n/a" });
     touchSpool(store.home);
-    return { id: fact.id, status: "added" };
+    return added?.index_degraded || transitioned?.index_degraded
+      ? degradedAdded(fact.id, added?.index_degraded ? added.ev_id : transitioned.ev_id)
+      : { id: fact.id, status: "added" };
   }
 
   const hash = claimHash(claim);
@@ -104,7 +115,11 @@ export function remember(store, input, config) {
   }
 
   const fact = makeFact(input, scope, claim);
-  store.addFact(fact);
+  // TASK-003: index write may have failed after the event was durably logged — return a
+  // degraded shape rather than a false 201/success, without provoking a duplicate-creating retry.
+  const added = store.addFact(fact);
   touchSpool(store.home);
-  return { id: fact.id, status: "added" };
+  return added?.index_degraded
+    ? degradedAdded(fact.id, added.ev_id)
+    : { id: fact.id, status: "added" };
 }

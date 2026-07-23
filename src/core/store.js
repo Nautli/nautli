@@ -32,6 +32,17 @@ function codedError(code, cause) {
   return error;
 }
 
+// TASK-003: index-apply failed but the event is durably logged. Flag the returned
+// object (non-enumerable, so it never leaks into JSON/event serialization) with the
+// ev_id so callers can surface the degraded warning instead of a false success.
+function markDegraded(target, appended) {
+  if (target && appended?.index_degraded) {
+    Object.defineProperty(target, "index_degraded", { value: true, enumerable: false, configurable: true });
+    Object.defineProperty(target, "ev_id", { value: appended.ev_id, enumerable: false, configurable: true });
+  }
+  return target;
+}
+
 function isBusy(error) {
   return error?.code === "SQLITE_BUSY" || error?.code === "SQLITE_LOCKED";
 }
@@ -471,11 +482,15 @@ export class Store {
     }
     try {
       this.applyEvent(event);
-    } catch {
+    } catch (error) {
       // 정본(로그)은 이미 기록됨 — 인덱스만 뒤처진 상태. 호출자가 재시도해 이벤트를 중복 쌓지 않도록
       // 성공으로 처리하고, 마커를 남겨 다음 오픈 시 rebuild로 자가치유한다.
       // TASK-001: 마커는 원자적 JSON {at, ev_id, reason}로 기록한다.
-      writeDirtyMarker(this.home, { at, ev_id, reason: "apply-failed" });
+      // TASK-003: 실패를 조용히 삼키지 않는다 — 마커 이유에 원문 메시지를 담고, 반환 이벤트에
+      // index_degraded를 표시해 remember/CLI/MCP/대시보드가 degraded 경고를 노출하게 한다.
+      const message = error instanceof Error ? error.message : String(error);
+      writeDirtyMarker(this.home, { at, ev_id, reason: `index apply failed: ${message}` });
+      Object.defineProperty(event, "index_degraded", { value: true, enumerable: false, configurable: true });
     }
     return event;
   }
@@ -559,8 +574,13 @@ export class Store {
     const source = typeof complete.provenance?.source === "string"
       ? complete.provenance.source
       : "core";
-    this.appendEvent({ ev: "fact.added", type: "remember", source, at, fact: complete });
-    return this.getFact(complete.id);
+    // TASK-003: capture the append result so an index-apply failure is propagated to the
+    // caller. On the degraded path getFact() is null (the row was never indexed) — fall back
+    // to the in-memory fact so the caller still receives it, flagged degraded with the ev_id.
+    const appended = this.appendEvent({ ev: "fact.added", type: "remember", source, at, fact: complete });
+    const saved = this.getFact(complete.id);
+    if (appended?.index_degraded) return markDegraded(saved ?? complete, appended);
+    return saved;
   }
 
   appendRecall({
@@ -653,8 +673,11 @@ export class Store {
         ? policy_version
         : "n/a";
     }
-    this.appendEvent(event);
-    return this.getFact(id);
+    // TASK-003: propagate index-apply degradation on the supersede transition too.
+    const appended = this.appendEvent(event);
+    const saved = this.getFact(id);
+    if (appended?.index_degraded) return markDegraded(saved, appended);
+    return saved;
   }
 
   getFact(id) {

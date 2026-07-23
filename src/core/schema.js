@@ -16,6 +16,8 @@ export const ERR = Object.freeze({
   E_LAUNCHCTL_FAILED: "E_LAUNCHCTL_FAILED",
   W_DUPLICATE: "W_DUPLICATE",
   W_EMPTY: "W_EMPTY",
+  // TASK-003: index/FTS apply failed after the event was durably logged — degraded, not lost.
+  W_INDEX_DEGRADED: "W_INDEX_DEGRADED",
 });
 
 export const STATUS = Object.freeze({

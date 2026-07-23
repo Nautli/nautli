@@ -1217,6 +1217,9 @@ export function createDashboardServer(home, options = {}) {
             const error = new Error(result.reason);
             error.code = result.reason;
             fail(response, 400, error, t);
+          } else if (result.degraded) {
+            // TASK-003: durable event logged but index write failed — degraded creation, not a false 201.
+            json(response, 202, result);
           } else {
             json(response, 201, result);
           }
