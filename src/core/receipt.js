@@ -162,6 +162,17 @@ export function localWeekStart(nowTime) {
   return d.getTime();
 }
 
+// TASK-FIX-B45: 캐시가 유효한 "하루"는 UTC floor(now/DAY)가 아니라 로컬 달력 하루다.
+// nowTime을 로컬 날짜(YYYY-MM-DD)로 접는다 — 로컬 자정을 넘기면 값이 달라진다.
+function localDayKey(nowTime) {
+  const d = new Date(nowTime);
+  if (!Number.isFinite(d.getTime())) return "invalid";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function snapshotPath(home) {
   return path.join(home, RECEIPT_DIR, SNAPSHOT_FILE);
 }
@@ -193,13 +204,24 @@ function resolveWeekSnapshot(home, store, nowTime) {
   if (weekStart == null) return { value: null, approximate: true };
   const weekStartIso = new Date(weekStart).toISOString();
   const snap = readWeekSnapshot(home);
-  if (snap
+  const haveThisWeek = snap
     && snap.week_start === weekStartIso
-    && Number.isFinite(Number(snap.facts_active_at_start))) {
-    return {
-      value: { facts_active_at_start: Number(snap.facts_active_at_start) },
-      approximate: false,
-    };
+    && Number.isFinite(Number(snap.facts_active_at_start));
+  if (haveThisWeek) {
+    // TASK-FIX-B45: 주 시작 이후에 잡힌 베이스라인은 그 자체로 근사다(수요일 첫 조회가 수요일
+    // 값을 월요일 시작값으로 저장하는 버그). captured_at이 주 시작 이후면 approximate 유지 —
+    // 주 시작-이하에 잡힌 스냅샷(다음 월요일 첫 조회/패트롤이 심음)이 생겨야 정확값이 된다.
+    // captured_at이 없는 레거시 스냅샷은 후방호환으로 정확값 취급한다.
+    const capturedTime = Date.parse(snap.captured_at);
+    const capturedAfterStart = Number.isFinite(capturedTime) && capturedTime > weekStart;
+    if (!capturedAfterStart) {
+      return {
+        value: { facts_active_at_start: Number(snap.facts_active_at_start) },
+        approximate: false,
+      };
+    }
+    // 이번 주 스냅샷이 이미 심겼지만 주 시작 이후 값이다 — 재기록하지 않고 델타 폴백을 쓴다.
+    return { value: null, approximate: true };
   }
   try {
     writeJsonAtomic(snapshotPath(home), {
@@ -226,10 +248,12 @@ function cachePath(home) {
   return path.join(home, RECEIPT_DIR, CACHE_FILE);
 }
 
-// 캐시 키 = 스키마 + (월 이벤트 파일들 + 리뷰 큐 + 주간 스냅샷) 각각의 filename:size:mtime.
+// 캐시 키 = 스키마 + 로컬-하루 + (월 이벤트 파일들 + 리뷰 큐 + 주간 스냅샷) 각각의 filename:size:mtime.
 // 어떤 정본 파일이든 크기/수정시각이 바뀌면 키가 달라져 캐시가 자동 무효화된다.
-function cacheSignature(home) {
-  const parts = [`schema=${CACHE_SCHEMA}`];
+// TASK-FIX-B45: 로컬 달력 하루를 키 성분으로 직접 포함 — 로컬 자정을 넘기면 2d/7d 윈도우와
+// since_at 경계가 어긋나므로 캐시 미스가 나야 한다(옛 now_day side-guard는 UTC 기준이라 stale).
+function cacheSignature(home, nowTime) {
+  const parts = [`schema=${CACHE_SCHEMA}`, `day=${localDayKey(nowTime)}`];
   const evDir = path.join(home, "events");
   for (const name of monthlyEventFiles(home)) {
     const st = fs.statSync(path.join(evDir, name));
@@ -249,9 +273,8 @@ function readCache(home, nowTime) {
   try {
     const raw = JSON.parse(fs.readFileSync(cachePath(home), "utf8"));
     if (!raw || raw.schema !== CACHE_SCHEMA) return null;
-    if (raw.key !== cacheSignature(home)) return null;
-    // 파일이 그대로여도 날짜가 넘어가면 윈도우 경계가 어긋나므로 하루 단위로만 재사용한다.
-    if (raw.now_day !== Math.floor(nowTime / DAY_MS)) return null;
+    // TASK-FIX-B45: 로컬-하루가 키에 포함되므로 별도 now_day side-guard 없이 키 비교만으로 충분하다.
+    if (raw.key !== cacheSignature(home, nowTime)) return null;
     return raw.value ?? null;
   } catch {
     return null;
@@ -262,8 +285,7 @@ function writeCache(home, nowTime, value) {
   try {
     writeJsonAtomic(cachePath(home), {
       schema: CACHE_SCHEMA,
-      key: cacheSignature(home),
-      now_day: Math.floor(nowTime / DAY_MS),
+      key: cacheSignature(home, nowTime),
       value,
     });
   } catch {

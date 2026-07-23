@@ -473,6 +473,24 @@ textarea.field{min-height:88px;resize:vertical}
     "프로젝트 간 공유된 기억":"プロジェクト間で共有された記憶"," · 가까울수록 같은 사실을 많이 사용":" · 近いほど同じ事実を多く使用","개 기억":"個の記憶","프로젝트나 기억 검색":"プロジェクトや記憶を検索","전체 맞춤":"全体を表示","전체 프로젝트":"すべてのプロジェクト","연관 기억":"関連する記憶","대체":"置き換え済み","모순":"食い違い","중복 확인 필요":"重複の確認が必要","확인할 항목":"確認する項目","프로젝트 간 연결":"プロジェクト間のつながり","공유 기억":"共有された記憶","프로젝트 요약":"プロジェクトの概要","연결":"つながり","외":"ほか","정리 내역에서 확인":"整理履歴で確認",
     "정리 내역":"整理履歴","정리 내역 ":"整理履歴 ","nautli가 자동으로 정리한 기억 내역이에요. 잘못된 건 되돌릴 수 있어요.":"nautliが自動で整理した記憶です。間違いがあれば元に戻せます。","정리 내역은 순찰이 만들어요. 먼저 설정을 완료해 주세요.":"整理履歴はパトロールが作ります。先に設定を完了してください。","아직 자동 정리 내역이 없어요. 순찰이 돌면 여기에 기록돼요.":"自動整理の履歴はまだありません。パトロールが動くと、ここに記録されます。","자동 정리":"自動整理","되돌리기":"元に戻す","되돌림":"元に戻しました","중복 합침":"重複を統合","자동 기억":"自動で記憶","보류 (자동 판단)":"保留（自動判定）","모순 해결":"食い違いを解決","되돌렸어요.":"元に戻しました。","자동 정리 ":"自動整理 "
   });
+  // TASK-FIX-B45: TASK-071/009가 추가한 문자열(스텝 benefit·AI 연결 카드)이 로케일 맵에 빠져
+  // ja/en에서 한국어 원문이 새던 것을 채운다(ko는 identity라 EN/JA만 채운다).
+  Object.assign(DASH_EN,{
+    "완료하면: ":"Once done: ",
+    "사용 중":"In use",
+    "연결 필요":"Needs connection",
+    "이 AI에서도 같은 기억을 바로 이어서 써요.":"This AI picks up the same memory right away.",
+    "AI마다 다시 설명하지 않아도 돼요.":"No need to re-explain to each AI.",
+    "가져오기 완료":"Import complete"
+  });
+  Object.assign(DASH_JA,{
+    "완료하면: ":"完了すると: ",
+    "사용 중":"使用中",
+    "연결 필요":"接続が必要",
+    "이 AI에서도 같은 기억을 바로 이어서 써요.":"このAIでも同じ記憶をそのまま引き継げます。",
+    "AI마다 다시 설명하지 않아도 돼요.":"AIごとに説明し直さなくて済みます。",
+    "가져오기 완료":"読み込み完了"
+  });
   function resolveDashLang(){var saved=null;try{saved=localStorage.getItem("nautli-lang");}catch(error){}
     if(saved!=="en"&&saved!=="ko"&&saved!=="ja"&&saved!=="auto")saved="auto";
     var browserLang=((navigator.language||"en")+"").toLowerCase();
@@ -588,7 +606,9 @@ textarea.field{min-height:88px;resize:vertical}
     if(c.state==="running"){var p=c.progress||{};var judging=p.phase==="judge";var total=judging?p.judge_total:p.batches_total;var completed=judging?p.judge_done:p.batches_done;var pct=total?Math.round((completed||0)/total*100):null;var progressText=judging?(p.judge_total==null?T("중복·모순 판정 중…"):T("중복·모순 판정 ")+esc(p.judge_done||0)+"/"+esc(p.judge_total)+T(" 배치")):(pct==null?T("스캔 준비 중"):T("추출 ")+esc(p.batches_done||0)+"/"+esc(p.batches_total)+T(" 배치"));var findings=c.findings||{contradictions:0,duplicates:0};var teaser=findings.teaser?'<div class="checkup-teaser"><div class="meta"><span class="badge">'+T("첫 발견")+'</span></div><div class="claim">'+esc(findings.teaser.a.claim)+'</div><div class="muted">'+T("겹치거나 부딪히는 기록을 찾았어요. 완료 후 함께 확인할 수 있어요.")+'</div></div>':'';return '<section class="card step next"><div class="state">…</div><div><h2>'+T("건강검진 진행 중")+'</h2><p>'+esc(c.vault||"")+' · '+progressText+''+T(". 이 화면을 떠나도 계속 돌아요.")+'</p>'+(pct!=null?'<div class="progress" style="margin-top:8px"><i style="width:'+pct+'%"></i></div>':'')+'<p><strong>'+T("지금까지: 모순")+' '+esc(findings.contradictions)+''+T("건 · 중복")+' '+esc(findings.duplicates)+''+T("건")+'</strong></p>'+teaser+'</div><div class="actions"></div></section>';}
     if(c.state==="failed")return '<section class="card step"><div class="state warn">!</div><div><h2>'+T("건강검진이 중단됐어요")+'</h2><p>'+esc(c.log_tail||T("원인이 기록되지 않았어요."))+'</p></div><div class="actions"><button class="btn" data-checkup-open>'+T("다시 시도")+'</button><button class="btn quiet" data-checkup-dismiss>'+T("건너뛰기")+'</button></div></section>';
     // TASK-091: 완료 행에서도 결과 카드로 다시 들어갈 수 있다.
-    // TASK-092: 재진입한 결과 카드는 낭비 신호와 가져오기 CTA를 유지한다.
+    // TASK-092: 재진입한 결과 카드는 낭비 신호를 유지한다.
+    // TASK-FIX-B45: 이미 가져온(imported) 상태로 재진입하면 활성 CTA 대신 "가져오기 완료" 비활성
+    // 상태를 보여준다. 다시 눌러도 서버가 기존 결과만 반환(no-op)하므로 CTA를 남기면 안 된다.
     if(c.state==="done"||c.state==="imported"){
       var s=c.summary||{};var contra=s.contradictions||0;var dup=s.duplicates||0;
       var headline=c.partial?T("진단 일부가 실패했어요. 아래 수치는 부분 결과예요. (Claude CLI 로그인 상태를 확인하고 다시 시도해 주세요)"):contra>0?T("같은 주제가 서로 다르게 적혀 있어요. AI가 어느 쪽을 믿을지 복불복인 상태예요."):dup>0?T("같은 얘기가 여러 곳에 흩어져 있어요. AI가 매번 전부 다시 읽고 있어요."):T("이번 맛보기에서 바로 확인할 중복·모순을 찾지 못했어요");
@@ -597,7 +617,11 @@ textarea.field{min-height:88px;resize:vertical}
       var wasteHtml='<div class="checkup-waste '+(s.waste_rate>0?'warn':'neutral')+'">'+(dupKB==null?'':'<strong>'+T("확인된 중복 텍스트 최소 ")+dupKB+'KB.</strong>')+'<p class="hint">'+wasteHint+'</p></div>';
       var html='<section class="card"><div class="meta"><span class="badge review-warn">'+T("건강검진 결과")+'</span><span class="badge">'+esc(c.vault||"")+'</span></div><div class="metric-line"><div class="metric-label">'+T("AI 맛보기 신호 ")+esc(s.score)+T("/100 · 선택 표본 ")+esc(filesSampled)+T("개")+'</div></div><p><strong>'+headline+'</strong></p>'+wasteHtml+'<p class="muted">'+T("기억 조각")+' '+esc(s.atoms)+''+T("건 · 중복")+' '+esc(dup)+''+T("쌍 · 서로 부딪히는 기록")+' '+esc(contra)+''+T("쌍 · 기억 가치 없는 조각")+' '+junkStr+'</p>';
       (c.cards||[]).forEach(function(card){html+='<div class="fact"><div class="meta"><span class="badge '+(card.kind==="contradiction"?"review-warn":"")+'">'+(card.kind==="contradiction"?T("부딪히는 기록"):T("중복"))+'</span>'+(card.a.src?'<span>'+esc(card.a.src)+'</span>':'')+'</div><div class="claim">A: '+esc(card.a.claim)+'</div><div class="claim">B: '+esc(card.b.claim)+'</div></div>';});
-      html+='<div class="actions"><button class="btn primary" data-checkup-import '+(s.atoms===0?'disabled':'')+'>'+T("이 기억")+' '+esc(Math.min(s.atoms||0,800))+''+T("건 가져오고 연결 계속")+'</button><button class="btn quiet" data-checkup-report>'+T("전체 리포트")+'</button><button class="btn quiet" data-checkup-dismiss>'+T("가져오지 않고 새로 시작")+'</button></div><p class="hint">'+T("가져오면 위 중복·모순을 자동으로 정리해요. 전부 되돌릴 수 있고, 원본 파일은 건드리지 않아요.")+'</p></section>';
+      var imported=c.state==="imported";
+      var importBtn=imported
+        ?'<button class="btn primary" data-checkup-import disabled>'+T("가져오기 완료")+'</button>'
+        :'<button class="btn primary" data-checkup-import '+(s.atoms===0?'disabled':'')+'>'+T("이 기억")+' '+esc(Math.min(s.atoms||0,800))+''+T("건 가져오고 연결 계속")+'</button>';
+      html+='<div class="actions">'+importBtn+'<button class="btn quiet" data-checkup-report>'+T("전체 리포트")+'</button>'+(imported?'':'<button class="btn quiet" data-checkup-dismiss>'+T("가져오지 않고 새로 시작")+'</button>')+'</div>'+(imported?'':'<p class="hint">'+T("가져오면 위 중복·모순을 자동으로 정리해요. 전부 되돌릴 수 있고, 원본 파일은 건드리지 않아요.")+'</p>')+'</section>';
       return html;
     }
     return "";

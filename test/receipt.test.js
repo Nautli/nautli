@@ -341,6 +341,97 @@ test("buildReceiptMulti caches with 3+ monthly files and busts on mtime change",
   assert.equal(third.from_cache, false);
 });
 
+// TASK-FIX-B45 (finding 1): 로컬 날짜가 넘어가면 파일이 그대로여도 캐시가 깨지고 재계산해야 한다.
+test("buildReceiptMulti busts the summary cache on a local day rollover", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 40,
+    at: "2026-07-15T10:00:00.000Z",
+  });
+  const evDir = path.join(home, "events");
+  for (const month of ["2026-05", "2026-06"]) {
+    fs.writeFileSync(path.join(evDir, `${month}.jsonl`), `${JSON.stringify({
+      type: "recall",
+      hits: ["fa_a"],
+      session_id: `session-${month}`,
+      returned_chars: 8,
+      at: `${month}-10T10:00:00.000Z`,
+    })}\n`);
+  }
+
+  const day1 = "2026-07-15T12:00:00.000Z";
+  const day2 = "2026-07-16T12:00:00.000Z"; // +24h → always a different local calendar day.
+
+  const first = buildReceiptMulti(home, store, { now: day1 });
+  assert.equal(first.from_cache, false);
+
+  const cachedSameDay = buildReceiptMulti(home, store, { now: day1 });
+  assert.equal(cachedSameDay.from_cache, true, "same local day reuses the cache");
+
+  // 아무 정본 파일도 안 바꿨지만 로컬 날짜가 넘어가면 윈도우 경계가 달라져 캐시 미스여야 한다.
+  const nextDay = buildReceiptMulti(home, store, { now: day2 });
+  assert.equal(nextDay.from_cache, false, "a new local day forces a recompute");
+  assert.notEqual(
+    nextDay.windows["2d"].since_at,
+    first.windows["2d"].since_at,
+    "the 2d window boundary advances with the new day",
+  );
+});
+
+// TASK-FIX-B45 (finding 2, approximate branch): 주 시작 이후(수요일)에 잡힌 스냅샷은 근사다.
+test("a week snapshot captured after week start stays approximate", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 40,
+    at: "2026-07-15T10:00:00.000Z",
+  });
+  const weekStart = localWeekStart(Date.parse(NOW));
+  const midWeek = new Date(weekStart + 2 * 86_400_000).toISOString(); // Wednesday
+  fs.mkdirSync(path.join(home, "receipt"), { recursive: true });
+  fs.writeFileSync(path.join(home, "receipt", "week-snapshot.json"), `${JSON.stringify({
+    schema: 1,
+    week_start: new Date(weekStart).toISOString(),
+    facts_active_at_start: 42,
+    captured_at: midWeek,
+  })}\n`);
+
+  const multi = buildReceiptMulti(home, store, { now: NOW });
+
+  assert.equal(multi.active_start_approximate, true);
+  assert.equal(multi.windows["7d"].facts_active_at_start_approximate, true);
+  assert.notEqual(multi.windows["7d"].facts_active_at_start, 42, "the mid-week count is not trusted as the baseline");
+});
+
+// TASK-FIX-B45 (finding 2, exact branch): 주 시작-이하에 잡힌 스냅샷은 정확값(approximate=false).
+test("a week snapshot captured at-or-before week start reports exact", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 40,
+    at: "2026-07-15T10:00:00.000Z",
+  });
+  const weekStart = localWeekStart(Date.parse(NOW));
+  const atStart = new Date(weekStart).toISOString(); // exactly Monday 00:00 local
+  fs.mkdirSync(path.join(home, "receipt"), { recursive: true });
+  fs.writeFileSync(path.join(home, "receipt", "week-snapshot.json"), `${JSON.stringify({
+    schema: 1,
+    week_start: atStart,
+    facts_active_at_start: 42,
+    captured_at: atStart,
+  })}\n`);
+
+  const multi = buildReceiptMulti(home, store, { now: NOW });
+
+  assert.equal(multi.active_start_approximate, false);
+  assert.equal(multi.windows["7d"].facts_active_at_start, 42);
+  assert.equal(multi.windows["7d"].facts_active_at_start_approximate, false);
+});
+
 test("receipt wording contains no long dash characters", () => {
   const receipt = {
     activity: 3,

@@ -592,6 +592,36 @@ test("dashboard served script parses after template-literal unescaping (i18n reg
   assert.ok(dict, "DASH_EN dictionary embedded");
 });
 
+// TASK-FIX-B45: TASK-071/009가 추가한 스텝 benefit·AI 연결 카드 문자열은 ko/en/ja 로케일 맵에
+// 모두 있어야 한다 — 하나라도 빠지면 en/ja에서 한국어 원문이 새어 나간다.
+test("new TASK-071/009 dashboard strings are mapped in both en and ja (no Korean leak)", async () => {
+  const { HTML } = await import("../src/dashboard/public.js");
+  const dictStart = HTML.indexOf("  var DASH_EN=");
+  const dictEnd = HTML.indexOf("  function resolveDashLang", dictStart);
+  assert.ok(dictStart >= 0 && dictEnd > dictStart);
+  const source = [
+    HTML.slice(dictStart, dictEnd),
+    "result={en:DASH_EN,ja:DASH_JA};",
+  ].join("\n");
+  const context = { result: null };
+  new vm.Script(source).runInNewContext(context);
+  const { en, ja } = context.result;
+
+  const newKeys = [
+    "완료하면: ",
+    "사용 중",
+    "연결 필요",
+    "이 AI에서도 같은 기억을 바로 이어서 써요.",
+    "AI마다 다시 설명하지 않아도 돼요.",
+  ];
+  for (const key of newKeys) {
+    assert.equal(typeof en[key], "string", `${key} missing from DASH_EN`);
+    assert.notEqual(en[key], key, `${key} must not leak Korean into English`);
+    assert.equal(typeof ja[key], "string", `${key} missing from DASH_JA`);
+    assert.notEqual(ja[key], key, `${key} must not leak Korean into Japanese`);
+  }
+});
+
 async function renderDoneCheckup(summary, lang = "ko", checkupState = "done") {
   const { HTML } = await import("../src/dashboard/public.js");
   const dictStart = HTML.indexOf("  var DASH_EN=");
@@ -666,8 +696,9 @@ test("done checkup preserves positive, zero, and null waste signal meanings", as
   assert.match(unmeasured, /전체 볼트 상태는 판단할 수 없습니다/u);
 });
 
-test("imported checkup can re-enter the full result card with waste and import CTA", async () => {
-  const rendered = await renderDoneCheckup({
+// TASK-FIX-B45: 이미 가져온 상태로 재진입하면 활성 CTA가 아니라 "가져오기 완료" 비활성 상태여야 한다.
+test("re-entered imported checkup shows a disabled done state, not the import CTA", async () => {
+  const summary = {
     score: 62,
     notes: 30,
     atoms: 3,
@@ -676,9 +707,19 @@ test("imported checkup can re-enter the full result card with waste and import C
     junk_rate: null,
     dup_bytes: 1024,
     waste_rate: 0.2,
-  }, "ko", "imported");
-  assert.match(rendered, /class="checkup-waste warn"/u);
-  assert.match(rendered, /data-checkup-import/u);
+  };
+  const importedCard = await renderDoneCheckup(summary, "ko", "imported");
+  // Waste signal is still shown on re-entry.
+  assert.match(importedCard, /class="checkup-waste warn"/u);
+  // The CTA is now a disabled "가져오기 완료" state — clicking again would no-op server-side.
+  assert.match(importedCard, /data-checkup-import disabled>가져오기 완료</u);
+  assert.doesNotMatch(importedCard, /건 가져오고 연결 계속/u, "no active import CTA after import");
+  assert.doesNotMatch(importedCard, /가져오면 위 중복·모순/u, "no pre-import hint after import");
+
+  // A done-but-not-imported card still offers the enabled import CTA.
+  const doneCard = await renderDoneCheckup(summary, "ko", "done");
+  assert.match(doneCard, /data-checkup-import >이 기억 3건 가져오고 연결 계속</u);
+  assert.doesNotMatch(doneCard, /가져오기 완료/u);
 });
 
 test("checkup taste-signal copy is mapped in English without savings or health framing", async () => {
