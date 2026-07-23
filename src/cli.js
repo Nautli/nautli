@@ -30,6 +30,8 @@ import {
   writeExportFile,
 } from "./core/portability.js";
 import { recall } from "./core/recall.js";
+// TASK-105
+import { auditAsOf, auditDelivery, auditVerdict } from "./core/audit.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
 import {
@@ -145,6 +147,28 @@ function parseBudget(value) {
   const budget = Number(value);
   if (!Number.isSafeInteger(budget)) throw codedError(ERR.E_INVALID_INPUT);
   return budget;
+}
+
+// TASK-105
+function auditCommand(home, args) {
+  const [subcommand, ...subcommandArgs] = args;
+  if (subcommand === "as-of") {
+    const parsed = parseCommand(subcommandArgs, { scope: { type: "string" } });
+    requirePositionals(parsed.positionals, 1);
+    if (parsed.values.scope === undefined) throw codedError(ERR.E_INVALID_INPUT);
+    return auditAsOf(home, parsed.positionals[0], parsed.values.scope);
+  }
+  if (subcommand === "delivery") {
+    const parsed = parseCommand(subcommandArgs, { chain: { type: "boolean", default: false } });
+    requirePositionals(parsed.positionals, 1);
+    return auditDelivery(home, parsed.positionals[0], { chain: parsed.values.chain });
+  }
+  if (subcommand === "verdict") {
+    const parsed = parseCommand(subcommandArgs);
+    requirePositionals(parsed.positionals, 1);
+    return auditVerdict(home, parsed.positionals[0]);
+  }
+  throw codedError(ERR.E_INVALID_INPUT);
 }
 
 function initialize(home, args) {
@@ -975,6 +999,13 @@ export async function main(argv = process.argv.slice(2)) {
     // TASK-098
     if (command === "import") {
       importCommand(home, args);
+      process.exitCode = 0;
+      return;
+    }
+
+    // TASK-105
+    if (command === "audit") {
+      writeJson(auditCommand(home, args));
       process.exitCode = 0;
       return;
     }
