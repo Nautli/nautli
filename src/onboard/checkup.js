@@ -156,6 +156,60 @@ function currentFile(home) {
   return path.join(checkupHome(home), "current.json");
 }
 
+// TASK-002
+function startLockPath(home) {
+  return path.join(checkupHome(home), ".start-lock");
+}
+
+// TASK-002
+function readStartLockOwner(lockPath) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(lockPath, "owner.json"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+// TASK-002
+function deadStartLockOwner(owner) {
+  if (!Number.isInteger(owner?.pid) || owner.pid <= 0) return false;
+  try {
+    process.kill(owner.pid, 0);
+    return false;
+  } catch (error) {
+    return error?.code === "ESRCH";
+  }
+}
+
+// TASK-002
+function acquireStartLock(home, t) {
+  const directory = checkupHome(home);
+  const lockPath = startLockPath(home);
+  fs.mkdirSync(directory, { recursive: true });
+  while (true) {
+    try {
+      fs.mkdirSync(lockPath);
+      try {
+        fs.writeFileSync(path.join(lockPath, "owner.json"), JSON.stringify({
+          pid: process.pid,
+          started_at: new Date().toISOString(),
+        }));
+        return lockPath;
+      } catch (error) {
+        // TASK-002
+        fs.rmSync(lockPath, { recursive: true, force: true });
+        throw error;
+      }
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      if (!deadStartLockOwner(readStartLockOwner(lockPath))) {
+        throw codedError(ERR.E_STORE_BUSY, t("checkup.already_running"));
+      }
+      fs.rmSync(lockPath, { recursive: true, force: true });
+    }
+  }
+}
+
 export function readCurrent(home) {
   const file = currentFile(home);
   if (!fs.existsSync(file)) return null;
@@ -305,58 +359,69 @@ export function startCheckup(home, vaultPathOrPaths, options = {}) {
   if (resolved.every((vault) => countNotes(vault, 1, excluded) === 0)) {
     throw codedError(ERR.E_INVALID_INPUT, t("checkup.no_markdown"));
   }
-  const existing = readCurrent(home);
-  if (existing && existing.state === "running" && pidAlive(existing.pid)) {
-    throw codedError(ERR.E_STORE_BUSY, t("checkup.already_running"));
-  }
-  const python = spawnSync("python3", ["--version"], { stdio: "ignore" });
-  if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, t("checkup.python_required"));
-  const workHome = path.join(checkupHome(home), "doctor");
-  fs.mkdirSync(workHome, { recursive: true });
-  const sampleSeed = vaultSetSampleSeed(resolved);
-  const slug = doctorRunSlug(resolved, excluded, sampleSeed);
-  const runDir = path.resolve(workHome, "runs", slug);
-  const logPath = path.join(checkupHome(home), "checkup.log");
-  const log = fs.openSync(logPath, "a");
-  const args = [
-    DOCTOR_SCRIPT, ...resolved,
-    "--work-home", workHome,
-    "--max-files", String(TASTE.maxFiles),
-    "--sample-seed", sampleSeed,
-    "--junk-sample", String(TASTE.junkSample),
-    "--max-judge-pairs", String(TASTE.maxJudgePairs),
-  ];
-  for (const directory of excluded) args.push("--exclude", directory);
-  if (fs.existsSync(runDir)) {
-    args.push("--fresh");
-    fs.rmSync(runDir, { recursive: true, force: true });
-  }
-  const child = spawner("python3", args, { detached: true, stdio: ["ignore", log, log] });
-  const started = {
-    state: "running", vault: resolved[0], vaults: resolved, work_home: workHome, run_dir: runDir,
-    started_at: new Date().toISOString(), pid: child.pid ?? null, mode: "taste",
-    excluded_dirs: excluded, sample_seed: sampleSeed,
-  };
-  child.on?.("error", (error) => {
-    writeCurrent(home, {
-      ...started,
-      state: "failed",
-      error: t("checkup.python_start_failed", {
-        reason: error.message || t("checkup.check_runtime"),
-      }),
+  // TASK-002
+  const lockPath = acquireStartLock(home, t);
+  let log;
+  try {
+    const existing = readCurrent(home);
+    if (existing && existing.state === "running" && pidAlive(existing.pid)) {
+      throw codedError(ERR.E_STORE_BUSY, t("checkup.already_running"));
+    }
+    const python = spawnSync("python3", ["--version"], { stdio: "ignore" });
+    if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, t("checkup.python_required"));
+    const workHome = path.join(checkupHome(home), "doctor");
+    fs.mkdirSync(workHome, { recursive: true });
+    const sampleSeed = vaultSetSampleSeed(resolved);
+    const slug = doctorRunSlug(resolved, excluded, sampleSeed);
+    const runDir = path.resolve(workHome, "runs", slug);
+    const logPath = path.join(checkupHome(home), "checkup.log");
+    log = fs.openSync(logPath, "a");
+    const args = [
+      DOCTOR_SCRIPT, ...resolved,
+      "--work-home", workHome,
+      "--max-files", String(TASTE.maxFiles),
+      "--sample-seed", sampleSeed,
+      "--junk-sample", String(TASTE.junkSample),
+      "--max-judge-pairs", String(TASTE.maxJudgePairs),
+    ];
+    for (const directory of excluded) args.push("--exclude", directory);
+    if (fs.existsSync(runDir)) {
+      args.push("--fresh");
+      fs.rmSync(runDir, { recursive: true, force: true });
+    }
+    const child = spawner("python3", args, { detached: true, stdio: ["ignore", log, log] });
+    const started = {
+      state: "running", vault: resolved[0], vaults: resolved, work_home: workHome, run_dir: runDir,
+      started_at: new Date().toISOString(), pid: child.pid ?? null, mode: "taste",
+      excluded_dirs: excluded, sample_seed: sampleSeed,
+    };
+    // TASK-002
+    child.on?.("error", (error) => {
+      writeCurrent(home, {
+        ...started,
+        state: "failed",
+        error: t("checkup.python_start_failed", {
+          reason: error.message || t("checkup.check_runtime"),
+        }),
+      });
     });
-  });
-  child.unref?.();
-  fs.closeSync(log);
-  writeCurrent(home, started);
-  return {
-    ok: true,
-    started: true,
-    vault: resolved[0],
-    vaults: resolved,
-    pid: child.pid ?? null,
-    excluded_dirs: excluded,
-  };
+    child.unref?.();
+    fs.closeSync(log);
+    log = undefined;
+    writeCurrent(home, started);
+    return {
+      ok: true,
+      started: true,
+      vault: resolved[0],
+      vaults: resolved,
+      pid: child.pid ?? null,
+      excluded_dirs: excluded,
+    };
+  } finally {
+    // TASK-002
+    if (log !== undefined) fs.closeSync(log);
+    fs.rmSync(lockPath, { recursive: true, force: true });
+  }
 }
 
 function readJson(file) {
