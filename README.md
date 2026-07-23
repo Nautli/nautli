@@ -108,6 +108,11 @@ representative recall queries return the same fact IDs in the same order.
 This is a memory-portability check. It is not a backup-integrity proof and does not
 prove deletion from other copies or storage.
 
+<!-- // TASK-FIX-B12 (M-3) -->
+The pending review queue (unresolved contradiction/review cards) is included in the
+export as of format `nautli-export/1` `minor: 1`, and restored on import. Older export
+files that predate this (no `review` field) still import fine.
+
 Manual MCP registration:
 
 ```bash

@@ -118,6 +118,33 @@ test("TASK-084 skipped notifications do not mutate state or alert, while actual 
   assert.match(calls.at(-1)[1].at(-2), /npx nautli doctor.*npx nautli daemon-run --force/u);
 });
 
+// TASK-FIX-B12 (L-1): a held-only second run of the day is suppressed by the daily
+// cap, but its held count must be preserved (accumulated) in state, not dropped.
+test("TASK-FIX-B12 daily-cap preserves the held count from a held-only second run", (t) => {
+  const { home } = isolatedHome(t);
+  const calls = [];
+  const runner = (command, args) => { calls.push([command, args]); return ""; };
+  const now = new Date(2026, 6, 21, 9, 0, 0);
+  const options = { home, now, runner, locale: "ko", config: {}, platform: "darwin" };
+  const stateFile = path.join(home, "daemon", "notify-state.json");
+
+  // First run of the day notifies on an applied change and resets accumulators.
+  assert.equal(notifyDigestResult({ ok: true, applied: 1 }, options).notified, true);
+  assert.equal(JSON.parse(fs.readFileSync(stateFile, "utf8")).accum_held, 0);
+
+  // Second run same day carries ONLY held changes — the daily cap suppresses the
+  // notification, but the held count must survive in state, not vanish.
+  const second = notifyDigestResult({ ok: true, applied: 0, shadowed: 2 }, options);
+  assert.equal(second.notified, false);
+  assert.equal(second.reason, "daily_cap");
+  assert.equal(JSON.parse(fs.readFileSync(stateFile, "utf8")).accum_held, 2);
+
+  // A third held-only run accumulates on top — the count is never lost.
+  const third = notifyDigestResult({ ok: true, applied: 0, capture_triage: { capture_shadowed: 3 } }, options);
+  assert.equal(third.reason, "daily_cap");
+  assert.equal(JSON.parse(fs.readFileSync(stateFile, "utf8")).accum_held, 5);
+});
+
 test("notifyDigestResult sends limit_wait notification with correct body", () => {
   const calls = [];
   const runner = (command, args) => { calls.push([command, args]); return ""; };

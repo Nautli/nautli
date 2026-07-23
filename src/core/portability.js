@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { recall } from "./recall.js";
+import { FACT_TYPES } from "./gate.js";
 import { ERR, STATUS, claimHash, validScope } from "./schema.js";
 import { Store } from "./store.js";
 
@@ -150,6 +151,25 @@ function readEvents(home) {
   return { events, fileSizes };
 }
 
+// TASK-FIX-B12 (M-3): the pending review/contradiction queue is separate durable
+// state (review/queue.jsonl) not derivable from the event log — carry it in exports
+// so a pending contradiction survives a full export->import round trip.
+function readReviewQueue(home) {
+  const file = path.join(home, "review", "queue.jsonl");
+  if (!fs.existsSync(file)) return [];
+  const entries = [];
+  const lines = fs.readFileSync(file, "utf8").split("\n");
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index].trim() === "") continue;
+    try {
+      entries.push(JSON.parse(lines[index]));
+    } catch {
+      throw portabilityError(`Review queue JSON is invalid: review/queue.jsonl:${index + 1}`);
+    }
+  }
+  return entries;
+}
+
 // TASK-098-fix
 function resolveExportHome(home) {
   const resolved = path.resolve(home);
@@ -211,15 +231,21 @@ export function createExportSnapshot(
         `nautli home not found or empty: ${requestedHome} — nothing to export`,
       );
     }
+    // TASK-FIX-B12 (M-3): pending review queue is not part of the fact/event checksum.
+    const review = readReviewQueue(resolvedHome);
     afterSnapshot?.();
     assertStoreUnchanged(store, resolvedHome, facts.length, fileSizes);
     return {
       format: EXPORT_FORMAT,
+      // TASK-FIX-B12 (M-3): minor version bump signals the optional `review` array;
+      // legacy readers ignore unknown fields and legacy files (no review) import fine.
+      minor: 1,
       exported_at: exportedAt,
       counts: { facts: facts.length, events: events.length },
       checksum: factChecksum(facts, events),
       facts,
       events,
+      ...(review.length > 0 ? { review } : {}),
     };
   } finally {
     store.close();
@@ -351,6 +377,13 @@ function validateFact(fact, index) {
       `Export fact schema error at facts[${index}].status: unknown status "${fact.status}"`,
     );
   }
+  // TASK-FIX-B12 (M-2): type must be one of the enum values the remember gate accepts;
+  // an enum-invalid type must not enter the live store via import.
+  if (!FACT_TYPES.has(fact.type)) {
+    throw portabilityError(
+      `Export fact schema error at facts[${index}].type: unknown type "${fact.type}"`,
+    );
+  }
 }
 
 // TASK-098
@@ -391,6 +424,20 @@ export function validateExportSnapshot(snapshot) {
       + `events=${snapshot.events.length}`,
     );
   }
+  // TASK-FIX-B12 (M-3): review queue is optional; when present it must be an array
+  // of objects each carrying a string pair_id (the store's queue invariant).
+  if (snapshot.review !== undefined) {
+    if (!Array.isArray(snapshot.review)) {
+      throw portabilityError("Export schema error: review must be an array when present");
+    }
+    snapshot.review.forEach((entry, index) => {
+      if (!isPlainObject(entry) || typeof entry.pair_id !== "string") {
+        throw portabilityError(
+          `Export review schema error at review[${index}]: expected object with string pair_id`,
+        );
+      }
+    });
+  }
   snapshot.facts.forEach((fact, index) => validateFact(fact, index));
   snapshot.events.forEach((event, index) => validateEvent(event, index));
   const factIds = new Set(snapshot.facts.map((fact) => fact.id));
@@ -424,6 +471,20 @@ export function validateExportSnapshot(snapshot) {
 
 // TASK-098
 export function readExportFile(file) {
+  // TASK-FIX-B12 (M-1): bound the on-disk file before reading it into memory.
+  let stat;
+  try {
+    stat = fs.statSync(file);
+  } catch (error) {
+    if (error?.code === "ENOENT") throw portabilityError(`Export file not found: ${file}`);
+    throw error;
+  }
+  if (stat.size > MAX_EXPORT_BYTES) {
+    throw portabilityError(
+      `Export file ${stat.size} bytes exceeds ${MAX_EXPORT_BYTES} byte limit`,
+      ERR.E_EXPORT_TOO_LARGE,
+    );
+  }
   let snapshot;
   try {
     snapshot = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -555,6 +616,18 @@ function writeImportedEvents(staging, events) {
   fsyncPath(directory);
 }
 
+// TASK-FIX-B12 (M-3): restore the pending review queue into the staging home so a
+// round trip keeps markers/conflicts_with intact. Legacy snapshots omit `review`.
+function writeImportedReview(staging, review) {
+  if (!Array.isArray(review) || review.length === 0) return;
+  const directory = path.join(staging, "review");
+  fs.mkdirSync(directory, { recursive: true });
+  const file = path.join(directory, "queue.jsonl");
+  fs.writeFileSync(file, `${review.map((entry) => JSON.stringify(entry)).join("\n")}\n`, "utf8");
+  fsyncPath(file);
+  fsyncPath(directory);
+}
+
 function verifyImportedHome(home, snapshot) {
   let store;
   try {
@@ -581,9 +654,14 @@ export function importExportFile(file, targetHome) {
   let backup;
   let targetMoved = false;
   let replacementInstalled = false;
+  // TASK-FIX-B12 (H-1): once the replacement is verified the live home is
+  // authoritative — no later fault may restore a (possibly partial) backup over it.
+  let verified = false;
   try {
     fs.mkdirSync(staging);
     writeImportedEvents(staging, snapshot.events);
+    // TASK-FIX-B12 (M-3): stage the pending review queue before rebuild/verify.
+    writeImportedReview(staging, snapshot.review);
     store = new Store(staging);
     store.rebuild();
     const actualFacts = store.query();
@@ -605,21 +683,49 @@ export function importExportFile(file, targetHome) {
     replacementInstalled = true;
     fsyncPath(parent);
     verifyImportedHome(target, snapshot);
-    // The backup survives until the replacement is opened and compared successfully.
+    // TASK-FIX-B12 (H-1): verification succeeded — the replacement is the source of
+    // truth from here on. A failure while removing the backup must NOT touch the live
+    // replacement (the old bug deleted the verified home and restored a partly-deleted
+    // backup). Leave the backup dir behind with a marker and return success + warning.
+    verified = true;
+    const warnings = [];
     if (backup) {
-      fs.rmSync(backup, { recursive: true, force: true });
-      backup = undefined;
-      fsyncPath(parent);
+      const backupDir = backup;
+      try {
+        fs.rmSync(backupDir, { recursive: true, force: true });
+        backup = undefined;
+        fsyncPath(parent);
+      } catch (cleanupError) {
+        // Data is safe: the live home is verified. Do not attempt any restore.
+        backup = undefined;
+        const message = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+        warnings.push(`backup cleanup incomplete (data safe): ${message}; backup left at ${backupDir}`);
+        if (fs.existsSync(backupDir)) {
+          try {
+            fs.writeFileSync(
+              path.join(backupDir, "README-NAUTLI-STALE-BACKUP.txt"),
+              "This is a stale nautli import backup. The import SUCCEEDED and the live "
+              + "home was verified; cleanup of this backup did not finish. This directory "
+              + "is safe to delete manually.\n",
+              "utf8",
+            );
+          } catch {
+            // Best-effort marker only; absence does not affect data safety.
+          }
+        }
+      }
     }
     return {
       home: target,
       counts: { facts: actualFacts.length, events: integrity.events },
       checksum: integrity.checksum,
+      ...(warnings.length > 0 ? { warnings } : {}),
     };
   } catch (error) {
     store?.close();
+    // TASK-FIX-B12 (H-1): only restore when the replacement was NOT yet verified.
     // TASK-107: Faults after target->backup never discard the original target.
-    if (targetMoved && backup && fs.existsSync(backup)) {
+    if (!verified && targetMoved && backup && fs.existsSync(backup)) {
       try {
         if (replacementInstalled) removeDirectoryIfPresent(target);
         fs.renameSync(backup, target);
@@ -628,7 +734,7 @@ export function importExportFile(file, targetHome) {
       } catch {
         // Preserve the original failure; the surviving sibling backup is recoverable.
       }
-    } else if (!targetExisted && replacementInstalled) {
+    } else if (!verified && !targetExisted && replacementInstalled) {
       try {
         removeDirectoryIfPresent(target);
         fsyncPath(parent);

@@ -321,6 +321,12 @@ test("import rejects invalid scope, timestamp, claim hash, and supersession link
       mutate(snapshot) { snapshot.facts[0].superseded_by = "fa_missing"; },
       pattern: /facts\[0\]\.superseded_by: dangling fact id "fa_missing"/,
     },
+    // TASK-FIX-B12 (M-2): an enum-invalid fact type must be rejected before it enters the store.
+    {
+      name: "bad-type",
+      mutate(snapshot) { snapshot.facts[0].type = "bogus"; },
+      pattern: /facts\[0\]\.type: unknown type "bogus"/,
+    },
   ];
 
   for (const entry of cases) {
@@ -464,4 +470,129 @@ test("export --verify retains but does not verify an export when event rewriting
     new RegExp(`VERIFY: FAIL — export file retained but NOT verified: ${output}`),
   );
   assert.equal(fs.existsSync(output), true);
+});
+
+// TASK-FIX-B12 (H-1): once the replacement is verified the live home is authoritative.
+// A backup-cleanup fault must NOT delete the verified home or restore a partial backup;
+// it leaves the backup behind with a marker and returns success + a warning (data safe).
+test("TASK-FIX-B12 a backup-cleanup fault after verification keeps the verified home", (t) => {
+  const fixture = makeFixture(t, "nautli-import-cleanup-after-verify-");
+  const exported = path.join(fixture.root, "portable.json");
+  const target = path.join(fixture.root, "target");
+  const marker = path.join(target, "original.txt");
+  writeExportFile(fixture.source, exported);
+  fs.mkdirSync(target);
+  fs.writeFileSync(marker, "stale original\n", "utf8");
+
+  const originalRemove = fs.rmSync;
+  let injected = false;
+  fs.rmSync = function rmSyncWithBackupFault(entry, ...args) {
+    if (!injected && String(entry).startsWith(`${target}.bak-`)) {
+      injected = true;
+      const error = new Error("injected backup cleanup failure");
+      error.code = "EIO";
+      throw error;
+    }
+    return originalRemove.call(this, entry, ...args);
+  };
+  let result;
+  try {
+    result = importExportFile(exported, target);
+  } finally {
+    fs.rmSync = originalRemove;
+  }
+
+  // The import SUCCEEDED and surfaced a warning rather than throwing.
+  assert.equal(injected, true);
+  assert.equal(result.home, target);
+  assert.ok(Array.isArray(result.warnings) && /cleanup incomplete/.test(result.warnings[0]));
+
+  // The verified replacement is live (imported facts, NOT the stale original marker).
+  assert.equal(fs.existsSync(marker), false);
+  const store = new Store(target);
+  t.after(() => store.close());
+  assert.ok(store.getFact("fa_chain_a2"));
+
+  // The backup is left behind with a stale-backup marker for manual cleanup.
+  const backups = fs.readdirSync(fixture.root).filter((name) => name.startsWith("target.bak-"));
+  assert.equal(backups.length, 1);
+  assert.equal(
+    fs.existsSync(path.join(fixture.root, backups[0], "README-NAUTLI-STALE-BACKUP.txt")),
+    true,
+  );
+});
+
+// TASK-FIX-B12 (M-1): an oversized export file is rejected by size before it is read
+// into memory.
+test("TASK-FIX-B12 readExportFile rejects an oversized file before loading it", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-export-read-cap-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const file = path.join(dir, "huge.json");
+  fs.writeFileSync(file, "{}", "utf8");
+  // Sparse truncate keeps the test cheap while the on-disk size exceeds the 256 MiB cap.
+  fs.truncateSync(file, 256 * 1024 * 1024 + 1);
+  assert.throws(
+    () => importExportFile(file, path.join(dir, "target")),
+    (error) => error.code === "E_EXPORT_TOO_LARGE"
+      && /exceeds 268435456 byte limit/.test(error.message),
+  );
+  assert.equal(fs.existsSync(path.join(dir, "target")), false);
+});
+
+// TASK-FIX-B12 (M-3): the pending review queue is carried in the export and restored on
+// import, so a pending contradiction (markers/conflicts_with) survives a round trip.
+test("TASK-FIX-B12 a pending review card survives export -> import", (t) => {
+  const fixture = makeFixture(t, "nautli-export-review-");
+  const queueEntry = {
+    pair_id: "fa_active:fa_chain_a2",
+    verdict: "contradiction",
+    confidence: 0.9,
+    status: "pending",
+    claims: { a: "coffee preference is light", b: "service port is 4000" },
+  };
+  fs.mkdirSync(path.join(fixture.source, "review"), { recursive: true });
+  fs.writeFileSync(
+    path.join(fixture.source, "review", "queue.jsonl"),
+    `${JSON.stringify(queueEntry)}\n`,
+    "utf8",
+  );
+
+  const output = path.join(fixture.root, "with-review.json");
+  writeExportFile(fixture.source, output);
+  const snapshot = JSON.parse(fs.readFileSync(output, "utf8"));
+  assert.equal(snapshot.minor, 1);
+  assert.deepEqual(snapshot.review, [queueEntry]);
+
+  const importedHome = path.join(fixture.root, "imported-review");
+  importExportFile(output, importedHome);
+
+  // The queue file is restored verbatim.
+  const restored = fs.readFileSync(path.join(importedHome, "review", "queue.jsonl"), "utf8")
+    .trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(restored, [queueEntry]);
+
+  // The pending contradiction maps both ACTIVE facts to each other again.
+  const store = new Store(importedHome);
+  t.after(() => store.close());
+  const contradictions = store.activeContradictions();
+  assert.ok(contradictions.get("fa_active")?.has("fa_chain_a2"));
+  assert.ok(contradictions.get("fa_chain_a2")?.has("fa_active"));
+});
+
+// TASK-FIX-B12 (M-3): a legacy export with no `review` field still imports cleanly.
+test("TASK-FIX-B12 a legacy export without a review field imports fine", (t) => {
+  const fixture = makeFixture(t, "nautli-export-review-legacy-");
+  const output = path.join(fixture.root, "legacy.json");
+  writeExportFile(fixture.source, output);
+  const snapshot = JSON.parse(fs.readFileSync(output, "utf8"));
+  assert.equal(Object.hasOwn(snapshot, "review"), false); // no pending cards -> no review key
+  delete snapshot.minor; // simulate a pre-M3 file lacking the minor marker
+  const legacy = path.join(fixture.root, "legacy-nominor.json");
+  fs.writeFileSync(legacy, `${JSON.stringify(snapshot)}\n`, "utf8");
+
+  const importedHome = path.join(fixture.root, "imported-legacy");
+  assert.doesNotThrow(() => importExportFile(legacy, importedHome));
+  const store = new Store(importedHome);
+  t.after(() => store.close());
+  assert.ok(store.getFact("fa_chain_a2"));
 });

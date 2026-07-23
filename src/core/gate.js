@@ -8,7 +8,8 @@ import {
 import { isInjectionLike } from "./policy.js";
 import { touchSpool } from "./spool.js";
 
-const FACT_TYPES = new Set(["episodic", "semantic", "procedural"]);
+// TASK-FIX-B12 (M-2): exported so import deep-validation checks the same fact-type enum the gate accepts.
+export const FACT_TYPES = new Set(["episodic", "semantic", "procedural"]);
 
 // TASK-024: Both CLI and MCP reach remember() through this parser, so accepted
 // validity instants have one validation and storage path.

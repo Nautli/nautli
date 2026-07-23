@@ -197,3 +197,48 @@ test("a duplicated ev_id applies once live and matches rebuild and export/import
     { equal: true, missing: [], unexpected: [], changed: [] },
   );
 });
+
+// TASK-FIX-B12 (H-2): appendEvent buckets by receive (wall-clock) time, never by the
+// payload `at`. A same-ev_id event whose payload is backdated to an EARLIER month must
+// not sort ahead on rebuild and win canonical order while losing live arrival order.
+test("TASK-FIX-B12 a same-ev_id event backdated to an earlier month keeps live == rebuild", (t) => {
+  const state = isolatedStore(t);
+  const a = fact(0, { id: "fa_h2_a", claim: "h2 cross month subject alpha claim" });
+  const b = fact(1, { id: "fa_h2_b", claim: "h2 cross month subject beta claim" });
+  state.store.addFact(a);
+  state.store.addFact(b);
+
+  // First occurrence (payload at = February) invalidates A — this one must win.
+  state.store.appendEvent({
+    ev: "fact.invalidated",
+    id: "fa_h2_a",
+    patch: { t_invalid: "2025-02-01" },
+    ev_id: "ev_h2dup",
+    at: "2025-02-15T00:00:00.000Z",
+  });
+  // Second, conflicting occurrence, SAME ev_id but payload at in an EARLIER month.
+  state.store.appendEvent({
+    ev: "fact.superseded",
+    id: "fa_h2_a",
+    patch: { superseded_by: "fa_h2_b", t_invalid: "2025-01-01" },
+    ev_id: "ev_h2dup",
+    at: "2025-01-15T00:00:00.000Z",
+  });
+
+  // Live: first-wins — A is invalidated, the later supersede was deduped away.
+  const live = state.store.getFact("fa_h2_a");
+  assert.equal(live.status, STATUS.INVALIDATED);
+  assert.equal(live.superseded_by, null);
+
+  // Receive-time bucketing keeps every event in the single current-month file, so
+  // canonical (file/line) order equals live arrival order.
+  const monthFiles = fs.readdirSync(path.join(state.home, "events"))
+    .filter((file) => /^\d{4}-\d{2}\.jsonl$/.test(file));
+  assert.equal(monthFiles.length, 1);
+
+  // Rebuild reproduces the live state exactly (before the fix it diverged to superseded).
+  state.store.rebuild();
+  const rebuilt = state.store.getFact("fa_h2_a");
+  assert.equal(rebuilt.status, STATUS.INVALIDATED);
+  assert.equal(rebuilt.superseded_by, null);
+});

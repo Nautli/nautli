@@ -1121,6 +1121,11 @@ function readNotifyState(home) {
         accum_contradictions: Number.isFinite(value.accum_contradictions) && value.accum_contradictions >= 0
           ? value.accum_contradictions
           : 0,
+        // TASK-FIX-B12 (L-1): held changes accumulate across same-day capped runs so a
+        // second run carrying only held changes does not silently drop the count.
+        accum_held: Number.isFinite(value.accum_held) && value.accum_held >= 0
+          ? value.accum_held
+          : 0,
       },
     };
   } catch {
@@ -1132,6 +1137,7 @@ function readNotifyState(home) {
         accum_applied: 0,
         accum_duplicates: 0,
         accum_contradictions: 0,
+        accum_held: 0,
       },
     };
   }
@@ -1184,6 +1190,9 @@ export function notifyDigestResult(result, {
   let notificationApplied = applied;
   let notificationDuplicates = appliedDuplicates;
   let notificationContradictions = appliedContradictions;
+  // TASK-FIX-B12 (L-1): held mirrors the applied accumulator so a held-only run whose
+  // notification is suppressed by the daily cap still preserves its count in state.
+  let notificationHeld = held;
 
   if (failed && guard.ok && guard.state.last_failure_day === today) {
     return { notified: false, reason: "daily_cap" };
@@ -1195,12 +1204,14 @@ export function notifyDigestResult(result, {
     notificationApplied = guard.state.accum_applied + applied;
     notificationDuplicates = guard.state.accum_duplicates + appliedDuplicates;
     notificationContradictions = guard.state.accum_contradictions + appliedContradictions;
+    notificationHeld = guard.state.accum_held + held;
     if (guard.ok && guard.state.last_success_day === today) {
       const saved = writeNotifyState(home, {
         ...guard.state,
         accum_applied: notificationApplied,
         accum_duplicates: notificationDuplicates,
         accum_contradictions: notificationContradictions,
+        accum_held: notificationHeld,
       });
       if (saved) return { notified: false, reason: "daily_cap" };
     }
@@ -1211,22 +1222,22 @@ export function notifyDigestResult(result, {
   if (result.limit_wait) body = t("daemon.notify.limit_wait_body");
   else if (failed) body = t("daemon.notify.failed_body");
   else if (result.partial === true) body = t("daemon.notify.partial_body");
-  else if (applied > 0 && held > 0) {
+  else if (applied > 0 && notificationHeld > 0) {
     if (notificationDuplicates > 0 && notificationContradictions > 0) {
       body = t("daemon.notify.caught_mixed_held_body", {
         duplicates: notificationDuplicates,
         contradictions: notificationContradictions,
-        held,
+        held: notificationHeld,
       });
     } else if (notificationContradictions > 0) {
       body = t("daemon.notify.caught_contradictions_held_body", {
         contradictions: notificationContradictions,
-        held,
+        held: notificationHeld,
       });
     } else {
       body = t("daemon.notify.caught_held_body", {
         applied: notificationDuplicates,
-        held,
+        held: notificationHeld,
         mem: notificationDuplicates === 1 ? "memory" : "memories",
       });
     }
@@ -1242,8 +1253,8 @@ export function notifyDigestResult(result, {
       applied: notificationDuplicates,
       mem: notificationDuplicates === 1 ? "memory" : "memories",
     });
-  } else if (held > 0) {
-    body = t("daemon.notify.held_body", { held, chg: held === 1 ? "change" : "changes" });
+  } else if (notificationHeld > 0) {
+    body = t("daemon.notify.held_body", { held: notificationHeld, chg: notificationHeld === 1 ? "change" : "changes" });
   } else {
     body = t("daemon.notify.clear_body");
   }
@@ -1267,6 +1278,7 @@ export function notifyDigestResult(result, {
         accum_applied: 0,
         accum_duplicates: 0,
         accum_contradictions: 0,
+        accum_held: 0,
       });
     }
     return { notified: true };
@@ -1278,6 +1290,7 @@ export function notifyDigestResult(result, {
         accum_applied: notificationApplied,
         accum_duplicates: notificationDuplicates,
         accum_contradictions: notificationContradictions,
+        accum_held: notificationHeld,
       });
     }
     return { notified: false, reason: "osascript_failed" };

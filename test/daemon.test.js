@@ -192,6 +192,28 @@ test("TASK-061 report separates applied outcomes and omits pending review cards"
   assert.deepEqual(result, { file: result.file });
 });
 
+// TASK-FIX-B12 (M-5): `partial` must be computed after ALL stages, so a late-stage
+// shadow_resolve failure is reflected in the result and report (not computed early).
+test("TASK-FIX-B12 a late shadow_resolve failure marks the run partial", async (t) => {
+  const { home, store } = isolatedStore(t);
+  // Force resolveShadows to throw: make the undo-ledger a directory so it can't be read
+  // as a file. No pairs/applies exist, so no earlier stage touches the ledger.
+  const ledgerDir = path.join(home, "review", "undo-ledger.jsonl");
+  fs.mkdirSync(path.dirname(ledgerDir), { recursive: true });
+  fs.mkdirSync(ledgerDir);
+
+  const result = await runOnce(store, home, {
+    ...config,
+    resolve_cmd: false,
+    shadow_resolve_cmd: [process.execPath, mockJudge],
+  }, { dry: false });
+
+  assert.equal(result.shadow_resolve.ok, false);
+  assert.equal(result.partial, true);
+  // The report is written after partial is recomputed, so it exists and reflects the run.
+  assert.ok(result.report && fs.existsSync(result.report.file));
+});
+
 test("judge command rejects script and eval forms and gates node behind test env", async (t) => {
   const { home, store } = isolatedStore(t);
   const a = add(store, "judge 명령 검증 왼쪽", "project:judge-command", "2025-01-01");

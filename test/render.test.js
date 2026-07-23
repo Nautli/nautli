@@ -34,3 +34,29 @@ test("korean project scopes render to distinct view files", (t) => {
     /임장서비스는 공매를 먼저 다룬다/u,
   );
 });
+
+// TASK-FIX-B12 (H-4): a Backlinks section for a project view must never print a claim
+// from another scope (e.g. a private person fact) reached through a cross-scope edge.
+test("TASK-FIX-B12 Backlinks omit cross-scope edges and keep same-scope edges", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-render-xscope-"));
+  const store = new Store(home);
+  t.after(() => {
+    store.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  const projA = remember(store, { claim: "배포 포트는 3000", scope: "project:alpha", confidence: 0.9 }, config);
+  const projB = remember(store, { claim: "회고 회의는 금요일", scope: "project:alpha", confidence: 0.9 }, config);
+  const personSecret = remember(store, { claim: "커피는 연하게 마신다", scope: "person", confidence: 0.9 }, config);
+
+  // Same-scope edge (project<->project) should render; cross-scope edge (project<->person) must not.
+  store.upsertEdge({ a_id: projA.id, b_id: projB.id, kind: "related", confidence: 0.9, source: "judge" });
+  store.upsertEdge({ a_id: projA.id, b_id: personSecret.id, kind: "related", confidence: 0.9, source: "judge" });
+
+  renderViews(store, home);
+  const projectView = fs.readFileSync(path.join(home, "views", "project-alpha.md"), "utf8");
+
+  assert.match(projectView, /## Backlinks/u);
+  assert.match(projectView, /회고 회의는 금요일/u); // same-scope edge rendered
+  assert.doesNotMatch(projectView, /커피는 연하게 마신다/u); // cross-scope person claim NOT leaked
+});

@@ -81,6 +81,34 @@ test("recall boosts 1-hop ACTIVE neighbors at a lower rank than seeds", (t) => {
   assert.equal(seedProj.related_via, undefined);
 });
 
+// TASK-FIX-B12 (M-4): the edge graph reflects NOW, not the as-of instant, so an
+// as_of recall must skip neighbor expansion entirely for historical result purity.
+// The neighbor here is only reachable via the edge (it is the oldest fact, so it falls
+// outside the 30 most-recent facts the as_of path pulls in — isolating the edge path).
+test("TASK-FIX-B12 as_of recall skips edge-neighbor expansion", (t) => {
+  const { store } = isolatedStore(t);
+  // Neighbor is the OLDEST fact and does not match the query — only the edge can reach it.
+  const neighbor = remember(store, { claim: "회고 회의는 금요일", scope: "project:alpha", confidence: 0.9, t_valid: "2025-01-01" }, config);
+  const seed = remember(store, { claim: "배포 포트는 3000", scope: "project:alpha", confidence: 0.9, t_valid: "2025-02-01" }, config);
+  // 30 newer, non-matching facts push the neighbor out of the as_of "recents" window.
+  for (let i = 0; i < 30; i += 1) {
+    remember(store, { claim: `무관메모 ${i} 상세 항목`, scope: "project:alpha", confidence: 0.9, t_valid: "2025-03-01" }, config);
+  }
+  // Edge exists in the present graph (well after the as_of instant queried below).
+  store.upsertEdge({ a_id: seed.id, b_id: neighbor.id, kind: "related", confidence: 0.9, source: "judge" });
+
+  // Live recall boosts the neighbor in via the edge (tagged with edge provenance).
+  const live = recall(store, "포트", { scope: "project:alpha" }).facts;
+  const liveNeighbor = live.find((fact) => fact.id === neighbor.id);
+  assert.ok(liveNeighbor, "neighbor boosted live via edge");
+  assert.equal(liveNeighbor.related_via, seed.id);
+
+  // as_of recall must NOT expand via the (present-day) edge graph.
+  const past = recall(store, "포트", { scope: "project:alpha", as_of: "2025-06-01" }).facts;
+  assert.ok(past.some((fact) => fact.id === seed.id), "seed still visible at as_of");
+  assert.ok(!past.some((fact) => fact.id === neighbor.id), "neighbor must not be edge-expanded for as_of recall");
+});
+
 test("recall does not boost neighbors of a superseded (non-active) fact", (t) => {
   const { store } = isolatedStore(t);
   const seed = remember(store, { claim: "배포 포트는 3000", scope: "project:alpha", confidence: 0.9 }, config);
@@ -144,5 +172,7 @@ test("render view includes a Backlinks section built from stored edges only", (t
   renderViews(store, home);
   const view = fs.readFileSync(path.join(home, "views", "project-alpha.md"), "utf8");
   assert.match(view, /## Backlinks/u);
-  assert.match(view, /포트는 3000 ↔ 회고는 금요일/u);
+  // TASK-FIX-B12: edge orientation is normalized by the (random) fact-id order, so the
+  // rendered endpoints may appear in either order — accept both to remove pre-existing flake.
+  assert.match(view, /포트는 3000 ↔ 회고는 금요일|회고는 금요일 ↔ 포트는 3000/u);
 });

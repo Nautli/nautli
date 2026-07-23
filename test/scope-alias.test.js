@@ -103,6 +103,33 @@ test("rebuild preserves scope aliases (derived from the event log)", (t) => {
   assert.equal(reopened.expandScope("project:pokecard").length, 2);
 });
 
+// TASK-FIX-B12 (H-3): aliasing may only relate project:* scopes. person/procedure are
+// private classes — aliasing across classes would leak private facts into project recall.
+test("TASK-FIX-B12 setScopeAlias rejects cross-scope-class aliases, allows project<->project", (t) => {
+  const store = isolatedStore(t).store;
+  assert.throws(() => store.setScopeAlias("person", "project:x"), (e) => e.code === "E_INVALID_INPUT");
+  assert.throws(() => store.setScopeAlias("project:x", "person"), (e) => e.code === "E_INVALID_INPUT");
+  assert.throws(() => store.setScopeAlias("procedure", "project:x"), (e) => e.code === "E_INVALID_INPUT");
+  assert.throws(() => store.setScopeAlias("person", "procedure"), (e) => e.code === "E_INVALID_INPUT");
+  assert.doesNotThrow(() => store.setScopeAlias("project:포켓몬카드앱", "project:pokecard"));
+});
+
+test("TASK-FIX-B12 expandScope ignores a legacy cross-scope-class alias pair", (t) => {
+  const state = isolatedStore(t);
+  // A legacy scope.alias_set event predating the guard binds person -> project:x.
+  state.store.appendEvent({ ev: "scope.alias_set", alias: "person", canonical: "project:x" });
+
+  // person never expands via aliases; project:x never pulls the person scope in.
+  assert.deepEqual(state.store.expandScope("person"), ["person"]);
+  assert.ok(!state.store.expandScope("project:x").includes("person"));
+
+  // The legacy event replays on rebuild but stays filtered out of expansion.
+  const reopened = state.reopen();
+  reopened.rebuild();
+  assert.deepEqual(reopened.expandScope("person"), ["person"]);
+  assert.ok(!reopened.expandScope("project:x").includes("person"));
+});
+
 test("setScopeAlias rejects self-aliases and empty inputs", (t) => {
   const { store } = isolatedStore(t);
   assert.throws(() => store.setScopeAlias("project:x", "project:x"));

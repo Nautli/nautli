@@ -201,7 +201,9 @@ function recallInner(store, task, opts, logCtx) {
   // TASK-013: FTS seed의 1-hop ACTIVE 이웃만 부스트로 병합한다(재귀 확장 없음).
   // 이웃 점수 = seed_score × 0.35 × edge.confidence → 항상 seed보다 낮은 랭크.
   // 병합 집합에는 동일한 scope/top-k/budget 규칙이 그대로 적용된다.
-  if (typeof store.activeNeighbors === "function") {
+  // TASK-FIX-B12 (M-4): as_of queries want historical purity — the edge graph reflects
+  // NOW, not the as-of instant, so skip neighbor expansion entirely for as_of recalls.
+  if (!asOf && typeof store.activeNeighbors === "function") {
     const neighborBest = new Map(); // neighborId -> { score, via }
     for (const [seedId, seedScore] of seedScoreById) {
       if (seedScore <= 0) continue; // 0점 seed는 이웃을 끌어올리지 않는다

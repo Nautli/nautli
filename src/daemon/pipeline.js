@@ -156,6 +156,8 @@ export async function runOnce(store, home, config, { dry = false, scope, subject
   recordStage(home, "oracle_resolve", result.oracle_resolve);
 
   // TASK-061: 자동 후속 단계가 실패해도 판정 결과는 보존하되, 호출자에게 불완전 실행을 알린다.
+  // TASK-FIX-B12 (M-5): this is a provisional value; it is recomputed after ALL stages
+  // (below) so a late shadow_resolve failure is reflected in the report and result.
   result.partial = result.capture_triage?.ok === false || result.oracle_resolve?.ok === false;
 
   if (config?.shadow_resolve_cmd !== false) {
@@ -175,6 +177,12 @@ export async function runOnce(store, home, config, { dry = false, scope, subject
     result.shadow_resolve = { skipped: true, reason: "disabled" };
   }
   recordStage(home, "shadow_resolve", result.shadow_resolve);
+
+  // TASK-FIX-B12 (M-5): recompute partial after every stage — a late-stage failure
+  // (shadow_resolve) must mark the run partial in both the result and the report.
+  result.partial = result.capture_triage?.ok === false
+    || result.oracle_resolve?.ok === false
+    || result.shadow_resolve?.ok === false;
 
   result.report = writeReport(store, home, {
     ...appliedResults,

@@ -379,6 +379,12 @@ function* reverseLines(file) {
   }
 }
 
+// TASK-FIX-B12 (H-3): only project:* scopes may participate in scope aliasing.
+// person/procedure facts are private classes and must never merge into project recall.
+function isProjectScope(scope) {
+  return typeof scope === "string" && scope.startsWith("project:");
+}
+
 // TASK-104: 이벤트 정본을 파일명(월)→라인 순서로 그대로 읽는다(멱등 처리 없음).
 // 순서 규칙은 스펙 §3 — at은 표시용이고 라인 순서가 정본이다.
 export function readEventLog(home) {
@@ -514,8 +520,12 @@ export class Store {
       ? evt.ev_id
       : newEventId();
     const event = { ...evt, ev_id, at };
-    const month = /^\d{4}-\d{2}/.exec(at)?.[0];
-    if (!month) throw codedError(ERR.E_INVALID_INPUT);
+    // TASK-FIX-B12 (H-2): bucket the JSONL file by CURRENT wall-clock (receive) time,
+    // never by the payload `at`. Monthly files stay monotonic in arrival order, so a
+    // same-ev_id event backdated into an earlier month can no longer win canonical
+    // (file/line) order while losing live (arrival) order. `event.at` is unchanged.
+    if (!/^\d{4}-\d{2}/.test(at)) throw codedError(ERR.E_INVALID_INPUT);
+    const month = /^\d{4}-\d{2}/.exec(new Date().toISOString())[0];
     const file = path.join(this.home, "events", `${month}.jsonl`);
     fs.appendFileSync(file, `${JSON.stringify(event)}\n`, { encoding: "utf8", flag: "a" });
     if (!apply) return event;
@@ -783,6 +793,12 @@ export class Store {
       || alias === canonical) {
       throw codedError(ERR.E_INVALID_INPUT);
     }
+    // TASK-FIX-B12 (H-3): reject early — both endpoints must be project:* scopes.
+    // Aliasing a person/procedure scope would leak private facts across scope classes
+    // in recall. person/procedure never participate in aliasing.
+    if (!isProjectScope(alias) || !isProjectScope(canonical)) {
+      throw codedError(ERR.E_INVALID_INPUT);
+    }
     return this.appendEvent({
       ev: "scope.alias_set",
       alias,
@@ -795,11 +811,16 @@ export class Store {
   // 이렇게 하면 canonical·alias 어느 쪽으로 recall해도 양쪽 저장 scope의 fact를 모두 포괄한다.
   expandScope(scope) {
     if (typeof scope !== "string" || scope === "") return [];
+    // TASK-FIX-B12 (H-3): defense in depth — person/procedure scopes never expand via
+    // aliases, and any legacy alias pair crossing scope classes is ignored. Only
+    // project:* scopes may resolve to/from project:* canonicals.
+    if (!isProjectScope(scope)) return [scope];
     const row = this.db.prepare("SELECT canonical FROM scope_aliases WHERE alias = ?").get(scope);
-    const canonical = row?.canonical ?? scope;
+    const canonical = isProjectScope(row?.canonical) ? row.canonical : scope;
     const aliases = this.db.prepare("SELECT alias FROM scope_aliases WHERE canonical = ?")
       .all(canonical)
-      .map((entry) => entry.alias);
+      .map((entry) => entry.alias)
+      .filter((alias) => isProjectScope(alias));
     return [...new Set([scope, canonical, ...aliases])];
   }
 
