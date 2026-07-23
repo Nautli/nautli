@@ -51,6 +51,55 @@ def sample_rels(vault, max_files):
         shutil.rmtree(work, ignore_errors=True)
 
 
+def instruction_layer_invariants(base):
+    """TASK-018/020: 지시파일 근거와 감점표는 LLM 없이도 검증 가능하다."""
+    vault = os.path.join(base, "instruction-vault")
+    os.makedirs(os.path.join(vault, ".cursor", "rules"), exist_ok=True)
+    open(os.path.join(vault, "CLAUDE.md"), "w").write(
+        "Do run tests.\nRead `./missing-claude.md`.\n")
+    open(os.path.join(vault, "AGENTS.md"), "w").write(
+        "Do run tests.\nDo not deploy production.\n")
+    open(os.path.join(vault, ".cursorrules"), "w").write(
+        "Do deploy production.\nRead `docs/missing-cursor.md`.\n")
+    open(os.path.join(vault, ".cursor", "rules", "team.mdc"), "w").write(
+        "Use local rules.\n")
+    work = tempfile.mkdtemp(prefix="vd-instruction-w-")
+    try:
+        ctx = vd.Ctx([vault], work, 0)
+        layer = vd.stage_instruction_layer(ctx)
+        assert [item["path"] for item in layer["loading_map"]["claude"]] == ["CLAUDE.md"]
+        assert [item["path"] for item in layer["loading_map"]["codex"]] == ["AGENTS.md"]
+        assert {item["path"] for item in layer["loading_map"]["cursor"]} == {
+            ".cursorrules", ".cursor/rules/team.mdc"}
+        signals = layer["signals"]
+        assert signals["exact_duplicates"] and all("path" in e and "line" in e
+                                                   for e in signals["exact_duplicates"][0]["evidence"])
+        assert signals["polarity_conflicts"] and all("path" in e and "line" in e
+                                                      for e in signals["polarity_conflicts"][0]["evidence"])
+        assert signals["dead_paths"] and all("path" in item["evidence"] and "line" in item["evidence"]
+                                              for item in signals["dead_paths"])
+
+        scan = vd.stage_scan(ctx)
+        man = vd.stage_manifest(ctx)
+        atoms = [
+            {"id": "fa_memory", "claim": "The test command is npm test.", "kind": "memory",
+             "source": "note.md", "source_id": "source", "scope": "project:vault", "type": "semantic"},
+            {"id": "fa_rule", "claim": "Run tests before deployment.", "kind": "rule",
+             "source": "AGENTS.md", "source_id": "source", "scope": "project:vault", "type": "semantic"},
+        ]
+        pairs = [{"a": "fa_memory", "b": "fa_rule", "kind_a": "memory", "kind_b": "rule",
+                  "claim_a": atoms[0]["claim"], "claim_b": atoms[1]["claim"], "src_a": "note.md", "src_b": "AGENTS.md"}]
+        judgments = [{"pair_id": "fa_memory|fa_rule", "verdict": "duplicate", "confidence": 0.9}]
+        summary = vd.stage_report(ctx, scan, man, atoms, pairs, judgments, [])
+        deductions = summary["score_deductions"]
+        assert sum(item["subtotal"] for name, item in deductions.items() if name != "final") == deductions["final"]
+        report = open(summary["report"], encoding="utf-8").read()
+        assert "| **final**" in report and "CLAUDE.md:1" in report and "AGENTS.md:2" in report
+        assert summary["rule_review_candidates"] == 1
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def main():
     base = tempfile.mkdtemp(prefix="vd-sampler-test-")
     try:
@@ -74,7 +123,9 @@ def main():
         man_all, rels_all, _ = sample_rels(vault, 500)
         assert man_all["files"] == 45, f"full mode must keep all 45, got {man_all['files']}"
 
-        print("test_sampler: PASS (near-dup surfaced, deterministic, full-mode no-op)")
+        instruction_layer_invariants(base)
+
+        print("test_sampler: PASS (near-dup, instruction evidence, score deductions, deterministic, full-mode no-op)")
         return 0
     except AssertionError as e:
         print("test_sampler: FAIL —", e); return 1

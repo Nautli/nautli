@@ -400,6 +400,152 @@ class Ctx:
 # ── 0. scan — LLM 없는 정적 진단 ────────────────────────────────────────────
 WIKILINK = re.compile(r"\[\[([^\]\[|#]+)")
 
+# // TASK-020
+# 지시파일은 노트 walk의 숨김폴더 제외 규칙을 따르지 않는다. 이 레이어는 LLM
+# 판정과 별개로, 각 도구가 실제로 읽는 프로젝트 지시파일만 결정적으로 검사한다.
+INSTRUCTION_LOADERS = (
+    ("claude", ("CLAUDE.md",)),
+    ("codex", ("AGENTS.md",)),
+    ("cursor", (".cursorrules",)),
+)
+POLARITY_LINE = re.compile(
+    r"^\s*(?:[-*+]\s+|\d+[.)]\s+)?(?:please\s+)?"
+    r"(?P<polarity>do not|don't|never|must not|should not|do|must|should|always)\s+"
+    r"(?P<body>.+?)\s*[.!]*\s*$", re.IGNORECASE)
+BACKTICK = re.compile(r"`([^`\n]+)`")
+RELATIVE_PATH = re.compile(r"(?<![\w/])((?:\.{1,2}/)[^\s`\])>,;:]+|[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+|[A-Za-z0-9_.-]+\.(?:md|mdc|js|json|ya?ml|txt))(?![\w/])")
+
+
+def _instruction_line(path_rel, line_no, text):
+    return {"path": path_rel.replace(os.path.sep, "/"), "line": line_no,
+            "text": text.strip()}
+
+
+def _instruction_path_candidates(text):
+    """명령/코드 조각은 건너뛰고 상대 파일 참조만 돌려준다."""
+    values = [m.group(1).strip() for m in BACKTICK.finditer(text)]
+    values += [m.group(1).strip() for m in RELATIVE_PATH.finditer(text)]
+    result = []
+    for value in values:
+        if (not value or "://" in value or value.startswith("#") or
+                any(ch in value for ch in " <>|{}$")):
+            continue
+        if not (value.startswith(".") or "/" in value or
+                re.search(r"\.(?:md|mdc|js|json|ya?ml|txt)$", value, re.IGNORECASE)):
+            continue
+        if value not in result:
+            result.append(value)
+    return result
+
+
+def stage_instruction_layer(ctx):
+    """프로젝트 지시파일의 로딩 맵과 결정적 신호를 만든다 (LLM 호출 없음)."""
+    out = ctx.path("instruction_layer.json")
+    if os.path.exists(out):
+        return json.load(open(out, encoding="utf-8"))
+
+    per_tool = collections.defaultdict(list)
+    files = []
+    seen = set()
+    for source in ctx.sources:
+        root = source["root"]
+        for tool, names in INSTRUCTION_LOADERS:
+            for name in names:
+                absolute = os.path.join(root, name)
+                if os.path.isfile(absolute):
+                    rel = os.path.relpath(absolute, root).replace(os.path.sep, "/")
+                    entry = {"source": source["source_label"], "source_id": source["source_id"], "path": rel,
+                             "absolute": absolute, "tool": tool}
+                    per_tool[tool].append({"source": entry["source"], "path": rel})
+                    key = (absolute, tool)
+                    if key not in seen:
+                        files.append(entry)
+                        seen.add(key)
+        cursor_rules = os.path.join(root, ".cursor", "rules")
+        for dirpath, dirnames, filenames in os.walk(cursor_rules):
+            dirnames.sort()
+            for name in sorted(filenames):
+                if not name.endswith(".mdc"):
+                    continue
+                absolute = os.path.join(dirpath, name)
+                rel = os.path.relpath(absolute, root).replace(os.path.sep, "/")
+                per_tool["cursor"].append({"source": source["source_label"], "path": rel})
+                key = (absolute, "cursor")
+                if key not in seen:
+                    files.append({"source": source["source_label"], "source_id": source["source_id"], "path": rel,
+                                  "absolute": absolute, "tool": "cursor"})
+                    seen.add(key)
+
+    lines = []
+    for entry in files:
+        try:
+            content = open(entry["absolute"], encoding="utf-8", errors="replace").read()
+        except OSError as error:
+            ctx.log(f"INSTRUCTION_READFAIL {entry['path']} {error}")
+            continue
+        entry["kind"] = "rule"
+        for line_no, text in enumerate(content.splitlines(), 1):
+            if text.strip():
+                lines.append({**_instruction_line(entry["path"], line_no, text),
+                              "source": entry["source"], "absolute": entry["absolute"]})
+
+    duplicates = []
+    by_exact = collections.defaultdict(list)
+    for line in lines:
+        normalized = re.sub(r"\s+", " ", line["text"]).strip().casefold()
+        if normalized:
+            by_exact[normalized].append(line)
+    for normalized, evidence in sorted(by_exact.items()):
+        unique_paths = {item["path"] for item in evidence}
+        if len(unique_paths) > 1:
+            duplicates.append({"text": normalized,
+                               "evidence": [{k: item[k] for k in ("source", "path", "line", "text")}
+                                            for item in evidence]})
+
+    polarity = collections.defaultdict(lambda: {"positive": [], "negative": []})
+    for line in lines:
+        match = POLARITY_LINE.match(line["text"])
+        if not match:
+            continue
+        body = re.sub(r"\s+", " ", match.group("body")).strip(" .!").casefold()
+        if not body:
+            continue
+        key = "negative" if match.group("polarity").casefold() in {
+            "do not", "don't", "never", "must not", "should not"} else "positive"
+        polarity[body][key].append(line)
+    conflicts = []
+    for action, sides in sorted(polarity.items()):
+        if sides["positive"] and sides["negative"]:
+            conflicts.append({"action": action,
+                              "evidence": [{**{k: item[k] for k in ("source", "path", "line", "text")},
+                                            "polarity": key}
+                                           for key in ("positive", "negative") for item in sides[key]]})
+
+    dead_paths = []
+    seen_refs = set()
+    for line in lines:
+        for reference in _instruction_path_candidates(line["text"]):
+            target = os.path.normpath(os.path.join(os.path.dirname(line["absolute"]), reference))
+            key = (line["path"], line["line"], reference)
+            if key in seen_refs or os.path.exists(target):
+                continue
+            seen_refs.add(key)
+            dead_paths.append({"reference": reference,
+                               "evidence": {k: line[k] for k in ("source", "path", "line", "text")}})
+
+    result = {
+        "loading_map": {tool: sorted(entries, key=lambda item: (item["source"], item["path"]))
+                        for tool, entries in sorted(per_tool.items())},
+        "files": [{k: entry[k] for k in ("source", "source_id", "path", "tool", "kind")} for entry in files],
+        "signals": {"exact_duplicates": duplicates,
+                    "polarity_conflicts": conflicts,
+                    "dead_paths": dead_paths},
+    }
+    json.dump(result, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    ctx.log("instruction files={} duplicates={} conflicts={} dead_paths={}".format(
+        len(files), len(duplicates), len(conflicts), len(dead_paths)))
+    return result
+
 
 def stage_scan(ctx):
     out = ctx.path("scan.json")
@@ -691,7 +837,20 @@ def stage_manifest(ctx):
         man = json.load(open(out, encoding="utf-8"))
         man.setdefault("near_dup_pairs", 0)
         man.setdefault("dup_bytes", None)
+        for batch in man.get("batches", []):
+            for item in batch:
+                item.setdefault("kind", "memory")
         return man
+    # // TASK-020
+    # CLAUDE.md/AGENTS.md는 일반 .md walk에도 들어오지만, .cursorrules와
+    # .cursor/rules/*.mdc는 명시적으로 배치에 넣어 rule atom을 추출한다.
+    instruction_layer = stage_instruction_layer(ctx)
+    instruction_files = {}
+    source_by_id = {source["source_id"]: source for source in ctx.sources}
+    for entry in instruction_layer["files"]:
+        source = source_by_id.get(entry.get("source_id"))
+        if source:
+            instruction_files[os.path.abspath(os.path.join(source["root"], entry["path"]))] = entry
     files = []
     source_samples = collections.Counter()
     near_dup_pairs = 0
@@ -710,16 +869,34 @@ def stage_manifest(ctx):
                 if is_excluded(rel, ctx.excludes):
                     continue
                 st = os.stat(p)
+                absolute = os.path.abspath(p)
                 root_files.append({
                     "source_id": source["source_id"],
                     "source_label": source["source_label"],
                     "root": root,
                     "rel": rel,
-                    "abs": os.path.abspath(p),
+                    "abs": absolute,
                     "size": min(st.st_size, MAX_FILE_BYTES),
                     "date": datetime.date.fromtimestamp(st.st_mtime).isoformat(),
                     "scope": scope_of(rel),
+                    "kind": instruction_files.get(absolute, {}).get("kind", "memory"),
                 })
+        # .cursorrules/.mdc는 일반 markdown walk에서 빠지므로 한 번만 추가한다.
+        existing = {item["abs"] for item in root_files}
+        for absolute, entry in instruction_files.items():
+            if entry.get("source_id") != source["source_id"] or absolute in existing:
+                continue
+            try:
+                st = os.stat(absolute)
+            except OSError:
+                continue
+            root_files.append({
+                "source_id": source["source_id"], "source_label": source["source_label"],
+                "root": root, "rel": entry["path"], "abs": absolute,
+                "size": min(st.st_size, MAX_FILE_BYTES),
+                "date": datetime.date.fromtimestamp(st.st_mtime).isoformat(),
+                "scope": scope_of(entry["path"]), "kind": "rule",
+            })
         root_files.sort(key=lambda f: f["rel"])
         seed = (ctx.sample_seed + "\x1f" + root if ctx.sample_seed
                 else hashlib.sha1(root.encode()).hexdigest())
@@ -789,6 +966,8 @@ def stage_extract(ctx, man, model):
             if a.get("type") not in ("semantic", "procedural", "episodic"):
                 a["type"] = "semantic"
             meta = meta_by_file.get(a["source"])
+            # TASK-020: 기존 JSONL atom은 memory로 읽고, 지시파일 원자는 rule로 보존한다.
+            a["kind"] = meta.get("kind", "memory") if meta else "memory"
             a["scope"] = meta["scope"] if meta else "unknown"
             a["source_id"] = meta["source_id"] if meta else "unknown"
             a["source_label"] = meta["source_label"] if meta else "unknown"
@@ -811,6 +990,8 @@ def stage_extract(ctx, man, model):
         for fn in sorted(os.listdir(done)):
             out.write(open(os.path.join(done, fn), encoding="utf-8").read())
     atoms = [json.loads(l) for l in open(atoms_path, encoding="utf-8")]
+    for atom in atoms:
+        atom.setdefault("kind", "memory")
     atoms = list({a["id"]: a for a in atoms}.values())
     ctx.log(f"extract total atoms={len(atoms)}")
     return atoms
@@ -933,7 +1114,9 @@ def stage_pair(ctx, atoms, max_judge_pairs):
                    "cross_source": cross_source,
                    "src_label_a": idx[ia].get("source_label"),
                    "src_label_b": idx[ib].get("source_label"),
-                   "type_a": idx[ia].get("type"), "type_b": idx[ib].get("type")}
+                   "type_a": idx[ia].get("type"), "type_b": idx[ib].get("type"),
+                   "kind_a": idx[ia].get("kind", "memory"),
+                   "kind_b": idx[ib].get("kind", "memory")}
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
             result.append(row)
     open(fp_path, "w").write(fp)
@@ -996,6 +1179,8 @@ def stage_junk(ctx, atoms, model, sample_n):
         cached = json.load(open(out, encoding="utf-8"))
         if cached:  # 빈 결과(전배치 실패)는 캐시로 안 침 — 재시도
             return cached
+    # // TASK-020: rule atom의 LLM 평가는 검토용이며 점수 표본에 섞지 않는다.
+    atoms = [atom for atom in atoms if atom.get("kind", "memory") == "memory"]
     if not atoms:
         return []
     random.seed(42)
@@ -1017,6 +1202,7 @@ def stage_junk(ctx, atoms, model, sample_n):
 
 
 # ── 6. report — 사람 언어 리포트 ────────────────────────────────────────────
+# // TASK-018
 def health_score(scan, atoms_n, dup_n, contra_n, junk_rate):
     """0~100. 축: junk 40 + 모순 30 + 중복 20 + 구조 10. 공식은 README에 문서화."""
     per1k = lambda n: n / atoms_n * 1000 if atoms_n else 0
@@ -1024,8 +1210,72 @@ def health_score(scan, atoms_n, dup_n, contra_n, junk_rate):
     s_contra = 30 * max(0.0, 1 - max(0.0, per1k(contra_n) - 2) / 28)
     s_dup = 20 * max(0.0, 1 - max(0.0, per1k(dup_n) - 5) / 55)
     s_struct = 10 * (0.5 * scan["frontmatter_rate"] + 0.5 * (1 - scan["dead_link_rate"]))
-    return round(s_junk + s_contra + s_dup + s_struct), \
-        {"junk": round(s_junk), "contradiction": round(s_contra), "duplicate": round(s_dup), "structure": round(s_struct)}
+    axes = {"junk": round(s_junk), "contradiction": round(s_contra),
+            "duplicate": round(s_dup), "structure": round(s_struct)}
+    # 세부표의 정수 subtotal과 최종점수는 반드시 같은 산식 결과여야 한다.
+    return sum(axes.values()), axes
+
+
+def score_deductions(scan, atoms_n, dup_n, contra_n, junk_rate, score, axes):
+    """health_score의 축 점수를 기준으로만 감점 명세를 만든다 (별도 점수식 금지)."""
+    per1k = lambda n: round(n / atoms_n * 1000, 3) if atoms_n else 0
+    components = (
+        ("contradiction", "per 1,000 memory atoms", per1k(contra_n), 30),
+        ("duplicate", "per 1,000 memory atoms", per1k(dup_n), 20),
+        ("junk", "sample ratio", round(junk_rate, 3) if junk_rate is not None else "unmeasured", 40),
+        ("structure", "weighted frontmatter/dead-link rate", {
+            "frontmatter_rate": scan["frontmatter_rate"],
+            "dead_link_rate": scan["dead_link_rate"],
+        }, 10),
+    )
+    result = {"baseline": {"unit": "points", "actual": 100, "deduction": 0,
+                            "cap": 100, "subtotal": 100}}
+    for name, unit, actual, cap in components:
+        deduction = cap - axes[name]
+        result[name] = {"unit": unit, "actual": actual, "deduction": deduction,
+                        "cap": cap, "subtotal": -deduction}
+    result["final"] = score
+    # baseline + 각 음수 subtotal이 final이라는 출력 계약을 내부에서도 강제한다.
+    assert sum(item["subtotal"] for name, item in result.items() if name != "final") == score
+    return result
+
+
+def report_score_deduction_table(lines, deductions):
+    lines.extend(("## Score deductions", "| Component | Unit | Actual | Deduction | Cap | Subtotal |",
+                  "|---|---|---:|---:|---:|---:|"))
+    for name in ("baseline", "contradiction", "duplicate", "junk", "structure"):
+        item = deductions[name]
+        actual = json.dumps(item["actual"], ensure_ascii=False) if isinstance(item["actual"], dict) else item["actual"]
+        lines.append(f"| {name} | {item['unit']} | {actual} | {item['deduction']} | {item['cap']} | {item['subtotal']} |")
+    lines.append(f"| **final** | points |  |  |  | **{deductions['final']}** |")
+
+
+def report_instruction_layer(lines, layer, rule_reviews):
+    """지시파일 정적 진단은 파일·행 근거를 Markdown에도 그대로 남긴다."""
+    lines.extend(("\n## Instruction-file layer (deterministic)", "\n### Loading map",
+                  "| AI tool | Files loaded |", "|---|---|"))
+    for tool in ("claude", "codex", "cursor"):
+        entries = layer.get("loading_map", {}).get(tool, [])
+        loaded = ", ".join(f"`{item['path']}`" for item in entries) or "none"
+        lines.append(f"| {tool} | {loaded} |")
+    labels = (("exact_duplicates", "Exact duplicates"),
+              ("polarity_conflicts", "Explicit polarity conflicts"),
+              ("dead_paths", "Dead relative/backtick paths"))
+    lines.append("\n### Signals")
+    for key, label in labels:
+        values = layer.get("signals", {}).get(key, [])
+        lines.append(f"- **{label}: {len(values)}**")
+        for value in values:
+            evidence = value.get("evidence", [])
+            if isinstance(evidence, dict):
+                evidence = [evidence]
+            locations = ", ".join(
+                f"`{item.get('source', '') + ':' if item.get('source') else ''}{item['path']}:{item['line']}`"
+                for item in evidence)
+            detail = value.get("reference") or value.get("action") or value.get("text") or ""
+            lines.append(f"  - {detail} — {locations}")
+    lines.extend(("\n## Non-scoring LLM review appendix",
+                  f"- {len(rule_reviews)} candidate pair(s) involving rule atoms were retained for human review and excluded from the score."))
 
 
 def count_all_notes(ctx, cap=20000):
@@ -1092,10 +1342,15 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     done_dir = ctx.path("done_extract")
     done_n = len(os.listdir(done_dir)) if os.path.isdir(done_dir) else 0
     failed_batches = max(0, len(man["batches"]) - done_n)
-    dups = [j for j in js if j["verdict"] == "duplicate"]
-    dups_hi = [j for j in dups if (j.get("confidence") or 0) >= 0.9]
-    contras = [j for j in js if j["verdict"] == "contradiction" and (j.get("confidence") or 0) >= 0.6]
     pair_by_id = {f'{p["a"]}|{p["b"]}': p for p in pairs}
+    # // TASK-020: rule 원자가 얽힌 LLM 판정은 review appendix에만 남기고 점수·카드에서 제외한다.
+    rule_reviews = [j for j in js if (pair_by_id.get(j.get("pair_id"), {}).get("kind_a", "memory") == "rule" or
+                                      pair_by_id.get(j.get("pair_id"), {}).get("kind_b", "memory") == "rule")]
+    scoring_js = [j for j in js if j not in rule_reviews]
+    scoring_atoms = [atom for atom in atoms if atom.get("kind", "memory") == "memory"]
+    dups = [j for j in scoring_js if j["verdict"] == "duplicate"]
+    dups_hi = [j for j in dups if (j.get("confidence") or 0) >= 0.9]
+    contras = [j for j in scoring_js if j["verdict"] == "contradiction" and (j.get("confidence") or 0) >= 0.6]
     cross_source_contradictions = sum(
         1 for j in contras if pair_by_id.get(j.get("pair_id"), {}).get("cross_source")
     )
@@ -1106,8 +1361,10 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
         junk_items = [j for j in junk_judgments if j["label"] == "junk"]
         junk_rate = len(junk_items) / len(junk_judgments)
         junk_types = dict(collections.Counter(j.get("type") or _t("junk_type_other") for j in junk_items))
-    score, axes = health_score(scan, len(atoms), len(dups), len(contras), junk_rate)
-    cards, n_contra_cards, n_dup_cards = build_cards(pairs, js)
+    score, axes = health_score(scan, len(scoring_atoms), len(dups), len(contras), junk_rate)
+    deductions = score_deductions(scan, len(scoring_atoms), len(dups), len(contras), junk_rate, score, axes)
+    cards, n_contra_cards, n_dup_cards = build_cards(pairs, scoring_js)
+    instruction_layer = stage_instruction_layer(ctx)
 
     today = datetime.date.today().isoformat()
     L = []
@@ -1117,12 +1374,9 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     L.append(_t("report_meta", today=today, vault=vault_display))
     L.append(_t("score_heading", score=score))
     L.append(_t("score_breakdown"))
-    L.append(_t("table_header"))
-    L.append("|---|---|---|")
-    for k, t_key, full in (("junk", "axis_junk", 40), ("contradiction", "axis_contradiction", 30),
-                           ("duplicate", "axis_duplicate", 20), ("structure", "axis_structure", 10)):
-        L.append(f"| {_t(t_key)} | {axes[k]} | {full} |")
-    waste = waste_estimate(ctx, scan, len(atoms), len(dups), junk_rate)
+    report_score_deduction_table(L, deductions)
+    report_instruction_layer(L, instruction_layer, rule_reviews)
+    waste = waste_estimate(ctx, scan, len(scoring_atoms), len(dups), junk_rate)
     L.append(_t("waste_heading"))
     dup_bytes = man.get("dup_bytes")
     if dup_bytes is None:
@@ -1188,13 +1442,16 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     report_path = ctx.path("report.md")
     open(report_path, "w", encoding="utf-8").write("\n".join(L) + "\n")
 
-    summary = {"score": score, "notes": scan["notes"], "atoms": len(atoms),
+    summary = {"score": score, "score_deductions": deductions, "score_axes": axes,
+               "notes": scan["notes"], "atoms": len(atoms), "memory_atoms": len(scoring_atoms),
                "duplicates": len(dups), "contradictions": len(contras),
                "source_samples": source_samples,
                "cross_source_contradictions": cross_source_contradictions,
                "junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
                "dup_bytes": man.get("dup_bytes"),
                "review_cards": n_contra_cards + n_dup_cards,
+               "instruction_layer": instruction_layer,
+               "rule_review_candidates": len(rule_reviews),
                "failed_extract_batches": failed_batches, "report": report_path,
                **(waste or {})}
     json.dump(summary, open(ctx.path("summary.json"), "w", encoding="utf-8"),
