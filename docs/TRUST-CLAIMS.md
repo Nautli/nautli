@@ -27,7 +27,7 @@
 
 | # | 주장 (노출 위치) | 근거 artifact | 유효 조건 | 만료·재측정 | 철회 조건 |
 |---|---|---|---|---|---|
-| C1 | 도구 바꿔도 기억 유지 / "Switch AI tools, keep your brain" (README:67, creed) | 로컬 평문 파일 + MIT + MCP 표준 — 구문상 반출 가능 | **왕복 무손실은 TASK-098 완료 전까지 검증 안 됨** — "무손실(lossless)" 단어는 098 머지 전 카피 사용 금지 (현행 카피는 미사용, 유지) | TASK-098 `export --verify` CI 상설화 시 근거 승격 | 왕복 diff≠0이 재현되면 이식 카피 전면 하향 |
+| C1 | 도구 바꿔도 기억 유지 / "Switch AI tools, keep your brain" (README:67, creed) + Portability 절 | TASK-098 완료(2026-07-23, 커밋 c0aa8a3): `export --verify` 왕복 무손실 검증 + `test/export-verify.test.js` 상설 + 실데이터 2379 facts 왕복 diff 0 실측 | "verified round-trip" 서술까지만 — guarantee/증명 단어 금지(README 현행 준수). 하드닝 잔여(fsync·대용량·딥 검증)는 TASK-107 | 릴리스마다 export-verify 테스트가 스위트에서 돌면 충족 | 왕복 diff≠0이 재현되면 이식 카피 전면 하향+INCIDENT |
 | C2 | 코어 MIT 오픈소스, 계속 유지 (package.json:20, site 다수) | `package.json` license 필드 + 공개 리포 | — | 라이선스 변경은 그 자체가 신뢰 사건 — 변경 시 공개 기록 필수 | — |
 | C3 | LLM 비결정성 4중 방어 (README:109) | 코드: 격리 cwd·포맷 예시·zero-parse 재시도·실패배치 no-op | troll delta(atoms +31%) 사고가 배경 — 방어는 완화지 제거 아님. "결정론" 류 표현 금지 | 재현성 게이트(자체볼트 2회 추출 겹침률) 측정치 나오면 수치 병기 | — |
 
