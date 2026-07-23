@@ -592,7 +592,7 @@ test("dashboard served script parses after template-literal unescaping (i18n reg
   assert.ok(dict, "DASH_EN dictionary embedded");
 });
 
-async function renderDoneCheckup(summary, lang = "ko") {
+async function renderDoneCheckup(summary, lang = "ko", checkupState = "done") {
   const { HTML } = await import("../src/dashboard/public.js");
   const dictStart = HTML.indexOf("  var DASH_EN=");
   const dictEnd = HTML.indexOf("  function resolveDashLang", dictStart);
@@ -605,7 +605,7 @@ async function renderDoneCheckup(summary, lang = "ko") {
     "function T(s){if(LANG===\"ko\")return s;var v=DASH_EN[s];return v===undefined?s:v;}",
     "function esc(value){return String(value==null?\"\":value).replace(/[&<>\"']/g,function(ch){return {\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\",\"'\":\"&#39;\"}[ch];});}",
     "var state={checkup:" + JSON.stringify({
-      state: "done",
+      state: checkupState,
       vault: "/taste-vault",
       files_sampled: 30,
       cards: [],
@@ -666,6 +666,21 @@ test("done checkup preserves positive, zero, and null waste signal meanings", as
   assert.match(unmeasured, /전체 볼트 상태는 판단할 수 없습니다/u);
 });
 
+test("imported checkup can re-enter the full result card with waste and import CTA", async () => {
+  const rendered = await renderDoneCheckup({
+    score: 62,
+    notes: 30,
+    atoms: 3,
+    duplicates: 1,
+    contradictions: 0,
+    junk_rate: null,
+    dup_bytes: 1024,
+    waste_rate: 0.2,
+  }, "ko", "imported");
+  assert.match(rendered, /class="checkup-waste warn"/u);
+  assert.match(rendered, /data-checkup-import/u);
+});
+
 test("checkup taste-signal copy is mapped in English without savings or health framing", async () => {
   const summary = {
     score: 62,
@@ -691,6 +706,7 @@ test("checkup taste-signal copy is mapped in English without savings or health f
 
   const { HTML } = await import("../src/dashboard/public.js");
   assert.match(HTML, /ctx\.fillText\("taste signal "\+data\.score\+"\/100"/u);
-  assert.match(HTML, /title:T\("맛보기 신호 "\)\+esc\(summary\.score\)/u);
+  assert.match(HTML, /c\.state==="done"\|\|c\.state==="imported"/u);
+  assert.match(HTML, /data-checkup-import/u);
   assert.match(HTML, /"이번 AI 맛보기의 낭비 신호를 측정하지 못했어요\. 전체 볼트 상태는 판단할 수 없습니다\.":"This AI taste test could not measure waste signals\. The state of the whole vault cannot be determined\."/u);
 });

@@ -378,6 +378,7 @@ test("checkupStatus surfaces summary and cards, importCheckup loads atoms throug
   try {
     const facts = store.query();
     assert.equal(facts.filter((fact) => fact.provenance?.source === "checkup").length, 2);
+    assert.equal(facts.find((fact) => fact.claim.includes("포트는 3100"))?.provenance?.path, "a.md");
     assert.ok(facts.some((fact) => fact.scope === "procedure")); // procedural type → procedure scope
   } finally {
     store.close();

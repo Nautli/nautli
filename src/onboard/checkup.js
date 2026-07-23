@@ -666,7 +666,15 @@ export function importCheckup(home, config, { locale } = {}) {
       const cleanedScope = originalScope.trim().replace(/\s+/gu, "-").replace(/[^\p{L}\p{N}:_.-]+/gu, "-");
       const scope = validScope(originalScope) ? originalScope : validScope(cleanedScope) ? cleanedScope : "project:vault";
       newScopes.add(scope);
-      const input = { claim: atom.claim, scope, subject: atom.subject || undefined, source: "checkup" };
+      // TASK-038: 검진 원본의 경로는 source 배지와 별도로 provenance에 보존한다.
+      const atomPath = typeof atom.path === "string" ? atom.path : atom.source;
+      const input = {
+        claim: atom.claim,
+        scope,
+        subject: atom.subject || undefined,
+        source: "checkup",
+        provenance: typeof atomPath === "string" && atomPath !== "" ? { path: atomPath } : undefined,
+      };
       const validAt = atom.t_valid ?? atom.date;
       if (typeof validAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(validAt)) input.t_valid = validAt;
       try {

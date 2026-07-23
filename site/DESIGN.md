@@ -39,7 +39,7 @@
 `<html data-theme="dark">`로 고정, `<meta name="color-scheme" content="dark">`. 헤더의 토글 버튼과 `main.js`의 테마 로직·localStorage는 제거했다. 다시 넣지 마라 — 고를 게 하나면 컨트롤도 없어야 한다.
 
 ### 브랜드 자산 동기화
-`assets/brand/`(파비콘·OG)는 아직 구 Teal(#087A6B/#12A88F)이다. 색상 계열이 같아 당장 튀지는 않지만 **정본 킷(`~/Desktop/brand-logos/FINAL/nautli/`) 재생성 전까지는 사이트가 앞서 있는 상태**임을 알고 있어라(TASK-064). 재생성 시 **다크 배경 기준**으로 볼 것. ⛔ warm clay-orange/cream 금지는 그대로 유효.
+`assets/brand/`(파비콘·OG)는 현행 Neon Green(#00E6A1)으로 재생성 완료. 사이트와 킷이 같은 액센트다. ⛔ warm clay-orange/cream 금지는 그대로 유효.
 
 ## 형태
 - radius: 카드 12px, 버튼 8px, 코드블록 8px (제품 대시보드와 통일)

@@ -317,11 +317,12 @@
     return card;
   }
 
+  // 압축 행도 위계 2단: 배지+제목(유저 영향) → 수치(측정)를 별도 행으로 강등.
   function compactRow(finding) {
     const row = el("article", "dg-rest-row");
-    const line = el("div", null);
+    const line = el("div", "dg-rest-head");
     line.append(sevChip(finding.weight));
-    line.append(el("h4", null, finding.title));
+    line.append(el("h4", "dg-rest-title", finding.title));
     row.append(line);
     row.append(el("p", "dg-finding-measure", finding.measure));
     row.append(evidenceBlock(finding));
@@ -341,16 +342,15 @@
     // "내 파일 대부분에 퍼져 있다"는 사실이라 큰 숫자는 affected가 갖는다.
     const lede = el("div", "dg-lede");
     lede.append(el("strong", null, String(affected)));
+    // 큰 숫자는 affected(영향 파일 수) 하나만. 이 라벨은 그 숫자만 설명한다.
     lede.append(el("span", null, fmt(text("resultSignals"), {
-      count: counted.length,
-      scanned: meta.scanned,
-      fileWord: word(meta.scanned, "File"),
-      signalWord: word(counted.length, "Signal"),
+      fileWord: word(affected, "File"),
     })));
-    // 보조 수치는 본문과 한 줄에 섞으면 괄호구가 어중간하게 꺾인다 — 제 줄을 준다.
+    // scanned/signal 수치는 primary와 경쟁하지 않게 보조 문장으로 강등한다.
     lede.append(el("span", "dg-lede-sub", fmt(text("resultSignalsSub"), {
       count: counted.length,
       scanned: meta.scanned,
+      fileWord: word(meta.scanned, "File"),
       signalWord: word(counted.length, "Signal"),
     })));
     out.append(lede);
@@ -370,6 +370,8 @@
       if (rest.length) {
         const more = el("section", "dg-rest");
         more.append(el("p", "dg-rest-heading", fmt(text("restHeading"), { count: rest.length })));
+        // 나머지가 왜 하위인지 한 줄로 설명 — 상위 3개보다 약한 신호라는 위계를 글로 준다.
+        more.append(el("p", "dg-rest-intro", text("restIntro")));
         const wrap = el("div", "dg-rest-list");
         for (const finding of rest) wrap.append(compactRow(finding));
         more.append(wrap);
@@ -393,6 +395,8 @@
       scoreBox.append(el("span", "dg-score-label", text("scoreLabel")));
       scoreBox.append(el("strong", null, String(score)));
       scoreBox.append(el("span", "dg-score-scale", "/ 100"));
+      // 점수와 동시에 "무엇을 어떻게 감점했나"를 먼저 노출한다 — 톤 다운된 각주가 아니라 본 줄로.
+      scoreBox.append(el("p", "dg-score-basis", text("scoreBasis")));
       scoreBox.append(el("span", "dg-score-note", text("scoreNote")));
       out.append(scoreBox);
     }

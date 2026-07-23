@@ -179,7 +179,7 @@ function diagnosePage(locale, copy) {
   const runtimeKeys = [
     "scanningProgress", "errorGeneric", "errorNoMarkdown", "folderFallbackLabel",
     "resultEyebrow", "resultSignals", "resultSignalsSub", "resultMeta", "resultPartial", "resultClean",
-    "scoreLabel", "scoreNote", "evidenceToggle", "evidenceMore", "restHeading",
+    "scoreLabel", "scoreBasis", "scoreNote", "evidenceToggle", "evidenceMore", "restHeading", "restIntro",
     "snippetLabel", "sevHigh", "sevMid", "sevLow", "sevInfo",
     "boundaryTitle", "boundaryBody", "ctaTitle", "ctaTitleClean", "ctaBody",
     "ctaButton", "ctaBenefits", "ctaNote",

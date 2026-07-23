@@ -50,11 +50,16 @@
 
   /* Neon Green. 채움색이지 텍스트색이 아니지만, 배경이 항상 #141414라
      다크에서는 둘 다 된다(11.26:1 AAA). 그래도 채움 위 글자는 잉크다. */
-  --neon: #00E6A1;
   --accent: #00E6A1;
   --accent-fill: #00E6A1;
   --accent-on-fill: #141414;
   --accent-soft: #00E6A114;
+
+  /* 위험 온도차 전용. 네온(--accent)은 CTA/브랜드 액센트에만 쓰고, 문제 신호의
+     심각도는 여기 red/amber로 표현한다 — 초록이 "문제"에 붙으면 CTA 신호가 흐려진다. */
+  --danger-fill: #C2181B;   /* 강한 신호 칩 채움. 흰 글자 대비 6.1:1 AA */
+  --danger-on-fill: #FFFFFF;
+  --amber: #F0A93B;         /* 중간 신호 외곽선/글자. #1c1c1a 위 AA */
 
   --body-font: Inter, Pretendard, "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono-font: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -1869,7 +1874,7 @@ tbody th {
   font-size: 13px;
 }
 
-/* 신호 강도 온도차 — 브랜드 팔레트(Ink+Teal) 안에서 채움/외곽선으로만 구분한다. */
+/* 신호 강도 온도차 — 문제 신호는 red/amber로. 네온(--accent)은 CTA 전용이라 칩에 쓰지 않는다. */
 .dg-sev {
   display: inline-block;
   margin-right: 8px;
@@ -1883,13 +1888,13 @@ tbody th {
 }
 
 .dg-sev-3 {
-  background: var(--accent-fill);
-  color: var(--accent-on-fill);
+  background: var(--danger-fill);
+  color: var(--danger-on-fill);
 }
 
 .dg-sev-2 {
-  border: 1px solid var(--accent);
-  color: var(--accent);
+  border: 1px solid var(--amber);
+  color: var(--amber);
 }
 
 .dg-sev-1 {
@@ -1966,10 +1971,18 @@ tbody th {
 }
 
 .dg-rest-heading {
-  margin-bottom: 10px;
+  margin-bottom: 4px;
   color: var(--text-faint);
   font-size: 14px;
   font-weight: 700;
+}
+
+/* 나머지 섹션이 왜 하위인지 설명하는 한 줄. */
+.dg-rest-intro {
+  max-width: 60ch;
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 14px;
 }
 
 .dg-rest-list {
@@ -1984,9 +1997,16 @@ tbody th {
   background: var(--bg-card);
 }
 
-.dg-rest-row h4 {
+/* 위계: 제목 행(칩+제목)은 --text 본색으로 세우고, 아래 측정치는 faint로 강등한다. */
+.dg-rest-head {
+  display: block;
+}
+
+.dg-rest-row h4,
+.dg-rest-title {
   display: inline;
   margin: 0;
+  color: var(--text);
   font-size: 15px;
   font-weight: 600;
 }
@@ -2032,8 +2052,18 @@ tbody th {
   color: var(--text-dim);
 }
 
+/* 감점 기준 요약 — 점수와 동시에 먼저 노출한다. 각주(note)보다 한 단 위 위계. */
+.dg-score-basis {
+  flex-basis: 100%;
+  max-width: 68ch;
+  margin: 8px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
 .dg-score-note {
   flex-basis: 100%;
+  margin: 0;
   color: var(--text-faint);
   font-size: 13px;
 }
