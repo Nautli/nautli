@@ -126,6 +126,89 @@ function writeAtomic(file, data) {
   }
 }
 
+// TASK-001: rebuild 크로스프로세스 자문 락 — SQLite 파괴/재생성이 동시 프로세스와 겹치지 않게.
+function rebuildLockPath(home) {
+  return path.join(home, ".index-rebuild.lock");
+}
+
+// TASK-001: 락이 잡혀 있으면(다른 프로세스가 rebuild 중) true. 단일 프로세스는 rebuild가
+// 동기라 자기 자신과 겹칠 수 없으므로, 존재하는 락은 항상 타 프로세스 소유를 뜻한다.
+function rebuildInProgress(home) {
+  return fs.existsSync(rebuildLockPath(home));
+}
+
+// TASK-001: 기존 락이 '증명 가능하게 죽은' PID의 것일 때만 회수한다.
+// 살아있거나(kill 0이 안 던짐/EPERM) 읽을 수 없는 소유자는 회수하지 않는다.
+function reclaimIfDeadOwner(lockPath) {
+  let owner;
+  try {
+    owner = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+  } catch {
+    return false; // 읽기 불가/손상 → 살아있는 소유자로 간주(회수 금지).
+  }
+  const pid = owner?.pid;
+  if (typeof pid !== "number" || !Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return false; // 예외 없음 → 프로세스 생존(회수 금지).
+  } catch (error) {
+    if (error?.code !== "ESRCH") return false; // EPERM 등 → 소유자 존재로 간주.
+    try {
+      fs.rmSync(lockPath, { force: true }); // 확정적으로 죽음 → 스테일 락 제거.
+    } catch {
+      // 다른 프로세스가 먼저 제거했을 수 있음 — 무시.
+    }
+    return true;
+  }
+}
+
+// TASK-001: 락 획득 — fs.openSync(path,"wx",0o600)로 원자적 배타 생성.
+// EEXIST면 죽은 소유자만 회수하고 재시도, 아니면 E_STORE_BUSY로 실패한다.
+function acquireRebuildLock(home) {
+  const lockPath = rebuildLockPath(home);
+  while (true) {
+    let fd;
+    try {
+      fd = fs.openSync(lockPath, "wx", 0o600);
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      if (reclaimIfDeadOwner(lockPath)) continue; // 스테일 회수 후 재시도.
+      throw codedError(ERR.E_STORE_BUSY, error); // 살아있는/불명 소유자.
+    }
+    try {
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, started_at: new Date().toISOString() }));
+    } finally {
+      fs.closeSync(fd);
+    }
+    return lockPath;
+  }
+}
+
+// TASK-001: 락 해제 — 항상 finally에서 호출(베스트에포트).
+function releaseRebuildLock(lockPath) {
+  try {
+    fs.rmSync(lockPath, { force: true });
+  } catch {
+    // 베스트에포트 해제 — 실패해도 다음 획득 시 스테일 회수로 복구된다.
+  }
+}
+
+// TASK-001: dirty 마커 원문 읽기 — 없으면 null(rebuild의 스냅샷 비교용).
+function readDirtyMarkerRaw(home) {
+  try {
+    return fs.readFileSync(path.join(home, ".index-dirty"), "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+// TASK-001: dirty 마커를 원자적으로(같은 디렉터리 temp + rename) 쓴다.
+// JSON {at, ev_id, reason} — 부분 JSON을 절대 관측시키지 않는다.
+function writeDirtyMarker(home, { at, ev_id = null, reason }) {
+  writeAtomic(path.join(home, ".index-dirty"), JSON.stringify({ at, ev_id: ev_id ?? null, reason }));
+}
+
 function scrubEventFiles(home, ids) {
   const directory = path.join(home, "events");
   let removed = 0;
@@ -326,10 +409,10 @@ export class Store {
       this.recoverPurgeJournal(purgeJournal);
     }
     // 자가치유: 이전 세션에서 인덱스 반영이 실패한 흔적이 있으면 정본(events)에서 재구성
-    const dirtyMarker = path.join(this.home, ".index-dirty");
-    if (fs.existsSync(dirtyMarker)) {
+    // TASK-001: 생성자 복구와 명시적 rebuild()는 동일 락 경로·구현을 공유한다(한 함수, 두 호출자).
+    // 마커 삭제도 rebuild() 안에서 '변경되지 않았을 때만' 처리하므로 여기서 rmSync 하지 않는다.
+    if (fs.existsSync(path.join(this.home, ".index-dirty"))) {
       this.rebuild();
-      fs.rmSync(dirtyMarker, { force: true });
     }
   }
 
@@ -379,12 +462,20 @@ export class Store {
     const file = path.join(this.home, "events", `${month}.jsonl`);
     fs.appendFileSync(file, `${JSON.stringify(event)}\n`, { encoding: "utf8", flag: "a" });
     if (!apply) return event;
+    // TASK-001: rebuild가 진행 중(다른 프로세스가 락 보유)이면 인덱스 변이를 건너뛰고
+    // 더 새로운 마커를 남긴다 — 진행 중/다음 rebuild가 이 이벤트를 리플레이하도록.
+    // (이 프로세스의 SQLite 핸들은 rebuild가 삭제·재생성 중인 파일을 가리킬 수 있어 위험하다.)
+    if (rebuildInProgress(this.home)) {
+      writeDirtyMarker(this.home, { at, ev_id, reason: "append-during-rebuild" });
+      return event;
+    }
     try {
       this.applyEvent(event);
     } catch {
       // 정본(로그)은 이미 기록됨 — 인덱스만 뒤처진 상태. 호출자가 재시도해 이벤트를 중복 쌓지 않도록
       // 성공으로 처리하고, 마커를 남겨 다음 오픈 시 rebuild로 자가치유한다.
-      fs.writeFileSync(path.join(this.home, ".index-dirty"), at);
+      // TASK-001: 마커는 원자적 JSON {at, ev_id, reason}로 기록한다.
+      writeDirtyMarker(this.home, { at, ev_id, reason: "apply-failed" });
     }
     return event;
   }
@@ -711,18 +802,34 @@ export class Store {
   }
 
   rebuild() {
-    this.close();
-    for (const suffix of ["", "-wal", "-shm"]) {
-      fs.rmSync(`${this.indexPath}${suffix}`, { force: true });
-    }
-    this.open();
+    // TASK-001: SQLite를 닫기 전에 크로스프로세스 락을 획득한다. 삭제·재오픈·리플레이·
+    // 마커 정리까지 락을 유지하고, 어떤 경로로 빠져나가든 finally에서 반드시 해제한다.
+    const lockPath = acquireRebuildLock(this.home);
+    try {
+      // TASK-001: 리플레이 전 dirty 마커 원문을 스냅샷한다. 리플레이 중 도착한 append가
+      // 더 새로운 마커를 남겼다면(내용 변경) 삭제하지 않아 다음 rebuild가 이어받는다.
+      const markerBefore = readDirtyMarkerRaw(this.home);
 
-    // TASK-104: 리플레이는 ev_id 기준 멱등 — 같은 ev_id 재등장 시 1회만 적용,
-    // ev_id 없는 레거시 라인은 전부 개별 적용된다(§3).
-    for (const event of readLogicalEvents(this.home)) {
-      this.applyEvent(event);
+      this.close();
+      for (const suffix of ["", "-wal", "-shm"]) {
+        fs.rmSync(`${this.indexPath}${suffix}`, { force: true });
+      }
+      this.open();
+
+      // TASK-104: 리플레이는 ev_id 기준 멱등 — 같은 ev_id 재등장 시 1회만 적용,
+      // ev_id 없는 레거시 라인은 전부 개별 적용된다(§3).
+      for (const event of readLogicalEvents(this.home)) {
+        this.applyEvent(event);
+      }
+
+      // TASK-001: 스냅샷과 동일할 때만 마커를 지운다(우리가 리플레이한 것만 청소).
+      if (markerBefore !== null && readDirtyMarkerRaw(this.home) === markerBefore) {
+        fs.rmSync(path.join(this.home, ".index-dirty"), { force: true });
+      }
+      return this.stats();
+    } finally {
+      releaseRebuildLock(lockPath);
     }
-    return this.stats();
   }
 
   stats() {
