@@ -73,6 +73,43 @@ test("dashboard status combines setup, doctor, stats, and pending count", async 
   assert.equal(status.pending, 0);
 });
 
+// TASK-075: /api/receipt/multi 라우트가 4개 윈도우 + 숫자별 근거 묶음을 돌려준다.
+test("dashboard receipt multi route returns windows with drill-down evidence groups", async (t) => {
+  const target = await dashboard(t);
+  const store = new Store(target.home);
+  const fact = remember(store, {
+    claim: "영수증 라우트 근거로 쓸 활성 기억",
+    scope: "person",
+    t_valid: "2026-07-01",
+  });
+  store.appendRecall({
+    hits: [fact.id],
+    session_id: "receipt-route-session",
+    returned_chars: 40,
+    at: new Date().toISOString(),
+  });
+  store.close();
+  fs.writeFileSync(path.join(target.home, "review", "queue.jsonl"), `${JSON.stringify({
+    pair_id: "receipt-route-pair",
+    status: "answered",
+    answered_by: "user",
+    handled_at: new Date().toISOString(),
+  })}\n`, "utf8");
+
+  const response = await fetch(`${target.url}/api/receipt/multi`);
+  assert.equal(response.status, 200);
+  const multi = await response.json();
+
+  assert.deepEqual(Object.keys(multi.windows).sort(), ["2d", "30d", "7d", "lifetime"]);
+  assert.equal(multi.windows.lifetime.is_lifetime, true);
+  assert.equal(typeof multi.active_start_approximate, "boolean");
+  const groups = multi.windows["2d"].evidence_groups;
+  assert.deepEqual(Object.keys(groups).sort(), ["active", "organized", "recall"]);
+  assert.equal(groups.recall[0].hits, 1);
+  assert.equal(groups.organized[0].pair_id, "receipt-route-pair");
+  assert.ok(groups.active.some((item) => typeof item.sample_claim === "string"));
+});
+
 test("dashboard graph includes scope, supersedes, and pending review links", async (t) => {
   const target = await dashboard(t);
   const store = new Store(target.home);

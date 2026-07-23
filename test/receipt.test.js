@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildReceipt, buildReceiptMulti } from "../src/core/receipt.js";
+import { buildReceipt, buildReceiptMulti, localWeekStart } from "../src/core/receipt.js";
 import { Store, readEventLog } from "../src/core/store.js";
 import { auditDelivery } from "../src/core/audit.js";
 import { makeT } from "../src/i18n/strings.js";
@@ -209,6 +209,136 @@ test("receipt evidence lists recent recalls with hit counts, newest first, cappe
   assert.equal(receipt.evidence.length, 3);
   assert.equal(receipt.evidence[0].at, "2026-07-14T10:00:00.000Z");
   assert.equal(receipt.evidence[0].hits, 2);
+});
+
+// TASK-075: 숫자별 근거 드릴다운 — recall/organized/active 세 묶음, 각 최대 3건.
+test("receipt evidence groups split recall, organized, and active, each capped at 3", (t) => {
+  const { home, store } = isolatedStore(t);
+  for (let i = 1; i <= 4; i++) {
+    store.addFact({
+      id: `fa_active_${i}`,
+      type: "semantic",
+      scope: "person",
+      subject: "",
+      claim: `active memory ${i}`,
+      confidence: 0.9,
+      provenance: {},
+      t_valid: `2026-07-0${i}`,
+      t_invalid: null,
+      t_expired: null,
+      superseded_by: null,
+      status: "active",
+      claim_hash: `h_active_${i}`,
+    });
+    store.appendRecall({
+      hits: [`fa_active_${i}`],
+      session_id: `session-${i}`,
+      returned_chars: 8,
+      at: `2026-07-1${i}T10:00:00.000Z`,
+    });
+  }
+  const queue = path.join(home, "review", "queue.jsonl");
+  for (let i = 1; i <= 4; i++) {
+    fs.appendFileSync(queue, `${JSON.stringify({
+      pair_id: `pair-${i}`,
+      status: "answered",
+      answered_by: "user",
+      handled_at: `2026-07-1${i}T11:00:00.000Z`,
+    })}\n`);
+  }
+
+  const receipt = buildReceipt(home, store, { now: NOW });
+  const groups = receipt.evidence_groups;
+
+  assert.deepEqual(Object.keys(groups).sort(), ["active", "organized", "recall"]);
+  assert.equal(groups.recall.length, 3);
+  assert.equal(groups.recall[0].at, "2026-07-14T10:00:00.000Z");
+  assert.equal(groups.organized.length, 3);
+  assert.equal(groups.organized[0].at, "2026-07-14T11:00:00.000Z");
+  assert.equal(groups.organized[0].actor, "user");
+  assert.equal(groups.active.length, 3);
+  assert.ok(typeof groups.active[0].sample_claim === "string");
+});
+
+// TASK-075: 로컬 주 스냅샷이 있으면 active-start를 정확히 알아 approximate=false.
+test("buildReceiptMulti uses an exact week snapshot for active-start", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 40,
+    at: "2026-07-15T10:00:00.000Z",
+  });
+  const weekStartIso = new Date(localWeekStart(Date.parse(NOW))).toISOString();
+  fs.mkdirSync(path.join(home, "receipt"), { recursive: true });
+  fs.writeFileSync(path.join(home, "receipt", "week-snapshot.json"), `${JSON.stringify({
+    schema: 1,
+    week_start: weekStartIso,
+    facts_active_at_start: 42,
+  })}\n`);
+
+  const multi = buildReceiptMulti(home, store, { now: NOW });
+
+  assert.equal(multi.active_start_approximate, false);
+  assert.equal(multi.windows["7d"].facts_active_at_start, 42);
+  assert.equal(multi.windows["7d"].facts_active_at_start_approximate, false);
+});
+
+// TASK-075: 스냅샷이 없으면 approximate=true(델타 폴백)이고, 다음 주부터 쓰도록 베이스라인을 심는다.
+test("buildReceiptMulti flags active-start approximate and seeds a snapshot when absent", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 40,
+    at: "2026-07-15T10:00:00.000Z",
+  });
+  const snapFile = path.join(home, "receipt", "week-snapshot.json");
+  assert.equal(fs.existsSync(snapFile), false);
+
+  const multi = buildReceiptMulti(home, store, { now: NOW });
+
+  assert.equal(multi.active_start_approximate, true);
+  assert.equal(multi.windows["7d"].facts_active_at_start_approximate, true);
+  assert.equal(fs.existsSync(snapFile), true);
+  const snap = JSON.parse(fs.readFileSync(snapFile, "utf8"));
+  assert.equal(snap.week_start, new Date(localWeekStart(Date.parse(NOW))).toISOString());
+});
+
+// TASK-075: 월 이벤트 파일 3개 이상이면 요약을 캐시하고, 파일 mtime이 바뀌면 캐시가 깨진다.
+test("buildReceiptMulti caches with 3+ monthly files and busts on mtime change", (t) => {
+  const { home, store } = isolatedStore(t);
+  store.appendRecall({
+    hits: ["fa_a"],
+    session_id: "session-a",
+    returned_chars: 40,
+    at: "2026-07-15T10:00:00.000Z",
+  });
+  const evDir = path.join(home, "events");
+  for (const month of ["2026-05", "2026-06"]) {
+    fs.writeFileSync(path.join(evDir, `${month}.jsonl`), `${JSON.stringify({
+      type: "recall",
+      hits: ["fa_a"],
+      session_id: `session-${month}`,
+      returned_chars: 8,
+      at: `${month}-10T10:00:00.000Z`,
+    })}\n`);
+  }
+
+  const first = buildReceiptMulti(home, store, { now: NOW });
+  assert.equal(first.from_cache, false);
+  assert.equal(fs.existsSync(path.join(home, "receipt", "summary-cache.json")), true);
+
+  const second = buildReceiptMulti(home, store, { now: NOW });
+  assert.equal(second.from_cache, true);
+  assert.equal(second.windows["7d"].conversations, first.windows["7d"].conversations);
+
+  // 정본 파일의 mtime을 바꾸면 캐시 키가 달라져 재계산해야 한다.
+  const bumped = new Date(Date.parse(NOW) - 60_000);
+  fs.utimesSync(path.join(evDir, "2026-06.jsonl"), bumped, bumped);
+
+  const third = buildReceiptMulti(home, store, { now: NOW });
+  assert.equal(third.from_cache, false);
 });
 
 test("receipt wording contains no long dash characters", () => {
