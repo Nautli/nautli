@@ -65,6 +65,8 @@ export function applyJudgments(store, judgments, config = {}) {
     let appliedDuplicates = 0;
     let appliedContradictions = 0;
     let queued = 0;
+    // TASK-013: related 판정은 기억 그래프 엣지로 영속화된다(자동 병합/모순과 별개 카운터).
+    let appliedEdges = 0;
     let skipped = 0;
     let machineOracle = 0;
     let triageRouted = 0;
@@ -224,6 +226,18 @@ export function applyJudgments(store, judgments, config = {}) {
             shadowed += 1;
             outcome = "shadowed";
           }
+        } else if (judgment.verdict === "related") {
+          // TASK-013: 야간 데몬 related 판정을 기억 그래프 엣지로 저장(edge.upserted 이벤트).
+          // 정규화·ev_id·idempotent upsert는 store.upsertEdge가 처리한다.
+          store.upsertEdge({
+            a_id: a.id,
+            b_id: b.id,
+            kind: "related",
+            confidence,
+            source: "judge",
+          });
+          appliedEdges += 1;
+          outcome = "edge";
         }
       }
 
@@ -246,6 +260,8 @@ export function applyJudgments(store, judgments, config = {}) {
       applied,
       applied_duplicates: appliedDuplicates,
       applied_contradictions: appliedContradictions,
+      // TASK-013: 이번 소화에서 저장된 related 엣지 수.
+      edges: appliedEdges,
       queued,
       shadowed,
       skipped,

@@ -1097,6 +1097,31 @@ export async function main(argv = process.argv.slice(2)) {
         return;
       }
 
+      // TASK-023: `nautli scope alias <alias> --to <canonical>` — 별칭을 canonical scope에 묶는다.
+      // 저장된 fact의 scope는 재기록되지 않으며 recall만 canonical+alias로 확장된다.
+      if (command === "scope") {
+        const [subcommand, ...rest] = args;
+        if (subcommand === "alias") {
+          const parsed = parseCommand(rest, { to: { type: "string" } });
+          requirePositionals(parsed.positionals, 1);
+          const canonical = parsed.values.to;
+          if (typeof canonical !== "string" || canonical.trim() === "") {
+            throw codedError(ERR.E_INVALID_INPUT);
+          }
+          store.setScopeAlias(parsed.positionals[0], canonical);
+          writeJson({ ok: true, alias: parsed.positionals[0], canonical });
+          process.exitCode = 0;
+          return;
+        }
+        if (subcommand === "aliases") {
+          requirePositionals(parseCommand(rest).positionals, 0);
+          writeJson({ aliases: store.listScopeAliases() });
+          process.exitCode = 0;
+          return;
+        }
+        throw codedError(ERR.E_INVALID_INPUT);
+      }
+
       throw codedError(
         ERR.E_INVALID_INPUT,
         t("cli.unknown_command", { command: command ?? "" }),

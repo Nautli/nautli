@@ -51,6 +51,24 @@ function serializeProvenance(value) {
   return JSON.stringify(value ?? {});
 }
 
+// TASK-013: 엣지 ID 쌍은 사전순 정규화(a_id < b_id)해 방향 없는 한 쌍이 항상 같은 행에 접힌다.
+// 공개 API(upsertEdge)의 검증용 — 자기루프·빈 ID는 던진다. 리플레이 경로는 별도로 방어적 스킵.
+function normalizeEdgePair(aId, bId) {
+  if (typeof aId !== "string" || aId === ""
+    || typeof bId !== "string" || bId === ""
+    || aId === bId) {
+    throw codedError(ERR.E_INVALID_INPUT);
+  }
+  return aId < bId ? [aId, bId] : [bId, aId];
+}
+
+// TASK-013: 엣지 confidence는 0..1로 클램프, 비수치는 0.5(중립)로.
+function edgeConfidence(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0.5;
+  return Math.min(1, Math.max(0, n));
+}
+
 function hydrate(row) {
   if (!row) return null;
   let provenance = {};
@@ -461,6 +479,24 @@ export class Store {
       CREATE TABLE IF NOT EXISTS events_applied (
         ev_id TEXT PRIMARY KEY
       );
+      -- TASK-013: 파생 기억 그래프 — 이벤트 로그(edge.upserted)가 정본, 이 표는 rebuild로 재구성.
+      CREATE TABLE IF NOT EXISTS edges (
+        a_id TEXT NOT NULL,
+        b_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        confidence REAL NOT NULL,
+        source TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (a_id, b_id, kind)
+      );
+      CREATE INDEX IF NOT EXISTS edges_b_idx ON edges(b_id);
+      -- TASK-023: scope 별칭 — canonical로 recall 확장하되 저장된 fact의 scope는 절대 재기록하지 않는다.
+      CREATE TABLE IF NOT EXISTS scope_aliases (
+        alias TEXT PRIMARY KEY,
+        canonical TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS scope_aliases_canonical_idx ON scope_aliases(canonical);
     `);
   }
 
@@ -518,6 +554,17 @@ export class Store {
           const inserted = this.db.prepare("INSERT OR IGNORE INTO events_applied (ev_id) VALUES (?)").run(evId);
           if (inserted.changes === 0) return; // already applied — skip the index mutation.
         }
+        // TASK-013 / TASK-023: 파생 그래프·별칭 이벤트는 fact 인덱스와 무관한 자체 표에 반영한다.
+        // rebuild 리플레이가 이 경로로 표를 그대로 복원한다(파생 표 = 이벤트 로그가 정본).
+        if (evt?.ev === "edge.upserted") {
+          this.applyEdgeUpsert(evt);
+          return;
+        }
+        if (evt?.ev === "scope.alias_set") {
+          this.applyAliasSet(evt);
+          return;
+        }
+
         const tombstoneIds = purgedFactIds(evt);
         if (tombstoneIds.length > 0) {
           const placeholders = tombstoneIds.map(() => "?").join(", ");
@@ -584,6 +631,150 @@ export class Store {
       if (isBusy(error)) throw codedError(ERR.E_STORE_BUSY, error);
       throw error;
     }
+  }
+
+  // TASK-013: 파생 edges 표 반영(리플레이·라이브 공용). 손상 데이터는 rebuild를 죽이지 않게
+  // 던지지 않고 조용히 스킵한다(텔레메트리 스킵과 같은 원칙, 사고 2026-07-19).
+  applyEdgeUpsert(evt) {
+    const aId = evt?.a_id;
+    const bId = evt?.b_id;
+    if (typeof aId !== "string" || aId === ""
+      || typeof bId !== "string" || bId === ""
+      || aId === bId) return;
+    const [a, b] = aId < bId ? [aId, bId] : [bId, aId];
+    const kind = typeof evt.kind === "string" && evt.kind !== "" ? evt.kind : "related";
+    const confidence = edgeConfidence(evt.confidence);
+    const source = typeof evt.source === "string" && evt.source !== "" ? evt.source : "unknown";
+    const updated_at = typeof evt.at === "string" ? evt.at : new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO edges (a_id, b_id, kind, confidence, source, updated_at)
+      VALUES (@a, @b, @kind, @confidence, @source, @updated_at)
+      ON CONFLICT(a_id, b_id, kind) DO UPDATE SET
+        confidence = excluded.confidence,
+        source = excluded.source,
+        updated_at = excluded.updated_at
+    `).run({ a, b, kind, confidence, source, updated_at });
+  }
+
+  // TASK-023: 파생 scope_aliases 표 반영(리플레이·라이브 공용). 손상 데이터는 스킵.
+  applyAliasSet(evt) {
+    const alias = evt?.alias;
+    const canonical = evt?.canonical;
+    if (typeof alias !== "string" || alias === ""
+      || typeof canonical !== "string" || canonical === ""
+      || alias === canonical) return;
+    const updated_at = typeof evt.at === "string" ? evt.at : new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO scope_aliases (alias, canonical, updated_at)
+      VALUES (@alias, @canonical, @updated_at)
+      ON CONFLICT(alias) DO UPDATE SET
+        canonical = excluded.canonical,
+        updated_at = excluded.updated_at
+    `).run({ alias, canonical, updated_at });
+  }
+
+  // TASK-013: 관계 엣지 upsert — 정규화된 쌍으로 edge.upserted 이벤트를 로그에 append(ev_id 자동).
+  // TASK-015(ingest)가 그대로 재사용할 유일한 emit 헬퍼 — 시그니처를 안정적으로 유지한다.
+  upsertEdge({ a_id, b_id, kind = "related", confidence = 1, source = "core", at } = {}) {
+    const [a, b] = normalizeEdgePair(a_id, b_id);
+    return this.appendEvent({
+      ev: "edge.upserted",
+      a_id: a,
+      b_id: b,
+      kind: typeof kind === "string" && kind !== "" ? kind : "related",
+      confidence: edgeConfidence(confidence),
+      source: typeof source === "string" && source !== "" ? source : "core",
+      ...(typeof at === "string" ? { at } : {}),
+    });
+  }
+
+  // TASK-013: 주어진 fact의 1-hop ACTIVE 이웃(방향 없음). recall 이웃 부스트용.
+  activeNeighbors(factId) {
+    if (typeof factId !== "string" || factId === "") return [];
+    return this.db.prepare(`
+      SELECT CASE WHEN e.a_id = @id THEN e.b_id ELSE e.a_id END AS neighbor_id,
+             e.confidence AS confidence,
+             e.kind AS kind
+      FROM edges e
+      JOIN facts f ON f.id = (CASE WHEN e.a_id = @id THEN e.b_id ELSE e.a_id END)
+      WHERE (e.a_id = @id OR e.b_id = @id) AND f.status = 'active'
+    `).all({ id: factId });
+  }
+
+  // TASK-013: 주어진 fact들 중 하나라도 끝점으로 갖는 저장된 엣지(render Backlinks용).
+  listEdges(ids) {
+    if (!Array.isArray(ids) || ids.length === 0) return [];
+    const placeholders = ids.map(() => "?").join(", ");
+    return this.db.prepare(`
+      SELECT a_id, b_id, kind, confidence, source, updated_at
+      FROM edges
+      WHERE a_id IN (${placeholders}) OR b_id IN (${placeholders})
+      ORDER BY a_id, b_id, kind
+    `).all(...ids, ...ids);
+  }
+
+  // TASK-023: scope 별칭 설정 — scope.alias_set 이벤트 append. 저장된 fact scope는 건드리지 않는다.
+  setScopeAlias(alias, canonical, { at } = {}) {
+    if (typeof alias !== "string" || alias === ""
+      || typeof canonical !== "string" || canonical === ""
+      || alias === canonical) {
+      throw codedError(ERR.E_INVALID_INPUT);
+    }
+    return this.appendEvent({
+      ev: "scope.alias_set",
+      alias,
+      canonical,
+      ...(typeof at === "string" ? { at } : {}),
+    });
+  }
+
+  // TASK-023: recall scope 확장 집합 — 요청 scope, 그 canonical, 그 canonical의 모든 alias.
+  // 이렇게 하면 canonical·alias 어느 쪽으로 recall해도 양쪽 저장 scope의 fact를 모두 포괄한다.
+  expandScope(scope) {
+    if (typeof scope !== "string" || scope === "") return [];
+    const row = this.db.prepare("SELECT canonical FROM scope_aliases WHERE alias = ?").get(scope);
+    const canonical = row?.canonical ?? scope;
+    const aliases = this.db.prepare("SELECT alias FROM scope_aliases WHERE canonical = ?")
+      .all(canonical)
+      .map((entry) => entry.alias);
+    return [...new Set([scope, canonical, ...aliases])];
+  }
+
+  // TASK-023: 저장된 모든 별칭(CLI·감사용).
+  listScopeAliases() {
+    return this.db.prepare("SELECT alias, canonical, updated_at FROM scope_aliases ORDER BY alias").all();
+  }
+
+  // TASK-037: 미해결(pending/deferred) contradiction 카드의 양쪽 ACTIVE fact를 서로 매핑한다.
+  // recall/briefing이 이 맵으로 conflicts_with·"미해결 충돌" 마커를 붙인다. 해소/both_valid로
+  // 카드가 pending/deferred를 벗어나거나 한쪽이 비활성화되면 자연히 사라진다(파생 상태).
+  activeContradictions() {
+    const file = path.join(this.home, "review", "queue.jsonl");
+    if (!fs.existsSync(file)) return new Map();
+    const map = new Map();
+    const link = (from, to) => {
+      if (!map.has(from)) map.set(from, new Set());
+      map.get(from).add(to);
+    };
+    for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+      if (line.trim() === "") continue;
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (entry?.verdict !== "contradiction") continue;
+      if (entry.status !== "pending" && entry.status !== "deferred") continue;
+      const ids = typeof entry.pair_id === "string" ? entry.pair_id.split(":") : [];
+      if (ids.length !== 2) continue;
+      const a = this.getFact(ids[0]);
+      const b = this.getFact(ids[1]);
+      if (a?.status !== STATUS.ACTIVE || b?.status !== STATUS.ACTIVE) continue;
+      link(a.id, b.id);
+      link(b.id, a.id);
+    }
+    return map;
   }
 
   addFact(fact) {

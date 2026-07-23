@@ -57,7 +57,8 @@ test("machine oracle contradiction is journaled without a review card", (t) => {
   }]);
 
   // TASK-061: applied_duplicates/applied_contradictions 카운터 추가 반영
-  assert.deepEqual(result, { applied: 0, applied_duplicates: 0, applied_contradictions: 0, queued: 0, shadowed: 0, skipped: 0, machine_oracle: 1, triage_routed: 0 });
+  // TASK-013: related 엣지 카운터(edges) 추가 반영
+  assert.deepEqual(result, { applied: 0, applied_duplicates: 0, applied_contradictions: 0, edges: 0, queued: 0, shadowed: 0, skipped: 0, machine_oracle: 1, triage_routed: 0 });
   assert.equal(fs.existsSync(path.join(home, "review", "queue.jsonl")), false);
   assert.equal(store.getFact(a.id).status, STATUS.ACTIVE);
   assert.equal(store.getFact(b.id).status, STATUS.ACTIVE);

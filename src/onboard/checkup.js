@@ -594,6 +594,54 @@ export function dismissCheckup(home) {
 }
 
 // 처방 ①: 진단에서 뽑은 fact를 nautli 저장소로 가져온다 (쓰기 게이트 경유 = 중복은 게이트가 거른다)
+// TASK-023: scope 이원화 감지용 정규화 키 — 대소문자·구분자·project: 접두사를 무시한 알파벳/숫자만.
+function scopeNormKey(scope) {
+  return String(scope).toLowerCase().replace(/^project:/u, "").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function scopeBigrams(text) {
+  const set = new Set();
+  if (text.length <= 1) {
+    if (text.length === 1) set.add(text);
+    return set;
+  }
+  for (let i = 0; i < text.length - 1; i += 1) set.add(text.slice(i, i + 2));
+  return set;
+}
+
+function jaccard(a, b) {
+  if (a.size === 0 && b.size === 0) return 1;
+  let intersection = 0;
+  for (const gram of a) if (b.has(gram)) intersection += 1;
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+// TASK-023: 새 scope들을 기존 scope와 정규화/토큰 유사도로 비교해 병합 후보만 반환한다.
+// 절대 자동 병합/별칭 설정하지 않는다 — 제안(scope_suggestions)만 낸다.
+function scopeSuggestions(newScopes, existingScopes) {
+  const existing = existingScopes.filter((scope) => scope !== "person" && scope !== "procedure");
+  const suggestions = [];
+  for (const scope of newScopes) {
+    if (scope === "person" || scope === "procedure") continue;
+    if (existing.includes(scope)) continue; // 동일 scope가 이미 있으면 이원화 아님
+    const key = scopeNormKey(scope);
+    if (key === "") continue;
+    const grams = scopeBigrams(key);
+    let best = null;
+    for (const candidate of existing) {
+      const candidateKey = scopeNormKey(candidate);
+      if (candidateKey === "") continue;
+      const similarity = candidateKey === key ? 1 : jaccard(grams, scopeBigrams(candidateKey));
+      if (similarity >= 0.7 && (!best || similarity > best.similarity)) {
+        best = { scope, canonical: candidate, similarity: Math.round(similarity * 100) / 100 };
+      }
+    }
+    if (best) suggestions.push(best);
+  }
+  return suggestions;
+}
+
 export function importCheckup(home, config, { locale } = {}) {
   const t = translator(locale);
   const current = readCurrent(home);
@@ -606,6 +654,9 @@ export function importCheckup(home, config, { locale } = {}) {
   const atoms = runDir ? readJsonl(path.join(runDir, "atoms.jsonl")) : [];
   if (atoms.length === 0) throw codedError(ERR.E_NOT_FOUND, t("checkup.memories_missing"));
   const store = new Store(home);
+  // TASK-023: 병합 제안은 "새 scope vs 기존 scope" 비교이므로 import 전에 기존 scope를 스냅샷한다.
+  const existingScopes = Object.keys(store.stats().byScope);
+  const newScopes = new Set();
   const atomFactIds = new Map();
   const atomsById = new Map(atoms.map((atom) => [atom.id, atom]));
   const result = { imported: 0, duplicates: 0, rejected: 0, cards: 0, total: Math.min(atoms.length, IMPORT_CAP), omitted: Math.max(0, atoms.length - IMPORT_CAP) };
@@ -614,6 +665,7 @@ export function importCheckup(home, config, { locale } = {}) {
       const originalScope = atom.type === "procedural" ? "procedure" : String(atom.scope ?? "");
       const cleanedScope = originalScope.trim().replace(/\s+/gu, "-").replace(/[^\p{L}\p{N}:_.-]+/gu, "-");
       const scope = validScope(originalScope) ? originalScope : validScope(cleanedScope) ? cleanedScope : "project:vault";
+      newScopes.add(scope);
       const input = { claim: atom.claim, scope, subject: atom.subject || undefined, source: "checkup" };
       const validAt = atom.t_valid ?? atom.date;
       if (typeof validAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(validAt)) input.t_valid = validAt;
@@ -656,6 +708,8 @@ export function importCheckup(home, config, { locale } = {}) {
     }];
   });
   result.cards = appendCards(home, cards);
+  // TASK-023: scope 이원화 후보만 리턴한다(자동 병합 없음).
+  result.scope_suggestions = scopeSuggestions([...newScopes], existingScopes);
   writeCurrent(home, { ...current, imported_at: new Date().toISOString(), imported: result });
   return result;
 }

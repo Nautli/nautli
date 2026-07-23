@@ -195,7 +195,7 @@ export function listSurfacedCards(home, { cap = 3, now = new Date() } = {}) {
   });
 }
 
-export function applyCard(store, home, pairId, action, extraText) {
+export function applyCard(store, home, pairId, action, extraText, { now = new Date() } = {}) {
   if (!ACTIONS.has(action)) throw codedError(ERR.E_INVALID_INPUT);
   return withReviewLock(home, () => {
     const entries = readQueue(home);
@@ -212,8 +212,16 @@ export function applyCard(store, home, pairId, action, extraText) {
     let status = "answered";
     let deferredUntil;
 
-    if (action === "keep_separate" || action === "both_valid" || action === "unknown") {
+    if (action === "keep_separate" || action === "both_valid") {
       status = "dismissed";
+    }
+    if (action === "unknown") {
+      // TASK-037: "몰라요"는 영구 dismiss가 아니라 14일 스누즈다 — 만료 후 재부상한다.
+      // (both_valid/keep_separate 같은 해소성 답변만 dismissed로 마커를 지운다.)
+      status = "deferred";
+      const until = new Date(now.getTime());
+      until.setDate(until.getDate() + 14);
+      deferredUntil = until.toLocaleDateString("sv-SE");
     }
     if (action === "report_issue") {
       // 엣지케이스 신고: 기억은 건드리지 않고 카드만 닫되, 사유를 영속 기록해
