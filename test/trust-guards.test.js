@@ -15,7 +15,7 @@ import { spawnSync } from "node:child_process";
 // TASK-106
 import { runScan } from "../src/scan/index.js";
 // TASK-106
-import { checkupPreflight } from "../src/onboard/checkup.js";
+import { checkupPreflight, startCheckup } from "../src/onboard/checkup.js";
 
 // TASK-106
 function temporaryDirectory(t, prefix) {
@@ -139,6 +139,36 @@ test("checkup vault-reading preflight leaves every fixture vault entry unchanged
   assert.deepEqual(compareSnapshots(before, snapshotTree(vault)), []);
 });
 
+// TASK-113
+test("vault snapshots flag a note mutation from the spawned checkup judge", (t) => {
+  const { userHome, vault } = fixtureVault(t);
+  const home = path.join(userHome, ".nautli");
+  const note = path.join(vault, "note.md");
+  const before = snapshotTree(vault);
+  const mockJudge = (command, args, options) => {
+    assert.equal(command, "python3");
+    assert.ok(args.includes("--max-judge-pairs"));
+    assert.equal(options.detached, true);
+    const child = spawnSync(process.execPath, [
+      "--input-type=module",
+      "--eval",
+      "import { appendFileSync } from 'node:fs'; appendFileSync(process.argv[1], '\\nmutated by mock judge\\n');",
+      note,
+    ], { encoding: "utf8" });
+    assert.equal(child.status, 0, child.stderr);
+    return { pid: 999999991, unref() {}, on() {} };
+  };
+
+  const started = startCheckup(home, vault, { userHome, spawner: mockJudge });
+  const differences = compareSnapshots(before, snapshotTree(vault));
+
+  assert.equal(started.started, true);
+  assert.throws(() => assert.deepEqual(differences, []), { name: "AssertionError" });
+  assert.deepEqual(differences.map((difference) => ({ type: difference.type, path: difference.path })), [
+    { type: "change", path: "note.md" },
+  ]);
+});
+
 // TASK-106
 function runScript(script, args = []) {
   return spawnSync(process.execPath, [script, ...args], {
@@ -148,7 +178,8 @@ function runScript(script, args = []) {
 }
 
 // TASK-106
-test("trust-claims checker passes the ledger and reports a broken link plus bogus commit", (t) => {
+// TASK-113
+test("trust-claims checker passes the ledger and reports a broken link plus bogus table commit", (t) => {
   const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
   const script = path.join(root, "scripts", "check-trust-claims.js");
   const ledger = path.join(root, "docs", "TRUST-CLAIMS.md");
@@ -156,11 +187,29 @@ test("trust-claims checker passes the ledger and reports a broken link plus bogu
   assert.equal(passed.status, 0, passed.stderr || passed.stdout);
 
   const fixture = path.join(temporaryDirectory(t, "nautli-trust-ledger-"), "ledger.md");
-  fs.writeFileSync(fixture, "[missing](missing.md) `abcdef0`\n");
+  fs.writeFileSync(fixture, "| evidence | [missing](missing.md) | `abcdef0` |\n");
   const failed = runScript(script, [fixture]);
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /broken link: missing\.md/);
   assert.match(failed.stderr, /broken commit: abcdef0/);
+});
+
+// TASK-113
+test("trust-claims checker checks backtick artifacts and ignores prose hex", (t) => {
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
+  const script = path.join(root, "scripts", "check-trust-claims.js");
+  const directory = temporaryDirectory(t, "nautli-trust-artifact-");
+  const missing = path.join(directory, "missing.md");
+  fs.writeFileSync(missing, "Evidence artifact: `missing-artifact.md`\n");
+
+  const failed = runScript(script, [missing]);
+  assert.equal(failed.status, 1);
+  assert.match(failed.stderr, /broken artifact: missing-artifact\.md/);
+
+  const prose = path.join(directory, "prose.md");
+  fs.writeFileSync(prose, "The diagnostic batch identifier abcdef01 is prose, not a commit claim.\n");
+  const passed = runScript(script, [prose]);
+  assert.equal(passed.status, 0, passed.stderr || passed.stdout);
 });
 
 // TASK-106

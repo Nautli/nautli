@@ -22,9 +22,30 @@ function localLink(target) {
   return target !== "" && !target.startsWith("#") && !/^[a-z][a-z0-9+.-]*:/iu.test(target) && !target.startsWith("//");
 }
 
-// TASK-106
+// TASK-113
+function backtickArtifacts(text) {
+  return [...text.matchAll(/`([^`\r\n]+)`/gu)]
+    .map((match) => match[1])
+    .filter((token) => !token.startsWith("~")
+      && !path.isAbsolute(token)
+      && !/:\d+$/u.test(token)
+      && /(?:^|\/)[^/]+\.(?:cjs|js|json|md|mjs|py|sh|txt|ya?ml)$/iu.test(token));
+}
+
+// TASK-113
+function artifactExists(ledger, artifact) {
+  return [path.resolve(path.dirname(ledger), artifact), path.resolve(REPOSITORY_ROOT, artifact)]
+    .some((candidate) => fs.existsSync(candidate));
+}
+
+// TASK-113
 function commitTokens(text) {
-  return [...text.matchAll(/(?<![0-9a-f])[0-9a-f]{7,40}(?![0-9a-f])/giu)].map((match) => match[0]);
+  const contexts = [
+    ...[...text.matchAll(/\[[^\]]*\]\([^)]*\)/gu)].map((match) => match[0]),
+    ...text.split(/\r?\n/gu).filter((line) => /^\s*\|/u.test(line)),
+  ];
+  return contexts.flatMap((context) => [...context.matchAll(/(?<![0-9a-f])[0-9a-f]{7,40}(?![0-9a-f])/giu)]
+    .map((match) => match[0]));
 }
 
 // TASK-106
@@ -46,6 +67,11 @@ function checkLedger(ledger) {
       failures.push(`broken link: ${target}`);
     }
   }
+  // TASK-113
+  for (const artifact of new Set(backtickArtifacts(text))) {
+    if (!artifactExists(ledger, artifact)) failures.push(`broken artifact: ${artifact}`);
+  }
+  // TASK-113
   for (const hash of new Set(commitTokens(text))) {
     if (!commitExists(hash)) failures.push(`broken commit: ${hash}`);
   }
