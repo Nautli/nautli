@@ -4,7 +4,10 @@
   "description": "One local brain for all your AI agents. Facts in, contradictions resolved, junk forgotten. While you sleep.",
   "main": "src/cli.js",
   "scripts": {
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "check:network": "node scripts/check-network-allowlist.js",
+    "check:trust-claims": "node scripts/check-trust-claims.js",
+    "check:trust": "npm run check:network && npm run check:trust-claims"
   },
   "keywords": [
     "mcp",

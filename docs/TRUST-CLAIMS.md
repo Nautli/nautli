@@ -17,10 +17,10 @@
 
 | # | 주장 (노출 위치) | 근거 artifact | 유효 조건 | 만료·재측정 | 철회 조건 |
 |---|---|---|---|---|---|
-| B1 | 노트는 nautli 서버로 안 감 / 업로드 없음 / "우리 서버 자체가 없음" (README:80, site trustLine 3개 로케일) | 아키텍처: 저장은 전부 `~/.nautli` 로컬 파일. 텔레메트리 endpoint 1개뿐이며 opt-in | "서버 없음"은 *컨텐츠 서버* 없음의 의미 — telemetry.nautli.ai(메타 수신)는 존재하므로 카피가 이 구분을 흐리면 안 됨 | 네트워크 경로 추가되는 릴리스마다 재확인 (**근거 자동화 미비 — 후속 F2**) | 노트/claim 본문이 외부로 나가는 코드 경로가 하나라도 생기면 즉시 카피 철회+INCIDENT |
+| B1 | 노트는 nautli 서버로 안 감 / 업로드 없음 / "우리 서버 자체가 없음" (README:80, site trustLine 3개 로케일) | 아키텍처: 저장은 전부 `~/.nautli` 로컬 파일. 외부 egress allowlist는 `scripts/check-network-allowlist.js`로 검사 | "서버 없음"은 *컨텐츠 서버* 없음의 의미이며 **zero egress를 뜻하지 않는다**. 허용된 외부 전송은 정확히 세 가지: `telemetry.nautli.ai`의 judgment-meta, `nautli.ai/api/ping`의 익명 집계, `nautli.ai/api/share`의 사용자 클릭으로만 발생하는 집계+최대 20자 nick. 카피가 이 구분을 흐리면 안 됨 | 네트워크 경로 추가되는 릴리스마다 `check:network` 재확인 | 노트/claim 본문이 외부로 나가는 코드 경로가 하나라도 생기면 즉시 카피 철회+INCIDENT |
 | B2 | 판정 메타만 전송, 내용 미전송 / 익명 집계 숫자 7개 (strings.js:90,50, site) | `src/daemon/telemetry.js` payload enum(route/resolver/user_action 카운트) — 자유 텍스트 필드 없음. 홀드아웃 킷 무개입 완주가 실전 리허설(허브 2026-07-11) | payload 스키마가 지금 형태일 때만 참 | payload 필드 추가 시 카피 갱신 선행 필수 | 텍스트 필드가 payload에 들어가는 순간 "숫자 7개" 카피 거짓 |
 | B3 | 텔레메트리 기본 OFF (site ko:377) | `src/daemon/telemetry.js:124` — `config?.telemetry?.enabled === true`만 활성(opt-in) | — | 기본값 바꾸는 결정 자체가 TASK-055 쟁점 — 바뀌면 카피 선행 수정 | 기본 on 전환 시 이 카피는 즉시 거짓 |
-| B4 | 원본 노트 수정 없음 / scan은 읽기전용 (trustLine, site, diagnose) | **근거 artifact 미확보** — 코드 리딩 상 write 경로 없음이나 이를 고정하는 테스트 부재 | — | (후속 F1) scan/checkup 경로 write-guard 테스트 신설 | 원본 파일 mtime 변경이 스캔 중 관측되면 즉시 철회 |
+| B4 | 원본 노트 수정 없음 / scan은 읽기전용 (trustLine, site, diagnose) | `test/trust-guards.test.js` — scan/checkup 전후 볼트 트리의 해시·크기·mode·mtime을 비교 | — | scan/checkup 경로 변경 시 해당 테스트 재실행 | 원본 파일 mtime 변경이 스캔 중 관측되면 즉시 철회 |
 | B5 | 안전 불변식: facts DELETE 금지·애매하면 no-op (README.ko:80) | `test/invariants.test.js` + purge는 명시 유저 요청 경로만 | "DELETE 금지"는 *자동 파이프라인* 한정(purge 실존) — 카피가 한정을 유지해야 함 | 릴리스마다 invariants 테스트가 CI에서 돌면 충족 | invariants 테스트 삭제·스킵 시 |
 
 ## C. 이식·라이선스 주장
@@ -35,10 +35,10 @@
 
 | 항목 | 조치 |
 |---|---|
-| B4 scan 읽기전용 | **F1**: scan/checkup 전 경로 write-guard 테스트(스캔 전후 볼트 파일 해시 전수 비교) 신설 |
-| B1 무업로드의 자동 검증 | **F2**: CI에 "네트워크 호출 화이트리스트 grep 가드"(telemetry endpoint 외 fetch/http 사용 검출 시 실패) |
+| B4 scan 읽기전용 | **F1 resolved — 2026-07-23, TASK-106, artifact: `test/trust-guards.test.js`** |
+| B1 무업로드의 자동 검증 | **F2 resolved — 2026-07-23, TASK-106, artifact: `scripts/check-network-allowlist.js`** |
 | A3 정책 충돌 | **F3(유저 결정)**: README 0/24 노출 유지 여부 — 7/16 "외부 카피 금지" 합의와 충돌 상태 |
-| 대장 자체의 부패 방지 | **F4**: 대장 링크·커밋 해시 깨짐 검사 CI(주장-근거 링크가 404/미존재면 실패) — 코드 변경이라 본 태스크 범위 밖, 분해안만 |
+| 대장 자체의 부패 방지 | **F4 resolved — 2026-07-23, TASK-106, artifact: `scripts/check-trust-claims.js`** |
 
 ## 대장 운영 체크리스트 (카피 추가·변경 시)
 
