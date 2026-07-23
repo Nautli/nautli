@@ -121,6 +121,7 @@ claude mcp add -s user nautli -- npx nautli mcp
 Invariants (violations are bugs, pinned by tests): user files are the source of truth (rebuild round-trip) / no DELETE on facts / single-pass writes, cleanup only in the daemon / core works even if the daemon dies / no promotion injection into recall / when in doubt, no-op (asymmetric cost of a wrong merge).
 
 ## Known limits
+- npm 12 blocks native install scripts by default, so a fresh `npx nautli` fails until the user approves better-sqlite3's install script (`npm install-scripts approve`) and rebuilds. Measured 2026-07-24; full repro and recovery steps in docs/research/npm12-native-build.md. A no-lifecycle install path is under consideration.
 
 - t_valid is date-granular; same-day contradictions are judged from recorded time and context
 - LLM judge nondeterminism is defended four ways: isolated cwd, format examples, zero-parse retry, failed batches become no-ops
