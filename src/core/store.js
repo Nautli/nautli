@@ -497,6 +497,13 @@ export class Store {
         updated_at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS scope_aliases_canonical_idx ON scope_aliases(canonical);
+      -- TASK-067: 절차 발동 트리거 — 이벤트 로그(procedure.trigger_set)가 정본, 이 표는 rebuild로 재구성.
+      -- fact_id는 procedure-scope fact를 가리키고, 매칭 시 active+procedure만 대상이 된다.
+      CREATE TABLE IF NOT EXISTS procedure_triggers (
+        fact_id TEXT PRIMARY KEY,
+        trigger TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
   }
 
@@ -562,6 +569,11 @@ export class Store {
         }
         if (evt?.ev === "scope.alias_set") {
           this.applyAliasSet(evt);
+          return;
+        }
+        // TASK-067: 절차 트리거 upsert — fact 인덱스와 무관한 자체 표에 반영(rebuild가 이 경로로 복원).
+        if (evt?.ev === "procedure.trigger_set") {
+          this.applyProcedureTrigger(evt);
           return;
         }
 
@@ -671,6 +683,57 @@ export class Store {
         canonical = excluded.canonical,
         updated_at = excluded.updated_at
     `).run({ alias, canonical, updated_at });
+  }
+
+  // TASK-067: 절차 트리거 파생 표 반영(리플레이·라이브 공용). 손상 데이터는 스킵(rebuild 방어).
+  applyProcedureTrigger(evt) {
+    const factId = evt?.fact_id;
+    if (typeof factId !== "string" || factId === "") return;
+    let trigger = evt?.trigger;
+    if (!trigger || typeof trigger !== "object" || Array.isArray(trigger)) trigger = {};
+    const updated_at = typeof evt.at === "string" ? evt.at : new Date().toISOString();
+    this.db.prepare(`
+      INSERT INTO procedure_triggers (fact_id, trigger, updated_at)
+      VALUES (@fact_id, @trigger, @updated_at)
+      ON CONFLICT(fact_id) DO UPDATE SET
+        trigger = excluded.trigger,
+        updated_at = excluded.updated_at
+    `).run({ fact_id: factId, trigger: JSON.stringify(trigger), updated_at });
+  }
+
+  // TASK-067: 절차 발동 트리거 설정 — procedure.trigger_set 이벤트 append. 트리거는 원문 그대로
+  // 저장하고 정규화·매칭은 core/procedure.js가 담당한다(store는 dumb한 정본 보관).
+  setProcedureTrigger(factId, trigger, { at } = {}) {
+    if (typeof factId !== "string" || factId === ""
+      || !trigger || typeof trigger !== "object" || Array.isArray(trigger)) {
+      throw codedError(ERR.E_INVALID_INPUT);
+    }
+    return this.appendEvent({
+      ev: "procedure.trigger_set",
+      fact_id: factId,
+      trigger,
+      ...(typeof at === "string" ? { at } : {}),
+    });
+  }
+
+  // TASK-067: active + procedure scope인 fact의 트리거만 후보로 돌려준다(matchProcedures 입력).
+  listProcedureTriggers() {
+    const rows = this.db.prepare(`
+      SELECT pt.fact_id AS fact_id, f.claim AS claim, f.scope AS scope, pt.trigger AS trigger
+      FROM procedure_triggers pt
+      JOIN facts f ON f.id = pt.fact_id
+      WHERE f.status = 'active' AND f.scope = 'procedure'
+      ORDER BY pt.fact_id
+    `).all();
+    return rows.map((row) => {
+      let trigger = {};
+      try {
+        trigger = JSON.parse(row.trigger);
+      } catch {
+        trigger = {};
+      }
+      return { fact_id: row.fact_id, claim: row.claim, scope: row.scope, trigger };
+    });
   }
 
   // TASK-013: 관계 엣지 upsert — 정규화된 쌍으로 edge.upserted 이벤트를 로그에 append(ev_id 자동).
@@ -800,6 +863,9 @@ export class Store {
     source = "core",
     returned_chars,
     session_id,
+    // TASK-073: recall 결과 계측 — outcome(hit|empty|error) + 선택적 error_code.
+    outcome,
+    error_code,
     at,
   } = {}) {
     return this.appendEvent({
@@ -811,6 +877,11 @@ export class Store {
       source: typeof source === "string" && source.trim() !== "" ? source : "core",
       ...(Number.isFinite(returned_chars) && returned_chars >= 0
         ? { returned_chars: Math.trunc(returned_chars) }
+        : {}),
+      // TASK-073: outcome은 유효할 때만 기록(레거시 recall 이벤트는 필드 부재로 구분된다).
+      ...(outcome === "hit" || outcome === "empty" || outcome === "error" ? { outcome } : {}),
+      ...(outcome === "error" && typeof error_code === "string" && error_code !== ""
+        ? { error_code }
         : {}),
       // TASK-104: session_id는 항상 기록한다 — 빈값/미상은 정확히 "unknown"으로.
       // 이후 필드 자체의 부재는 오직 레거시 데이터만 가리킨다(§2 G1 해소).

@@ -1037,6 +1037,21 @@ export async function main(argv = process.argv.slice(2)) {
         return;
       }
 
+      // TASK-015: `nautli ingest <file>` — 로컬 .md/.txt를 원자 fact로 분해해 적재한다.
+      if (command === "ingest") {
+        const parsed = parseCommand(args);
+        requirePositionals(parsed.positionals, 1);
+        const config = readConfig(home);
+        const ingestOverride = commandArgv(process.env.NAUTLI_INGEST_CMD);
+        if (ingestOverride) config.ingest_cmd = ingestOverride;
+        const judgeOverride = commandArgv(process.env.NAUTLI_JUDGE_CMD);
+        if (judgeOverride) config.judge_cmd = judgeOverride;
+        const { ingest } = await import("./core/ingest.js");
+        writeJson(await ingest(store, parsed.positionals[0], config));
+        process.exitCode = 0;
+        return;
+      }
+
       if (command === "recall") {
         const parsed = parseCommand(args, {
           budget: { type: "string" },
@@ -1093,6 +1108,54 @@ export async function main(argv = process.argv.slice(2)) {
         const parsed = parseCommand(args);
         requirePositionals(parsed.positionals, 0);
         writeJson(store.stats());
+        process.exitCode = 0;
+        return;
+      }
+
+      // TASK-067: `nautli procedure-route <current_intent> --scope <s> [--tool-event <e>]`
+      // — 발동해야 할 active procedure fact를 우선순위로 반환한다(레포 밖 훅이 소비).
+      if (command === "procedure-route") {
+        const parsed = parseCommand(args, {
+          scope: { type: "string" },
+          "tool-event": { type: "string" },
+        });
+        requirePositionals(parsed.positionals, 1);
+        const { matchProcedures } = await import("./core/procedure.js");
+        const procedures = matchProcedures(store.listProcedureTriggers(), {
+          current_intent: parsed.positionals[0],
+          scope: parsed.values.scope,
+          tool_event: parsed.values["tool-event"],
+        });
+        writeJson({ procedures });
+        process.exitCode = 0;
+        return;
+      }
+
+      // TASK-067: `nautli procedure-set <fact_id> --intent a,b --includes ... --priority N`
+      // — procedure fact에 발동 트리거를 확정 저장한다(데몬은 초안만, 확정은 이 명시적 경로로).
+      if (command === "procedure-set") {
+        const parsed = parseCommand(args, {
+          intent: { type: "string" },
+          includes: { type: "string" },
+          excludes: { type: "string" },
+          "tool-events": { type: "string" },
+          priority: { type: "string" },
+          scope: { type: "string" },
+        });
+        requirePositionals(parsed.positionals, 1);
+        const list = (value) => (typeof value === "string" && value.trim() !== ""
+          ? value.split(",").map((item) => item.trim()).filter(Boolean)
+          : []);
+        const trigger = {
+          intent: list(parsed.values.intent),
+          includes: list(parsed.values.includes),
+          excludes: list(parsed.values.excludes),
+          tool_events: list(parsed.values["tool-events"]),
+          ...(parsed.values.scope ? { scope: parsed.values.scope } : {}),
+          ...(parsed.values.priority !== undefined ? { priority: Number(parsed.values.priority) } : {}),
+        };
+        store.setProcedureTrigger(parsed.positionals[0], trigger);
+        writeJson({ ok: true, fact_id: parsed.positionals[0], trigger });
         process.exitCode = 0;
         return;
       }

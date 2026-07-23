@@ -105,6 +105,38 @@ function normalizeFtsRank(rank) {
 }
 
 export function recall(store, task, opts = {}) {
+  // TASK-073: 예외 경로에서도 정확히 1개의 error 이벤트를 남기려면 로깅에 필요한 필드를 먼저 잡는다.
+  const queryText = typeof task === "string" ? task : "";
+  const scope = opts.scope;
+  const source = opts.source ?? "core";
+  const tool = opts.tool ?? "recall";
+  const sessionId = opts.session_id;
+  const shouldLog = opts.log !== false;
+  try {
+    return recallInner(store, task, opts, { queryText, scope, source, tool, sessionId, shouldLog });
+  } catch (error) {
+    // TASK-073: recall/briefing 예외 경로 — JSON 에러를 반환하기 전에 error 이벤트를 정확히 1회 기록.
+    if (shouldLog) {
+      try {
+        store.appendRecall({
+          tool,
+          query: queryText,
+          scope,
+          hits: [],
+          source,
+          session_id: sessionId,
+          outcome: "error",
+          error_code: typeof error?.code === "string" && error.code !== "" ? error.code : ERR.E_INVALID_INPUT,
+        });
+      } catch {
+        // 계측 기록 실패가 원래 에러를 가리지 않게 한다.
+      }
+    }
+    throw error;
+  }
+}
+
+function recallInner(store, task, opts, logCtx) {
   const budget = opts.budget_tokens ?? DEFAULT_BUDGET;
   if (budget < 200) {
     const error = new Error(ERR.E_BUDGET_TOO_SMALL);
@@ -112,11 +144,11 @@ export function recall(store, task, opts = {}) {
     throw error;
   }
 
-  const queryText = typeof task === "string" ? task : "";
-  const scope = opts.scope;
+  const queryText = logCtx.queryText;
+  const scope = logCtx.scope;
   const asOf = opts.as_of;
   const includeArchived = opts.include_archived ?? false;
-  const source = opts.source ?? "core";
+  const source = logCtx.source;
   const ttlConfig = opts.ttl_days;
   const topK = opts.top_k ?? DEFAULT_TOP_K;
   const minScore = opts.min_score ?? MIN_SCORE;
@@ -225,15 +257,17 @@ export function recall(store, task, opts = {}) {
     : { briefing: lines.join("\n"), facts, tokens_used: tokensUsed };
   // TASK-104: 표면(대시보드 등)이 최종 렌더 hit 집합으로 자기 tool 이름을 직접 로깅할 때는
   // 내부 recall 로깅을 끈다(전달 중복 계수 방지). 기본은 로깅 on.
-  if (opts.log !== false) {
+  if (logCtx.shouldLog) {
     store.appendRecall({
-      tool: opts.tool ?? "recall",
+      tool: logCtx.tool,
       query: queryText,
       scope,
       hits: facts.map((fact) => fact.id),
       source,
       returned_chars: result.briefing.length,
-      session_id: opts.session_id,
+      session_id: logCtx.sessionId,
+      // TASK-073: hit(1건 이상) vs empty(0건) outcome을 성공 경로에 찍는다.
+      outcome: facts.length > 0 ? "hit" : "empty",
     });
   }
   return result;
