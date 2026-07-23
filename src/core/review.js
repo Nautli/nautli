@@ -549,6 +549,11 @@ export function undoAutoApply(store, home, undoId) {
     const entry = ledger[index];
     if (entry.undone) return { ok: false, reason: "already_undone" };
 
+    // TASK-BATCH-FIX (F-5): track which fact(s) the undo targeted and the status they were
+    // restored/moved to, so undo.applied carries a fact target (spec §2). Without it, `audit
+    // verdict` on a restored fact could never link the undo and showed stale history.
+    const undoneFactIds = [];
+    let restoredStatus = null;
     // Reverse the action
     if (entry.action === "merge" || entry.action === "newer_wins"
       || entry.action === "a_wins" || entry.action === "b_wins") {
@@ -558,6 +563,8 @@ export function undoAutoApply(store, home, undoId) {
         if (!current) continue;
         if (current.status === STATUS.SUPERSEDED || current.status === STATUS.INVALIDATED) {
           store.transition(snap.id, STATUS.ACTIVE, {}, "undo");
+          undoneFactIds.push(snap.id);
+          restoredStatus = STATUS.ACTIVE;
         }
       }
     } else if (entry.action === "remember" && entry.fact_id) {
@@ -565,6 +572,8 @@ export function undoAutoApply(store, home, undoId) {
       const fact = store.getFact(entry.fact_id);
       if (fact && fact.status === STATUS.ACTIVE) {
         store.transition(entry.fact_id, STATUS.ARCHIVED, {}, "daemon");
+        undoneFactIds.push(entry.fact_id);
+        restoredStatus = STATUS.ARCHIVED;
       }
     }
 
@@ -575,6 +584,9 @@ export function undoAutoApply(store, home, undoId) {
       undo_id: undoId,
       pair_id: entry.pair_id,
       action: entry.action,
+      // TASK-BATCH-FIX (F-5): fact target + restored-to status (nulls omitted when nothing changed).
+      ...(undoneFactIds.length > 0 ? { fact_id: undoneFactIds[0], fact_ids: undoneFactIds } : {}),
+      ...(restoredStatus !== null ? { restored_status: restoredStatus } : {}),
       at: new Date().toISOString(),
     });
     return { ok: true, undo_id: undoId, reversed_action: entry.action };

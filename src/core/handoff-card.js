@@ -13,6 +13,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { readLogicalEvents } from "./store.js";
 
 const DAY_MS = 86_400_000;
 
@@ -56,31 +57,15 @@ export function savingsPercentage(numerator, denominator, { experimentSampleRead
 
 // ── Internal helpers ───────────────────────────────────────────────────
 
-function readJsonLines(file) {
-  if (!fs.existsSync(file)) return [];
-  const values = [];
-  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
-    if (line.trim() === "") continue;
-    try {
-      const value = JSON.parse(line);
-      if (value && typeof value === "object" && !Array.isArray(value)) values.push(value);
-    } catch {
-      // skip damaged lines
-    }
-  }
-  return values;
-}
-
+// TASK-BATCH-FIX (F-7): consume the ev_id first-wins logical reader (same one audit uses) so a
+// duplicated ev_id line does not double-count deliveries/delta versus audit. The per-caller inWindow
+// filter still scopes results to the report window; cutoff/now are kept for signature stability.
 function eventsInWindow(home, cutoff, now) {
-  const directory = path.join(home, "events");
-  if (!fs.existsSync(directory)) return [];
-  const firstMonth = new Date(cutoff).toISOString().slice(0, 7);
-  const lastMonth = new Date(now).toISOString().slice(0, 7);
-  return fs.readdirSync(directory)
-    .filter((name) => /^\d{4}-\d{2}\.jsonl$/u.test(name))
-    .filter((name) => name.slice(0, 7) >= firstMonth && name.slice(0, 7) <= lastMonth)
-    .sort()
-    .flatMap((name) => readJsonLines(path.join(directory, name)));
+  void cutoff;
+  void now;
+  if (!fs.existsSync(path.join(home, "events"))) return [];
+  return readLogicalEvents(home)
+    .filter((value) => value && typeof value === "object" && !Array.isArray(value));
 }
 
 function inWindow(value, cutoff, now) {

@@ -6,7 +6,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { remember } from "../src/core/gate.js";
 import { STATUS } from "../src/core/schema.js";
-import { Store } from "../src/core/store.js";
+import { Store, readEventLog } from "../src/core/store.js";
 import { initStore } from "../src/onboard/setup.js";
 import { startDashboard } from "../src/dashboard/server.js";
 
@@ -347,6 +347,41 @@ test("dashboard continuity recall returns the detected fact and records a dashbo
   assert.ok(activity.events.some((event) => event.type === "remember" && event.source === "mcp"));
   assert.ok(activity.events.some((event) => event.type === "recall"
     && event.source === "dashboard" && event.hits.includes(added.id)));
+});
+
+// TASK-BATCH-FIX (F-6): the continuity lookup must log a delivery for ONLY the fact in the response
+// payload, not every candidate the internal recall surfaced — otherwise audit delivery over-counts.
+test("dashboard continuity delivery logs only the fact returned in the response", async (t) => {
+  const target = await dashboard(t);
+  const store = new Store(target.home);
+  // Two facts share query terms, so recall() would surface both — but the response is only fact A.
+  const a = remember(store, {
+    claim: "the staging deployment port is 3000 for service alpha",
+    scope: "person",
+    source: "mcp",
+  }, config);
+  const b = remember(store, {
+    claim: "the staging deployment port is 3000 for service beta",
+    scope: "person",
+    source: "mcp",
+  }, config);
+  store.close();
+  assert.notEqual(a.id, b.id);
+
+  const response = await fetch(`${target.url}/api/continuity/recall`, {
+    method: "POST",
+    headers: { origin: target.origin, "content-type": "application/json" },
+    body: JSON.stringify({ fact_id: a.id }),
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).fact.id, a.id);
+
+  const deliveries = readEventLog(target.home).filter(
+    (event) => event.type === "recall" && event.tool === "dashboard.continuity",
+  );
+  assert.equal(deliveries.length, 1);
+  assert.deepEqual(deliveries[0].hits, [a.id]);
+  assert.equal(deliveries[0].hits.includes(b.id), false, "the other candidate fact is not logged as delivered");
 });
 
 test("dashboard share-card contract contains only aggregate render fields", async (t) => {

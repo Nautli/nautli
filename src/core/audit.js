@@ -126,7 +126,11 @@ function predecessorChain(events, factId) {
 function verdictEvent(event) {
   const isAdded = event.ev === "fact.added";
   const isCapture = event.ev === "capture.decided";
-  const isTransition = event.ev === "fact.superseded" || event.ev === "fact.invalidated";
+  // TASK-BATCH-FIX (F-5): fact.restored is a status-transition event (undo restores an active fact);
+  // include it so its kind reads "restored" (prefix stripped) like superseded/invalidated.
+  const isTransition = event.ev === "fact.superseded"
+    || event.ev === "fact.invalidated"
+    || event.ev === "fact.restored";
   const isUndo = event.ev === "undo.applied";
   return {
     kind: isAdded ? "added" : isTransition ? event.ev.slice("fact.".length) : event.ev,
@@ -149,7 +153,11 @@ function verdictEvent(event) {
 function isVerdictEventFor(event, factId) {
   if (event?.ev === "fact.added") return event.fact?.id === factId;
   if (event?.ev === "capture.decided") return event.fact_id === factId;
-  if (event?.ev === "fact.superseded" || event?.ev === "fact.invalidated") return event.id === factId;
+  // TASK-BATCH-FIX (F-5): fact.restored (emitted by undo's transition back to active) targets its
+  // fact by `id`, so include it in the fact's verdict chain.
+  if (event?.ev === "fact.superseded"
+    || event?.ev === "fact.invalidated"
+    || event?.ev === "fact.restored") return event.id === factId;
   return event?.ev === "undo.applied"
     && (event.fact_id === factId || event.id === factId
       || (Array.isArray(event.fact_ids) && event.fact_ids.includes(factId)));

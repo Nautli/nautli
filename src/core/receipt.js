@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { readLogicalEvents } from "./store.js";
 
 const DAY_MS = 86_400_000;
 const TEN_MINUTES_MS = 10 * 60 * 1000;
@@ -45,16 +46,15 @@ function readJsonLines(file) {
   return values;
 }
 
+// TASK-BATCH-FIX (F-7): consume the ev_id first-wins logical reader (same one audit uses) so a
+// duplicated ev_id line does not double-count recalls/deltas versus audit. The per-caller inWindow
+// filter still scopes results to the receipt window; cutoff/now are kept for signature stability.
 function eventsFor(home, cutoff, now) {
-  const directory = path.join(home, "events");
-  if (!fs.existsSync(directory)) return [];
-  const firstMonth = new Date(cutoff).toISOString().slice(0, 7);
-  const lastMonth = new Date(now).toISOString().slice(0, 7);
-  return fs.readdirSync(directory)
-    .filter((name) => /^\d{4}-\d{2}\.jsonl$/u.test(name))
-    .filter((name) => name.slice(0, 7) >= firstMonth && name.slice(0, 7) <= lastMonth)
-    .sort()
-    .flatMap((name) => readJsonLines(path.join(directory, name)));
+  void cutoff;
+  void now;
+  if (!fs.existsSync(path.join(home, "events"))) return [];
+  return readLogicalEvents(home)
+    .filter((value) => value && typeof value === "object" && !Array.isArray(value));
 }
 
 function inWindow(value, cutoff, now) {

@@ -111,6 +111,41 @@ test("purge scrubs the canonical log, index, rebuild, and review queue", (t) => 
   assert.deepEqual(new Set(store.query().map((fact) => fact.id)), new Set(ids.slice(1)));
 });
 
+// TASK-BATCH-FIX (F-3): purge must acquire the same rebuild lock so it can't race a rebuild and
+// resurrect a purged fact. With the lock held it fails E_STORE_BUSY; released, it works as before.
+test("purge acquires the rebuild lock: E_STORE_BUSY while held, works once released", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-purge-lock-"));
+  const store = new Store(home);
+  t.after(() => {
+    store.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const target = remember(store, {
+    claim: "purge lock target claim with a long private suffix here",
+    scope: "project:purge-lock",
+  }, { default_scope: "person" });
+  assert.ok(store.getFact(target.id));
+
+  // A live lock (this process pid) makes acquireRebuildLock treat the owner as alive.
+  const lockPath = path.join(home, ".index-rebuild.lock");
+  fs.writeFileSync(
+    lockPath,
+    JSON.stringify({ pid: process.pid, started_at: new Date().toISOString() }),
+    { mode: 0o600 },
+  );
+  assert.throws(() => store.purge([target.id], { source: "test" }), (error) => error.code === "E_STORE_BUSY");
+  // Purge was rejected before mutating anything — the fact is still present, lock untouched.
+  assert.ok(store.getFact(target.id));
+  assert.equal(fs.existsSync(lockPath), true);
+
+  fs.rmSync(lockPath, { force: true });
+  const result = store.purge([target.id], { source: "test" });
+  assert.equal(result.purged, 1);
+  assert.equal(store.getFact(target.id), null);
+  // Purge released the lock it acquired (finally), so a later purge can still run.
+  assert.equal(fs.existsSync(lockPath), false);
+});
+
 test("Store opening resumes a purge journal and removes it after every step", (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-purge-recovery-"));
   let store = new Store(home);

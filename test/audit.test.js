@@ -8,6 +8,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 // TASK-105
+import { Store } from "../src/core/store.js";
+import { recordAutoApply, undoAutoApply } from "../src/core/review.js";
+import { auditVerdict } from "../src/core/audit.js";
+import { STATUS, claimHash, newId } from "../src/core/schema.js";
+
+// TASK-105
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cli = path.join(root, "src", "cli.js");
 const fixture = path.join(root, "test", "fixtures", "audit-f1.jsonl");
@@ -237,6 +243,68 @@ test("audit applies ev_id first-wins while repeated legacy lines remain distinct
     { at: "2026-07-07T01:00:00Z", tool: "recall", session_id: null, query: "legacy repeat", scope: "project:demo" },
     { at: "2026-07-07T01:00:00Z", tool: "recall", session_id: null, query: "legacy repeat", scope: "project:demo" },
   ]);
+});
+
+// TASK-BATCH-FIX (F-5): a merge then undo must show up in the restored fact's verdict — added →
+// superseded → restored → undo.applied — with current_status active. Before the fix, undo.applied
+// carried no fact target so the verdict on the restored fact showed stale history.
+test("audit verdict includes undo.applied and restore for a merged-then-undone fact", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-audit-undo-"));
+  const store = new Store(home);
+  t.after(() => {
+    store.close();
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+
+  const makeFact = (id, claim, tValid) => ({
+    id,
+    type: "semantic",
+    scope: "project:demo",
+    subject: "",
+    claim,
+    confidence: 0.9,
+    provenance: { source: "test" },
+    t_valid: tValid,
+    t_invalid: null,
+    t_expired: null,
+    superseded_by: null,
+    status: STATUS.ACTIVE,
+    claim_hash: claimHash(claim),
+  });
+
+  const a = store.addFact(makeFact(newId(), "server port is 3000 undo verdict", "2026-07-01"));
+  const b = store.addFact(makeFact(newId(), "server port is 3200 undo verdict", "2026-07-03"));
+
+  // Merge: older A superseded by newer B.
+  store.transition(a.id, STATUS.SUPERSEDED, {
+    superseded_by: b.id,
+    t_invalid: b.t_valid,
+  }, "daemon", { reason: "judge:duplicate", policy_version: "n/a" });
+  const entry = recordAutoApply(home, {
+    pair_id: `${a.id}:${b.id}`,
+    action: "merge",
+    verdict: "duplicate",
+    confidence: 0.95,
+    scope: "project:demo",
+    before_state: [
+      { id: a.id, status: STATUS.ACTIVE, claim: a.claim },
+      { id: b.id, status: STATUS.ACTIVE, claim: b.claim },
+    ],
+    fact_ids: [a.id, b.id],
+    type: "pair",
+  });
+
+  const undone = undoAutoApply(store, home, entry.undo_id);
+  assert.equal(undone.ok, true);
+
+  const verdict = auditVerdict(home, a.id);
+  assert.equal(verdict.current_status, STATUS.ACTIVE, "A is restored to active");
+  assert.deepEqual(
+    verdict.events.map((event) => event.kind),
+    ["added", "superseded", "restored", "undo.applied"],
+  );
+  const undoEvent = verdict.events.find((event) => event.kind === "undo.applied");
+  assert.equal(undoEvent.action, "merge");
 });
 
 // TASK-105

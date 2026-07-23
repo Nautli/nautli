@@ -9,6 +9,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { Store, readEventLog } from "../src/core/store.js";
 import { STATUS, claimHash, newId } from "../src/core/schema.js";
+import { remember } from "../src/core/gate.js";
 
 const WORKER = fileURLToPath(new URL("./fixtures/rebuild-worker.js", import.meta.url));
 const lockPath = (home) => path.join(home, ".index-rebuild.lock");
@@ -214,6 +215,39 @@ test("an append during a rebuild logs the event, skips index mutation, and write
   assert.equal(marker.reason, "append-during-rebuild");
   assert.equal(marker.ev_id, event.ev_id);
   assert.equal(typeof marker.at, "string");
+});
+
+// TASK-BATCH-FIX (F-2): a remember() that lands while another process holds the rebuild lock must
+// return degraded (index is stale until the rebuild replays it), not a false-healthy success.
+test("remember during a held rebuild lock returns degraded with an append-during-rebuild marker", async (t) => {
+  const home = freshHome(t);
+  seed(home, 1);
+  const controlDir = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-ctrl-f2-"));
+  t.after(() => fs.rmSync(controlDir, { recursive: true, force: true }));
+
+  const holder = spawnWorker(home, "holder", controlDir);
+  await waitForFile(path.join(controlDir, "entered"), 5000);
+
+  // The holder now owns .index-rebuild.lock and is blocked mid-replay.
+  const store = new Store(home);
+  const result = remember(store, {
+    claim: "the F2 degraded probe claim is a unique durable sentence",
+    scope: "person",
+    source: "core",
+  }, { default_scope: "person" });
+  store.close();
+
+  assert.equal(result.status, "added");
+  assert.equal(result.degraded, true);
+  assert.equal(result.warning, "W_INDEX_DEGRADED");
+  assert.equal(typeof result.ev_id, "string");
+
+  const marker = JSON.parse(fs.readFileSync(markerPath(home), "utf8"));
+  assert.equal(marker.reason, "append-during-rebuild");
+  assert.equal(marker.ev_id, result.ev_id);
+
+  fs.writeFileSync(path.join(controlDir, "proceed"), "1");
+  await holder.done;
 });
 
 // TASK-001: 리플레이 후 마커가 그대로면 삭제된다.

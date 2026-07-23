@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildReceipt, buildReceiptMulti } from "../src/core/receipt.js";
-import { Store } from "../src/core/store.js";
+import { Store, readEventLog } from "../src/core/store.js";
+import { auditDelivery } from "../src/core/audit.js";
 import { makeT } from "../src/i18n/strings.js";
 import { receiptHeader } from "../src/mcp/server.js";
 
@@ -57,6 +58,40 @@ test("recall events count distinct conversations without counting retries twice"
   assert.equal(receipt.tokens_delivered, 20);
   assert.equal(receipt.approx, true);
   assert.equal(receipt.method, "chars_div4");
+});
+
+// TASK-BATCH-FIX (F-7): the receipt must read through the ev_id first-wins logical reader so a
+// duplicated recall line (same ev_id) does not double-count tokens/conversations versus audit.
+test("duplicated recall ev_id counts once and matches audit delivery count", (t) => {
+  const { home, store } = isolatedStore(t);
+  const at = "2026-07-16T10:00:00.000Z";
+  store.addFact({
+    id: "fa_receipt_dup",
+    type: "semantic",
+    scope: "person",
+    subject: "",
+    claim: "receipt dedup delivered fact",
+    confidence: 0.9,
+    provenance: {},
+    t_valid: "2026-07-16",
+    t_invalid: null,
+    t_expired: null,
+    superseded_by: null,
+    status: "active",
+    claim_hash: "h_receipt_dup",
+  });
+  store.appendRecall({ hits: ["fa_receipt_dup"], session_id: "sess-r", returned_chars: 40, at });
+
+  // Duplicate the recall line verbatim (same ev_id).
+  const recall = readEventLog(home).find((e) => e.type === "recall" && Array.isArray(e.hits));
+  fs.appendFileSync(path.join(home, "events", `${at.slice(0, 7)}.jsonl`), `${JSON.stringify(recall)}\n`);
+  assert.equal(readEventLog(home).filter((e) => e.type === "recall").length, 2, "two raw lines exist");
+
+  const receipt = buildReceipt(home, store, { now: NOW });
+  // 40 chars / 4 = 10 tokens, counted once (not 20); one conversation, not two.
+  assert.equal(receipt.tokens_delivered, 10);
+  assert.equal(receipt.conversations, 1);
+  assert.equal(auditDelivery(home, "fa_receipt_dup").deliveries.length, 1, "audit also counts one delivery");
 });
 
 test("two conversations do not pass the sample gate", (t) => {

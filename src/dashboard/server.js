@@ -362,15 +362,28 @@ function continuityRecallFor(home, factId) {
       throw error;
     }
 
+    // TASK-BATCH-FIX (F-6): run the lookup with internal recall logging OFF, then log a delivery
+    // for only the fact ids actually present in the response payload. The prior code let recall()
+    // log its full candidate hit set, so audit delivery counted facts that were never delivered.
     const result = recall(store, fact.claim, {
       scope: fact.scope,
       source: "dashboard",
+      log: false,
     });
     if (!result.facts.some((candidate) => candidate.id === fact.id)) {
       const error = new Error(ERR.E_NOT_FOUND);
       error.code = ERR.E_NOT_FOUND;
       throw error;
     }
+
+    store.appendRecall({
+      tool: "dashboard.continuity",
+      query: fact.claim,
+      scope: fact.scope,
+      hits: [fact.id],
+      source: "dashboard",
+      returned_chars: fact.claim.length,
+    });
 
     return {
       fact: {

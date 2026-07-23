@@ -11,7 +11,8 @@ import {
   CAUSAL_BANNED_PATTERNS,
 } from "../src/core/handoff-card.js";
 import { newId, claimHash } from "../src/core/schema.js";
-import { Store } from "../src/core/store.js";
+import { Store, readEventLog } from "../src/core/store.js";
+import { auditDelivery } from "../src/core/audit.js";
 import { makeT } from "../src/i18n/strings.js";
 
 function makeFact(overrides = {}) {
@@ -146,6 +147,30 @@ test("card skips emission when only last_activity exists but no deliveries or de
   const card = buildHandoffCard(home, store, { now: NOW, days: 1 });
   // No delivery, no delta → card is null (skip emission per spec)
   assert.equal(card, null);
+});
+
+// TASK-BATCH-FIX (F-7): the handoff card must read through the ev_id first-wins logical reader so a
+// duplicated recall line (same ev_id) does not double-count deliveries versus audit.
+test("duplicated recall ev_id counts once and matches audit delivery count", (t) => {
+  const { home, store } = isolatedStore(t);
+  const at = "2026-07-18T08:00:00.000Z";
+  const factData = makeFact({ claim: "handoff dedup delivered fact", scope: "project:nautli" });
+  store.addFact(factData);
+  store.appendRecall({ hits: [factData.id], session_id: "sess-dup", returned_chars: 100, at });
+
+  // Duplicate the recall line verbatim (same ev_id) into the month file.
+  const recall = readEventLog(home).find((e) => e.type === "recall" && Array.isArray(e.hits));
+  const monthFile = path.join(home, "events", `${at.slice(0, 7)}.jsonl`);
+  fs.appendFileSync(monthFile, `${JSON.stringify(recall)}\n`);
+  assert.equal(readEventLog(home).filter((e) => e.type === "recall").length, 2, "two raw lines exist");
+
+  const card = buildHandoffCard(home, store, { now: NOW, days: 1 });
+  assert.equal(card.delivered.delivery_count, 1, "first-wins dedups the duplicated ev_id");
+  assert.equal(
+    card.delivered.delivery_count,
+    auditDelivery(home, factData.id).deliveries.length,
+    "handoff delivery count matches audit delivery count",
+  );
 });
 
 // ── Baseline token measurement ─────────────────────────────────────────

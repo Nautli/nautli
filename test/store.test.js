@@ -6,6 +6,11 @@ import path from "node:path";
 import { Store } from "../src/core/store.js";
 import { recall } from "../src/core/recall.js";
 import { STATUS, claimHash, newId } from "../src/core/schema.js";
+import {
+  compareFactSnapshots,
+  importExportFile,
+  writeExportFile,
+} from "../src/core/portability.js";
 
 function isolatedStore(t) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-store-"));
@@ -137,4 +142,58 @@ test("applying the same event twice is idempotent", (t) => {
   state.store.applyEvent(archived);
   assert.deepEqual(state.store.getFact(added.id), once);
   assert.equal(state.store.stats().total, 1);
+});
+
+// TASK-BATCH-FIX (F-1): a duplicated supplied ev_id must apply exactly once LIVE, identically to
+// first-wins replay — so live state == post-rebuild state == export/import state. Before the fix
+// the second conflicting transition applied live and then diverged from rebuild/export.
+test("a duplicated ev_id applies once live and matches rebuild and export/import", (t) => {
+  const state = isolatedStore(t);
+  const home = state.home;
+  const a = fact(0, { id: "fa_f1_a", claim: "f1 dedup subject alpha claim" });
+  const b = fact(1, { id: "fa_f1_b", claim: "f1 dedup subject beta claim" });
+  state.store.addFact(a);
+  state.store.addFact(b);
+
+  // First occurrence of ev_dupF1 invalidates A (this one must win).
+  state.store.appendEvent({
+    ev: "fact.invalidated",
+    id: "fa_f1_a",
+    patch: { t_invalid: "2025-06-01" },
+    ev_id: "ev_dupF1",
+  });
+  // Second, conflicting occurrence with the SAME ev_id — must be skipped live.
+  state.store.appendEvent({
+    ev: "fact.superseded",
+    id: "fa_f1_a",
+    patch: { superseded_by: "fa_f1_b", t_invalid: "2025-07-01" },
+    ev_id: "ev_dupF1",
+  });
+
+  // Live: first-wins — A is invalidated, the supersede never landed.
+  const live = state.store.getFact("fa_f1_a");
+  assert.equal(live.status, STATUS.INVALIDATED);
+  assert.equal(live.superseded_by, null);
+
+  // Post-rebuild replays the log first-wins → identical state.
+  state.store.rebuild();
+  const rebuilt = state.store.getFact("fa_f1_a");
+  assert.equal(rebuilt.status, STATUS.INVALIDATED);
+  assert.equal(rebuilt.superseded_by, null);
+
+  // Export/import (import replays via rebuild) → identical fact rows to live.
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-f1-export-"));
+  t.after(() => fs.rmSync(outDir, { recursive: true, force: true }));
+  const exportFile = path.join(outDir, "portable.json");
+  writeExportFile(home, exportFile);
+  const importedHome = path.join(outDir, "imported");
+  importExportFile(exportFile, importedHome);
+  const imported = new Store(importedHome);
+  t.after(() => imported.close());
+  assert.equal(imported.getFact("fa_f1_a").status, STATUS.INVALIDATED);
+  assert.equal(imported.getFact("fa_f1_a").superseded_by, null);
+  assert.deepEqual(
+    compareFactSnapshots(state.store.query(), imported.query()),
+    { equal: true, missing: [], unexpected: [], changed: [] },
+  );
 });

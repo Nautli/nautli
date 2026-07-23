@@ -12,6 +12,30 @@ const DEFAULT_SOURCE_ROOT = path.join(REPOSITORY_ROOT, "src");
 // TASK-106
 const NETWORK_USAGE = /\b(?:globalThis\.)?fetch\s*\(|\b(?:http|https|net|tls)\s*\.\s*(?:get|request|createServer|connect|createConnection)\s*\(|\b(?:require|import)\s*\(\s*["'](?:node:)?(?:http|https|net|tls)["']\s*\)|\bfrom\s*["'](?:node:)?(?:http|https|net|tls)["']|\bimport\s*["'](?:node:)?(?:http|https|net|tls)["']/gu;
 
+// TASK-BATCH-FIX (F-4): the static NETWORK_USAGE scan above misses obfuscated egress. These
+// hardening patterns are fail-closed (they flag on doubt) but are NOT a security sandbox — a
+// determined bypass can still be written; new patterns get added here when found (see TRUST-CLAIMS B1).
+// ① dynamic import() whose argument is not a single plain string literal (concatenation, identifier,
+//    template) — `import("node:"+"https")`, `import(mod)`.
+const DYNAMIC_IMPORT_NONLITERAL = /\bimport\s*\(\s*(?!["'][^"'+)]*["']\s*\))/gu;
+// ② computed property access on globalThis/global with a non-literal or concatenated key —
+//    `globalThis["f"+"etch"]`, `globalThis[key]`.
+const COMPUTED_GLOBAL_ACCESS = /\b(?:globalThis|global)\s*\[\s*(?!["'][^"'+\]]*["']\s*\])/gu;
+// ③ a bare `fetch` reference assigned into a variable named like *fetch*/*Impl* (aliasing that
+//    smuggles fetch across files) — `const fetchImpl = fetch`, `myFetch = fetch`.
+const ALIASED_FETCH = /\b[\w$]*(?:fetch|Fetch|Impl)[\w$]*\s*=\s*fetch\b(?!\s*\()/gu;
+
+// TASK-BATCH-FIX (F-4): files where a bare `fetch` reference is legitimately used (allowlisted
+// egress). ③ (fetch aliasing) is not enforced here; ① and ② have no such use anywhere, so they
+// stay enforced everywhere.
+const ALLOWLISTED_FETCH_FILES = new Set([
+  "src/daemon/telemetry.js",
+  "src/scan/ping.js",
+  "src/scan/report.js",
+  "src/dashboard/public.js",
+  "src/dashboard/server.js",
+]);
+
 // TASK-106
 function sourceFiles(directory) {
   const files = [];
@@ -71,6 +95,24 @@ function approvedUsage(file, text, match) {
   return false;
 }
 
+// TASK-BATCH-FIX (F-4): scan the hardening patterns and record each hit as a violation.
+function hardenedViolations(file, text) {
+  const relative = path.relative(REPOSITORY_ROOT, file);
+  const found = [];
+  for (const match of text.matchAll(DYNAMIC_IMPORT_NONLITERAL)) {
+    found.push(location(file, text, match.index));
+  }
+  for (const match of text.matchAll(COMPUTED_GLOBAL_ACCESS)) {
+    found.push(location(file, text, match.index));
+  }
+  if (!ALLOWLISTED_FETCH_FILES.has(relative)) {
+    for (const match of text.matchAll(ALIASED_FETCH)) {
+      found.push(location(file, text, match.index));
+    }
+  }
+  return found;
+}
+
 // TASK-106
 function checkSource(sourceRoot) {
   const failures = [];
@@ -79,6 +121,8 @@ function checkSource(sourceRoot) {
     for (const match of text.matchAll(NETWORK_USAGE)) {
       if (!approvedUsage(file, text, match)) failures.push(location(file, text, match.index));
     }
+    // TASK-BATCH-FIX (F-4): also flag the obfuscation/bypass patterns the static scan misses.
+    failures.push(...hardenedViolations(file, text));
   }
   return failures;
 }

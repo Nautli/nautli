@@ -178,4 +178,8 @@ test("network allowlist checker accepts src and rejects external network fixture
   assert.match(failed.stderr, /external-fetch\.js:2/);
   assert.match(failed.stderr, /http-get\.js:5/);
   assert.match(failed.stderr, /node-https\.js:2/);
+  // TASK-BATCH-FIX (F-4): the hardened checker also flags obfuscated egress bypasses.
+  assert.match(failed.stderr, /dynamic-import-nonliteral\.js:2/); // import("node:"+"https")
+  assert.match(failed.stderr, /computed-global-fetch\.js:2/); // globalThis["f"+"etch"]
+  assert.match(failed.stderr, /aliased-fetch\.js:2/); // const fetchImpl = fetch
 });

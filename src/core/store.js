@@ -458,6 +458,9 @@ export class Store {
       CREATE INDEX IF NOT EXISTS facts_claim_hash_idx ON facts(claim_hash);
       CREATE VIRTUAL TABLE IF NOT EXISTS facts_fts
         USING fts5(id UNINDEXED, claim, subject);
+      CREATE TABLE IF NOT EXISTS events_applied (
+        ev_id TEXT PRIMARY KEY
+      );
     `);
   }
 
@@ -478,6 +481,10 @@ export class Store {
     // (이 프로세스의 SQLite 핸들은 rebuild가 삭제·재생성 중인 파일을 가리킬 수 있어 위험하다.)
     if (rebuildInProgress(this.home)) {
       writeDirtyMarker(this.home, { at, ev_id, reason: "append-during-rebuild" });
+      // TASK-BATCH-FIX (F-2): the index mutation was skipped, so the index is stale until the
+      // in-progress/next rebuild replays this event. Flag degraded (same shape as the apply-failed
+      // path) so remember/CLI/MCP/dashboard surface W_INDEX_DEGRADED (202) instead of a false 201.
+      Object.defineProperty(event, "index_degraded", { value: true, enumerable: false, configurable: true });
       return event;
     }
     try {
@@ -498,8 +505,19 @@ export class Store {
   applyEvent(evt) {
     // 활동 로그는 fact 이벤트와 같은 append-only 정본에 공존하지만 파생 인덱스 대상은 아니다.
     if (isRecallEvent(evt) || isRememberActivityEvent(evt) || isCaptureDecidedEvent(evt)) return;
+    // TASK-BATCH-FIX (F-1): live apply must be idempotent by ev_id identically to first-wins replay.
+    // A supplied ev_id that has already been applied is skipped (the event line still lives in the
+    // append-only JSONL truth — only the index mutation is skipped), so a duplicated ev_id can never
+    // apply twice live and then diverge from rebuild/export. Legacy events without ev_id always apply.
+    const evId = typeof evt?.ev_id === "string" && evt.ev_id !== "" ? evt.ev_id : null;
     try {
       const apply = this.db.transaction(() => {
+        // TASK-BATCH-FIX (F-1): dedup gate inside the mutation transaction so a rolled-back apply
+        // (e.g. degraded index write) also rolls back the ev_id record — no stale first-wins claim.
+        if (evId !== null) {
+          const inserted = this.db.prepare("INSERT OR IGNORE INTO events_applied (ev_id) VALUES (?)").run(evId);
+          if (inserted.changes === 0) return; // already applied — skip the index mutation.
+        }
         const tombstoneIds = purgedFactIds(evt);
         if (tombstoneIds.length > 0) {
           const placeholders = tombstoneIds.map(() => "?").join(", ");
@@ -759,6 +777,10 @@ export class Store {
     if (factIds.length === 0) {
       return { ok: true, purged: 0, fact_ids: [], scrubbed_events: 0, review_pairs_removed: 0 };
     }
+    // TASK-BATCH-FIX (F-3): acquire the same cross-process rebuild lock so a purge cannot run
+    // concurrently with a rebuild — otherwise the rebuild could delete the SQLite inode this purge
+    // just scrubbed and resurrect the purged fact from the replayed log. E_STORE_BUSY if held.
+    const lockPath = acquireRebuildLock(this.home);
     const journal = path.join(this.home, "purge-journal.json");
     const at = new Date().toISOString();
     writeAtomic(journal, `${JSON.stringify({ ids: factIds, at })}\n`);
@@ -769,6 +791,8 @@ export class Store {
     } catch (error) {
       if (isBusy(error)) throw codedError(ERR.E_STORE_BUSY, error);
       throw error;
+    } finally {
+      releaseRebuildLock(lockPath);
     }
   }
 
