@@ -124,3 +124,57 @@ Successfully installed prebuilt binary!
 3. `npx nautli`를 지원 계약으로 유지하려면 package/docs의 단순 문구보다 큰 배포·의존성 설계 변경이 필요하다(예: npm install lifecycle에 의존하지 않는 저장소 백엔드 또는 별도 설치/승인 흐름). 최소한 해당 제한을 README/릴리스 노트에 명시해야 한다.
 
 이번 결론은 npm 12.0.1을 Node 22.22.1에서 실행한 실측이다. npm 12이 이 Node patch 버전에 낸 engine 경고는 별도 호환성 이슈지만, install-script 차단 경고와 네이티브 바인딩 실패는 명시적으로 관측됐다.
+
+## node:sqlite 스파이크 (2026-07-24)
+
+<!-- TASK-114 -->
+
+### 실측 환경과 결과
+
+이 머신의 Node는 `v22.22.1`이다. 별도 플래그 없이 다음이 성공했다.
+
+```sh
+node --input-type=module -e 'import { DatabaseSync } from "node:sqlite"; new DatabaseSync(":memory:")'
+```
+
+`ExperimentalWarning: SQLite is an experimental feature` 경고는 출력된다. `--experimental-sqlite`도 허용되지만, 이 버전에서는 없어도 import·생성이 가능했다.
+
+파일 DB에서 다음을 실제 실행했다.
+
+```sql
+CREATE VIRTUAL TABLE docs USING fts5(body);
+PRAGMA journal_mode = WAL;
+CREATE TABLE tx (id INTEGER);
+BEGIN IMMEDIATE; INSERT INTO tx VALUES (1); COMMIT;
+```
+
+결과는 FTS5 생성 성공, `PRAGMA journal_mode` 결과 `wal`, 행 수 `1`이었다. 따라서 `store.js`가 필수로 쓰는 FTS5와 WAL은 이 머신의 내장 SQLite에서 동작한다. `:memory:` DB의 `journal_mode = WAL` 결과는 SQLite 규칙대로 `memory`였으므로, WAL 판정은 파일 DB에서 했다.
+
+반면 `typeof db.transaction`은 `undefined`였다. `DatabaseSync`에는 better-sqlite3 같은 JavaScript 콜백 트랜잭션 헬퍼가 없고, SQL의 `BEGIN`/`COMMIT`/`ROLLBACK` 래퍼를 구현해야 한다.
+
+### `src/core/store.js` API 대응표
+
+| better-sqlite3 사용 표면 | `node:sqlite` (`DatabaseSync`) 대응 | 이 저장소에서의 차이 |
+| --- | --- | --- |
+| `new Database(indexPath)` | `new DatabaseSync(indexPath)` | 동기식 파일 DB 생성은 대응된다. |
+| `db.prepare(sql)` | `db.prepare(sql)` | 둘 다 statement를 돌려준다. |
+| `statement.run(...)` | `statement.run(...)` | 대응된다. |
+| `statement.get(...)` | `statement.get(...)` | 대응된다. |
+| `statement.all(...)` | `statement.all(...)` | 대응된다. |
+| `db.exec(sql)` | `db.exec(sql)` | 스키마 DDL·복수 SQL 실행에 대응된다. |
+| `db.pragma("journal_mode = WAL")` | `db.exec("PRAGMA journal_mode = WAL")` 또는 `db.prepare("PRAGMA journal_mode = WAL").get()` | `pragma` 메서드는 없으며, 결과를 읽을 때는 statement를 쓴다. `integrity_check`의 `{ simple: true }`도 `get()` 결과에서 값을 꺼내도록 바꿔야 한다. |
+| `db.transaction(fn)` | 직접 대응 없음 | `BEGIN`/`COMMIT`/`ROLLBACK`을 보장하는 래퍼가 필요하다. 현재 `applyEvent`와 `purge` 두 경로가 사용한다. |
+| `db.close()` | `db.close()` | 현재 Store 정리 경로는 대응된다. |
+
+현재 `store.js`의 DB 호출 수는 `prepare` 27곳, `exec` 1곳, `pragma` 2곳, `transaction` 2곳이다. 실제 SQL·결과 객체 중심의 표면은 작지만, 트랜잭션 래퍼와 기존 Node 20 지원 계약은 단순 import 교체를 막는다.
+
+### 판정과 후속 분해안
+
+**조건부 가능.** Node 22.22.1에서는 FTS5·파일 WAL·동기 statement API가 확인됐으므로 네이티브 `better-sqlite3` 설치를 제거할 기술적 기반은 있다. 다만 `node:sqlite`는 아직 experimental이고, 현 `engines.node >=20` 사용자는 지원하지 못한다. 또한 콜백 트랜잭션 API가 없어서 원자성·busy 오류·rollback 동작을 별도로 재검증해야 한다.
+
+예상 작업량은 중간(약 2–4 엔지니어 일)이다. 후속 태스크는 다음처럼 분리한다. 이번 TASK-114에서는 마이그레이션하지 않는다.
+
+1. Node 지원 정책 결정: Node 22.22.1 이상으로 상향할지, better-sqlite3 fallback을 유지할지 결정한다.
+2. `Store` 밖의 작은 DB 어댑터를 도입해 `DatabaseSync`의 `pragma` 대체와 `BEGIN`/`COMMIT`/`ROLLBACK` 트랜잭션 래퍼를 구현한다.
+3. 기존 store·rebuild·FTS·동시/busy·rollback 테스트를 두 백엔드 또는 전환 대상 백엔드에서 실행해 결과 객체·오류 코드·WAL 지속성을 비교한다.
+4. 호환성·성능·배포 검증 뒤에만 의존성/엔진 변경과 better-sqlite3 제거를 별도 릴리스 태스크로 진행한다.

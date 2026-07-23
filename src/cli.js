@@ -48,7 +48,12 @@ import {
   TASTE,
   validateVaultPath,
 } from "./onboard/checkup.js";
-import { checkClaudeLogin, doctor } from "./onboard/doctor.js";
+import {
+  checkClaudeLogin,
+  doctor,
+  isBetterSqlite3BindingsError,
+  npm12NativeBuildGuidance,
+} from "./onboard/doctor.js";
 import {
   digestFreshness,
   initStore,
@@ -1193,6 +1198,11 @@ export async function main(argv = process.argv.slice(2)) {
       store.close();
     }
   } catch (error) {
+    // TASK-114: npm 12 install-script 차단으로 생긴 better-sqlite3 바인딩 오류를
+    // 범용 E_INVALID_INPUT 대신 복구 가능한 전용 오류로 정규화한다.
+    if (isBetterSqlite3BindingsError(error)) {
+      error = codedError(ERR.E_NATIVE_BINDINGS_MISSING, npm12NativeBuildGuidance({ short: true }));
+    }
     writeJson(errorPayload(error));
     process.exitCode = 1;
   }

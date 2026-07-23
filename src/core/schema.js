@@ -7,6 +7,8 @@ export const ERR = Object.freeze({
   E_UNKNOWN_SCOPE: "E_UNKNOWN_SCOPE",
   E_NOT_FOUND: "E_NOT_FOUND",
   E_STORE_BUSY: "E_STORE_BUSY",
+  // TASK-114: better-sqlite3의 네이티브 바인딩이 없을 때(주로 npm 12 script 차단) 전용 오류.
+  E_NATIVE_BINDINGS_MISSING: "E_NATIVE_BINDINGS_MISSING",
   // TASK-107: export snapshot estimate exceeds the bounded in-memory export limit.
   E_EXPORT_TOO_LARGE: "E_EXPORT_TOO_LARGE",
   E_BUDGET_TOO_SMALL: "E_BUDGET_TOO_SMALL",

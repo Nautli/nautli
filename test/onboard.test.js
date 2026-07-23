@@ -27,6 +27,7 @@ import {
   uninstallApp,
   uninstallDaemon,
 } from "../src/onboard/setup.js";
+import { doctor } from "../src/onboard/doctor.js";
 import { INSTRUCTIONS_START } from "../src/onboard/instructions.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -45,6 +46,38 @@ function isolatedHome(t) {
   });
   return { home, userHome };
 }
+
+// TASK-114: npm 12가 install script를 막아 better-sqlite3 바인딩이 없을 때 doctor는
+// 정확한 승인·rebuild 명령을 출력 가능한 결과에 고정한다.
+test("doctor reports npm 12 native-build recovery commands for missing better-sqlite3 bindings", (t) => {
+  const { home } = isolatedHome(t);
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, "index.sqlite"), "placeholder");
+  const setup = {
+    required: {
+      mcp: { cli_exists: true, registered: true },
+      daemon: { complete: true },
+    },
+  };
+  class MissingBindingsStore {
+    constructor() {
+      throw new Error("Could not locate the bindings file. Tried: better_sqlite3.node");
+    }
+  }
+
+  const result = doctor(home, { setup, Store: MissingBindingsStore });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.result.npm12_native_build.suspected, true);
+  assert.deepEqual(result.result.npm12_native_build.commands, [
+    "npm install-scripts approve --all --allow-scripts-pin",
+    "npm rebuild better-sqlite3 --foreground-scripts",
+  ]);
+  assert.equal(
+    result.result.npm12_native_build.reference,
+    "https://github.com/Nautli/nautli/blob/main/docs/research/npm12-native-build.md",
+  );
+});
 
 test("notifyDigestResult posts a macOS notification via argv (no injection)", () => {
   const calls = [];
