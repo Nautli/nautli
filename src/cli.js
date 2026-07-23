@@ -23,6 +23,12 @@ import {
 } from "./capture/metrics.js";
 import { writeSpoolEntry } from "./capture/spool.js";
 import { remember } from "./core/gate.js";
+import {
+  importExportFile,
+  readExportFile,
+  verifyRoundTrip,
+  writeExportFile,
+} from "./core/portability.js";
 import { recall } from "./core/recall.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
@@ -751,6 +757,72 @@ async function reviewCommand(home, args) {
   return { ok: true, reviewed };
 }
 
+// TASK-098-fix
+function exportCommand(home, args) {
+  const parsed = parseCommand(args, {
+    out: { type: "string" },
+    verify: { type: "boolean", default: false },
+  });
+  requirePositionals(parsed.positionals, 0);
+  const date = new Date().toISOString().slice(0, 10);
+  const output = path.resolve(parsed.values.out ?? `nautli-export-${date}.json`);
+  const written = writeExportFile(home, output);
+  process.stdout.write(
+    `Exported ${written.snapshot.counts.facts} facts and `
+    + `${written.snapshot.counts.events} events to ${written.output}\n`,
+  );
+  process.stdout.write(`Checksum: ${written.snapshot.checksum}\n`);
+
+  if (!parsed.values.verify) return;
+
+  try {
+    try {
+      const { integrity } = readExportFile(written.output);
+      process.stdout.write(
+        `FILE INTEGRITY: PASS — format, ${integrity.facts} fact schemas, `
+        + `${integrity.events} event counts, and facts+events checksum verified\n`,
+      );
+    } catch (error) {
+      process.stdout.write(`FILE INTEGRITY: FAIL — ${error.message}\n`);
+      throw error;
+    }
+
+    try {
+      const proof = verifyRoundTrip(home, written.output);
+      process.stdout.write(
+        `ROUND-TRIP: PASS — ${proof.facts} logical fact rows, supersedes/provenance fields, `
+        + `events, and recall equality across ${proof.recall_queries} representative queries `
+        + "verified\n",
+      );
+    } catch (error) {
+      process.stdout.write(`ROUND-TRIP: FAIL — ${error.message}\n`);
+      throw error;
+    }
+  } catch (error) {
+    // TASK-098-fix
+    process.stdout.write(
+      `VERIFY: FAIL — export file retained but NOT verified: ${written.output}\n`,
+    );
+    throw error;
+  }
+  // TASK-098-fix
+  process.stdout.write("VERIFY: PASS\n");
+}
+
+// TASK-098
+function importCommand(defaultHome, args) {
+  const parsed = parseCommand(args, {
+    home: { type: "string" },
+  });
+  requirePositionals(parsed.positionals, 1);
+  const target = path.resolve(parsed.values.home ?? defaultHome);
+  const result = importExportFile(path.resolve(parsed.positionals[0]), target);
+  process.stdout.write(
+    `Imported ${result.counts.facts} facts and ${result.counts.events} events into ${result.home}\n`,
+  );
+  process.stdout.write(`Checksum: ${result.checksum}\n`);
+}
+
 export async function main(argv = process.argv.slice(2)) {
   try {
     const [command, ...args] = argv;
@@ -890,6 +962,20 @@ export async function main(argv = process.argv.slice(2)) {
 
     if (command === "checkup") {
       process.exitCode = await checkupCommand(home, args);
+      return;
+    }
+
+    // TASK-098
+    if (command === "export") {
+      exportCommand(home, args);
+      process.exitCode = 0;
+      return;
+    }
+
+    // TASK-098
+    if (command === "import") {
+      importCommand(home, args);
+      process.exitCode = 0;
       return;
     }
 

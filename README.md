@@ -91,6 +91,23 @@ npx nautli daemon-run                                        # run one digestion
 npx nautli rebuild                                           # rebuild the index from source files
 ```
 
+## Portability / `export --verify`
+
+```bash
+nautli export --verify --out nautli-memory.json
+nautli import nautli-memory.json --home /path/to/empty/nautli-home
+```
+
+<!-- // TASK-098-fix -->
+`export --verify` separately checks the export file's format, fact schemas, counts, and
+facts+events checksum, then performs a verified round-trip in a temporary home. The
+round-trip compares every logical fact row (including supersedes chains and provenance),
+checks the rewritten events in their original logical order, and confirms that
+representative recall queries return the same fact IDs in the same order.
+
+This is a memory-portability check. It is not a backup-integrity proof and does not
+prove deletion from other copies or storage.
+
 Manual MCP registration:
 
 ```bash
