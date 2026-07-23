@@ -155,6 +155,9 @@ export async function runOnce(store, home, config, { dry = false, scope, subject
   }
   recordStage(home, "oracle_resolve", result.oracle_resolve);
 
+  // TASK-061: 자동 후속 단계가 실패해도 판정 결과는 보존하되, 호출자에게 불완전 실행을 알린다.
+  result.partial = result.capture_triage?.ok === false || result.oracle_resolve?.ok === false;
+
   if (config?.shadow_resolve_cmd !== false) {
     try {
       result.shadow_resolve = await resolveShadows(store, home, config);
@@ -178,8 +181,9 @@ export async function runOnce(store, home, config, { dry = false, scope, subject
     ...result.capture_triage,
     oracle_resolve: result.oracle_resolve,
     shadow_resolve: result.shadow_resolve,
+    partial: result.partial,
   });
-  recordStage(home, "report", { file: result.report.file, cards: result.report.cards });
+  recordStage(home, "report", { file: result.report.file });
 
   result.views = renderViews(store, home);
   recordStage(home, "render", { count: result.views.files.length });

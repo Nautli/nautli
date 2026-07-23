@@ -61,6 +61,9 @@ export function applyJudgments(store, judgments, config = {}) {
       .map((entry) => entry.pair_id)
       .filter((value) => typeof value === "string"));
     let applied = 0;
+    // TASK-061: 자동 병합과 모순 자동해결은 사용자 카피에서 다른 결과로 보여 준다.
+    let appliedDuplicates = 0;
+    let appliedContradictions = 0;
     let queued = 0;
     let skipped = 0;
     let machineOracle = 0;
@@ -137,6 +140,7 @@ export function applyJudgments(store, judgments, config = {}) {
               type: "pair",
             });
             applied += 1;
+            appliedDuplicates += 1;
             outcome = "applied";
           } else {
             // 승자 방향 판별 불가(newer 부재 + t_valid·confidence 동률) — 조용한 누락 대신 shadow로 강등
@@ -187,6 +191,7 @@ export function applyJudgments(store, judgments, config = {}) {
             type: "pair",
           });
           applied += 1;
+          appliedContradictions += 1;
           outcome = "applied";
         } else if ((judgment.verdict === "duplicate" && confidence < 0.9)
           || judgment.verdict === "contradiction"
@@ -239,6 +244,8 @@ export function applyJudgments(store, judgments, config = {}) {
 
     const results = {
       applied,
+      applied_duplicates: appliedDuplicates,
+      applied_contradictions: appliedContradictions,
       queued,
       shadowed,
       skipped,

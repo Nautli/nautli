@@ -1097,6 +1097,11 @@ function localDay(now) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+function resultCount(value) {
+  const count = Number(value);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
 function readNotifyState(home) {
   try {
     if (typeof home !== "string" || home.length === 0) throw new Error("missing home");
@@ -1110,12 +1115,24 @@ function readNotifyState(home) {
         accum_applied: Number.isFinite(value.accum_applied) && value.accum_applied >= 0
           ? value.accum_applied
           : 0,
+        accum_duplicates: Number.isFinite(value.accum_duplicates) && value.accum_duplicates >= 0
+          ? value.accum_duplicates
+          : (Number.isFinite(value.accum_applied) && value.accum_applied >= 0 ? value.accum_applied : 0),
+        accum_contradictions: Number.isFinite(value.accum_contradictions) && value.accum_contradictions >= 0
+          ? value.accum_contradictions
+          : 0,
       },
     };
   } catch {
     return {
       ok: false,
-      state: { last_success_day: null, last_failure_day: null, accum_applied: 0 },
+      state: {
+        last_success_day: null,
+        last_failure_day: null,
+        accum_applied: 0,
+        accum_duplicates: 0,
+        accum_contradictions: 0,
+      },
     };
   }
 }
@@ -1149,25 +1166,41 @@ export function notifyDigestResult(result, {
 } = {}) {
   if (platform !== "darwin") return { notified: false, reason: "platform" };
   if (config.notifications === false) return { notified: false, reason: "disabled" };
+  // TASK-084: catch-up/lock skips are bookkeeping only; they cannot notify or mutate failure state.
   if (!result || result.skipped_run) return { notified: false, reason: "skipped_run" };
   const t = translator(locale);
   const failed = result.ok === false;
-  const applied = result.applied ?? 0;
-  const held = result.shadowed ?? 0;
+  const hasAppliedBreakdown = Object.hasOwn(result, "applied_duplicates")
+    || Object.hasOwn(result, "applied_contradictions");
+  const appliedDuplicates = hasAppliedBreakdown
+    ? resultCount(result.applied_duplicates)
+    : resultCount(result.applied);
+  const appliedContradictions = resultCount(result.applied_contradictions);
+  const applied = appliedDuplicates + appliedContradictions;
+  // TASK-061: pair shadows and capture-triage shadows are one held total in user-visible copy.
+  const held = resultCount(result.shadowed) + resultCount(result.capture_triage?.capture_shadowed);
   const today = localDay(now);
   const guard = readNotifyState(home);
   let notificationApplied = applied;
+  let notificationDuplicates = appliedDuplicates;
+  let notificationContradictions = appliedContradictions;
 
   if (failed && guard.ok && guard.state.last_failure_day === today) {
     return { notified: false, reason: "daily_cap" };
   }
-  if (!failed && applied <= 0) return { notified: false, reason: "no_changes" };
+  if (!failed && applied <= 0 && held <= 0 && result.partial !== true) {
+    return { notified: false, reason: "no_changes" };
+  }
   if (!failed) {
     notificationApplied = guard.state.accum_applied + applied;
+    notificationDuplicates = guard.state.accum_duplicates + appliedDuplicates;
+    notificationContradictions = guard.state.accum_contradictions + appliedContradictions;
     if (guard.ok && guard.state.last_success_day === today) {
       const saved = writeNotifyState(home, {
         ...guard.state,
         accum_applied: notificationApplied,
+        accum_duplicates: notificationDuplicates,
+        accum_contradictions: notificationContradictions,
       });
       if (saved) return { notified: false, reason: "daily_cap" };
     }
@@ -1179,15 +1212,35 @@ export function notifyDigestResult(result, {
   else if (failed) body = t("daemon.notify.failed_body");
   else if (result.partial === true) body = t("daemon.notify.partial_body");
   else if (applied > 0 && held > 0) {
-    body = t("daemon.notify.caught_held_body", {
-      applied: notificationApplied,
-      held,
-      mem: notificationApplied === 1 ? "memory" : "memories",
+    if (notificationDuplicates > 0 && notificationContradictions > 0) {
+      body = t("daemon.notify.caught_mixed_held_body", {
+        duplicates: notificationDuplicates,
+        contradictions: notificationContradictions,
+        held,
+      });
+    } else if (notificationContradictions > 0) {
+      body = t("daemon.notify.caught_contradictions_held_body", {
+        contradictions: notificationContradictions,
+        held,
+      });
+    } else {
+      body = t("daemon.notify.caught_held_body", {
+        applied: notificationDuplicates,
+        held,
+        mem: notificationDuplicates === 1 ? "memory" : "memories",
+      });
+    }
+  } else if (applied > 0 && notificationDuplicates > 0 && notificationContradictions > 0) {
+    body = t("daemon.notify.caught_mixed_body", {
+      duplicates: notificationDuplicates,
+      contradictions: notificationContradictions,
     });
+  } else if (notificationContradictions > 0) {
+    body = t("daemon.notify.caught_contradictions_body", { contradictions: notificationContradictions });
   } else if (applied > 0) {
     body = t("daemon.notify.caught_body", {
-      applied: notificationApplied,
-      mem: notificationApplied === 1 ? "memory" : "memories",
+      applied: notificationDuplicates,
+      mem: notificationDuplicates === 1 ? "memory" : "memories",
     });
   } else if (held > 0) {
     body = t("daemon.notify.held_body", { held, chg: held === 1 ? "change" : "changes" });
@@ -1212,13 +1265,20 @@ export function notifyDigestResult(result, {
         ...guard.state,
         last_success_day: today,
         accum_applied: 0,
+        accum_duplicates: 0,
+        accum_contradictions: 0,
       });
     }
     return { notified: true };
   } catch {
     // 상태파일이 없던 최초 실행(guard.ok false)에서도 누적은 보존한다 — 파일은 여기서 생성된다.
     if (!failed) {
-      writeNotifyState(home, { ...guard.state, accum_applied: notificationApplied });
+      writeNotifyState(home, {
+        ...guard.state,
+        accum_applied: notificationApplied,
+        accum_duplicates: notificationDuplicates,
+        accum_contradictions: notificationContradictions,
+      });
     }
     return { notified: false, reason: "osascript_failed" };
   }
@@ -1242,6 +1302,7 @@ export function checkAndEscalate(home, {
   for (let i = lines.length - 1; i >= 0; i -= 1) {
     try {
       const entry = JSON.parse(lines[i]);
+      // TASK-084: skips never represent a patrol result, including for escalation day counts.
       if (entry.skipped_run) continue;
       if (entry.exit === undefined) continue;
       const day = localDay(new Date(entry.at));

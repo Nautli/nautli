@@ -54,12 +54,16 @@ test("daemon applies confidence gates and is journal-idempotent", async (t) => {
   assert.equal(first.pairs, 4);
   assert.deepEqual({
     applied: first.applied,
+    applied_duplicates: first.applied_duplicates,
+    applied_contradictions: first.applied_contradictions,
     queued: first.queued,
     shadowed: first.shadowed,
     skipped: first.skipped,
     machine_oracle: first.machine_oracle,
   }, {
     applied: 2,
+    applied_duplicates: 1,
+    applied_contradictions: 1,
     queued: 0,
     shadowed: 1,
     skipped: 1,
@@ -132,7 +136,7 @@ test("failed judgments stay observable without completing or applying the pair",
   assert.deepEqual(finalJournal.map((entry) => entry.kind), ["judgment_failed", "judgment"]);
 });
 
-test("report renders approval cards and machine oracle summary", (t) => {
+test("TASK-061 report separates applied outcomes and omits pending review cards", (t) => {
   const savedLang = process.env.NAUTLI_LANG;
   process.env.NAUTLI_LANG = "ko";
   t.after(() => {
@@ -169,27 +173,23 @@ test("report renders approval cards and machine oracle summary", (t) => {
   ].map(JSON.stringify).join("\n")}\n`, "utf8");
 
   const result = writeReport(store, home, {
-    applied: 0,
+    applied: 2,
+    applied_duplicates: 1,
+    applied_contradictions: 1,
     queued: 2,
     skipped: 0,
     machine_oracle: 1,
     failed_pairs: 2,
+    partial: true,
   });
   const report = fs.readFileSync(result.file, "utf8");
 
-  assert.match(report, /요약: 적용 0건, 리뷰 대기 추가 2건, 건너뜀 0건, 기술 기록 보류 1건\./u);
+  assert.match(report, /요약: 중복 적용 1건, 모순 자동 해결 1건, 리뷰 대기 추가 2건, 건너뜀 0건, 기술 기록 보류 1건\./u);
   assert.match(report, /\(판정 2쌍은 일시 오류로 건너뜀: 다음 순찰 때 다시 시도해요\)/u);
   assert.match(report, /\(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요\)/u);
-  assert.match(report, /\*\*npm 발행이 끝났는지가 갈려요\.\*\*/u);
-  assert.match(report, /질문: 지금은 어느 쪽이 맞나요\? \(A \/ B \/ 둘 다 \/ 모름\)/u);
-  assert.match(report, /데몬 추천: B가 최신으로 보여요 \(확신 88%\)/u);
-  assert.match(report, /\*\*이 두 기억이 같은 내용 같아요\.\*\*/u);
-  assert.doesNotMatch(report, /\*\*표현이 비슷한 기술 판정 문장이다\.\*\*/u);
-  assert.match(report, /질문: 하나로 합칠까요\? \(O \/ X \/ 모름\)/u);
-  assert.match(report, /참고\(원문\)\n- A: 원문 A는 npm 발행 대기 상태다\n- B: 원문 B는 npm 발행 완료 상태다/u);
-  assert.equal(report.match(/원문 A는 npm 발행 대기 상태다/gu)?.length, 1);
-  assert.ok(report.indexOf("원문 A는 npm 발행 대기 상태다") > report.indexOf("참고(원문)"));
-  assert.match(report, /판정: contradiction 0\.88 · pair: fa_crux_a:fa_crux_b · 이유: npm 발행 상태가 서로 다르다\./u);
+  assert.match(report, /\(일부 자동 후속 처리가 끝나지 않아 다음 순찰 때 다시 시도해요\)/u);
+  assert.doesNotMatch(report, /npm 발행이 끝났는지가 갈려요|리뷰 카드|참고\(원문\)/u);
+  assert.deepEqual(result, { file: result.file });
 });
 
 test("judge command rejects script and eval forms and gates node behind test env", async (t) => {

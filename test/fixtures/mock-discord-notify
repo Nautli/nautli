@@ -1,0 +1,7 @@
+#!/usr/bin/env node
+// TASK-085: test-only Discord binary; it records argv locally and never opens a network connection.
+import fs from "node:fs";
+
+const log = process.env.NAUTLI_DISCORD_LOG;
+if (!log) process.exitCode = 2;
+else fs.appendFileSync(log, `${JSON.stringify(process.argv.slice(2))}\n`, "utf8");

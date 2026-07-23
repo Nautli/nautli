@@ -83,21 +83,27 @@ test("runDaemon keeps the freshness gate for patrols and bypasses it for spool",
   fs.writeFileSync(path.join(home, "config.json"), `${JSON.stringify(config)}\n`, "utf8");
 
   let digests = 0;
+  let notifications = 0;
   const dependencies = {
     digestRunner: async () => { digests += 1; return { ok: true, applied: 0 }; },
-    notifier: () => ({ notified: false }),
+    notifier: () => { notifications += 1; return { notified: false }; },
     now: () => Date.now() + 1_000,
   };
   const patrol = await runDaemon(home, [], dependencies);
   assert.equal(patrol.result.skipped_run, true);
   assert.equal(patrol.result.trigger, "patrol");
   assert.equal(digests, 0);
+  assert.equal(notifications, 0, "TASK-084: a freshness skip must not alert");
+  const healthEntries = fs.readFileSync(health, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(healthEntries.at(-1).skipped_run, true);
+  assert.equal(healthEntries.at(-2).exit, 0, "TASK-084: health remains anchored to the actual run");
 
   touchSpool(home);
   const event = await runDaemon(home, [], dependencies);
   assert.equal(event.result.ok, true);
   assert.equal(event.result.trigger, "spool");
   assert.equal(digests, 1);
+  assert.equal(notifications, 1);
   assert.equal(readSpool(home).count, 0);
 });
 
