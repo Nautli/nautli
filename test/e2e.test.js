@@ -70,6 +70,50 @@ test("CLI story survives daemon digestion and rebuild", (t) => {
   assert.equal(stats.byStatus.invalidated, 1);
 });
 
+// TASK-024: CLI and core share one validity-time parser, preserving an explicit past ISO instant.
+test("remember --t-valid round-trips through recall --as-of and rejects invalid input", (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-e2e-t-valid-"));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  runCli(home, ["init"]);
+
+  const remembered = runCli(home, [
+    "remember",
+    "historical release train is amber",
+    "--scope",
+    "project:validity",
+    "--t-valid",
+    "2020-02-03T04:05:06.000Z",
+  ]);
+  assert.equal(remembered.status, "added");
+  assert.equal(remembered.t_valid, "2020-02-03T04:05:06.000Z");
+
+  const recalled = runCli(home, [
+    "recall",
+    "historical release train",
+    "--scope",
+    "project:validity",
+    "--as-of",
+    "2020-02-04T00:00:00.000Z",
+  ]);
+  assert.deepEqual(recalled.facts.map((entry) => entry.t_valid), ["2020-02-03T04:05:06.000Z"]);
+
+  const invalid = spawnSync(process.execPath, [
+    cli,
+    "remember",
+    "invalid validity time",
+    "--scope",
+    "project:validity",
+    "--t-valid",
+    "2020-02-30",
+  ], {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env, NAUTLI_HOME: home },
+  });
+  assert.equal(invalid.status, 2, invalid.stderr || invalid.stdout);
+  assert.equal(JSON.parse(invalid.stdout).reason, "E_INVALID_INPUT");
+});
+
 test("daemon-run exits one when judging fails", (t) => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "nautli-e2e-failed-daemon-"));
   t.after(() => fs.rmSync(home, { recursive: true, force: true }));

@@ -10,7 +10,9 @@ import { recall } from "../src/core/recall.js";
 import {
   compareFactSnapshots,
   createExportSnapshot,
+  factChecksum,
   importExportFile,
+  verifyRoundTrip,
   writeExportFile,
 } from "../src/core/portability.js";
 import { claimHash, STATUS } from "../src/core/schema.js";
@@ -186,6 +188,12 @@ test("recall fact-id sets and top-k order remain equal across three runs", (t) =
   const fixture = makeFixture(t, "nautli-export-recall-");
   const output = path.join(fixture.root, "portable.json");
   const importedHome = path.join(fixture.root, "imported");
+  const seededStore = new Store(fixture.source);
+  seededStore.addFact(fact("fa_unicode_emoji", "서울 카페 ☕ 선호 규칙", {
+    scope: "project:portable",
+    t_valid: "2025-02-04",
+  }));
+  seededStore.close();
   writeExportFile(fixture.source, output);
   importExportFile(output, importedHome);
 
@@ -199,6 +207,7 @@ test("recall fact-id sets and top-k order remain equal across three runs", (t) =
     ["service port", "project:portable"],
     ["coffee preference", "person"],
     ["deployment instruction", "procedure"],
+    ["서울 카페 ☕ 선호 규칙", "project:portable"],
   ];
   for (let run = 0; run < 3; run += 1) {
     for (const [query, scope] of queries) {
@@ -212,6 +221,9 @@ test("recall fact-id sets and top-k order remain equal across three runs", (t) =
       );
     }
   }
+  // TASK-107: exercise the deterministic verifier sample, including its non-ASCII/emoji query.
+  const verified = verifyRoundTrip(fixture.source, output);
+  assert.ok(verified.recall_queries >= 5);
 });
 
 test("export --verify reports separate file-integrity and round-trip proofs", (t) => {
@@ -280,6 +292,154 @@ test("corrupt fact, count mismatch, and unknown format fail distinctly without a
     assert.equal(fs.existsSync(target), false);
   }
   assert.equal(new Set(messages).size, cases.length);
+});
+
+// TASK-107: Each hardened import invariant has an independently actionable error.
+test("import rejects invalid scope, timestamp, claim hash, and supersession link distinctly", (t) => {
+  const fixture = makeFixture(t, "nautli-export-validation-");
+  const validFile = path.join(fixture.root, "valid.json");
+  writeExportFile(fixture.source, validFile);
+  const valid = JSON.parse(fs.readFileSync(validFile, "utf8"));
+  const cases = [
+    {
+      name: "bad-scope",
+      mutate(snapshot) { snapshot.facts[0].scope = "workspace:portable"; },
+      pattern: /facts\[0\]\.scope: invalid scope "workspace:portable"/,
+    },
+    {
+      name: "bad-timestamp",
+      mutate(snapshot) { snapshot.facts[0].t_created = "not-a-timestamp"; },
+      pattern: /facts\[0\]\.t_created: invalid timestamp/,
+    },
+    {
+      name: "claim-hash-mismatch",
+      mutate(snapshot) { snapshot.facts[0].claim_hash = "0".repeat(40); },
+      pattern: /facts\[0\]\.claim_hash: does not match claim/,
+    },
+    {
+      name: "dangling-supersession",
+      mutate(snapshot) { snapshot.facts[0].superseded_by = "fa_missing"; },
+      pattern: /facts\[0\]\.superseded_by: dangling fact id "fa_missing"/,
+    },
+  ];
+
+  for (const entry of cases) {
+    const snapshot = structuredClone(valid);
+    entry.mutate(snapshot);
+    snapshot.checksum = factChecksum(snapshot.facts, snapshot.events);
+    const file = path.join(fixture.root, `${entry.name}.json`);
+    const target = path.join(fixture.root, `target-${entry.name}`);
+    fs.writeFileSync(file, `${JSON.stringify(snapshot)}\n`, "utf8");
+    assert.throws(
+      () => importExportFile(file, target),
+      (error) => error.code === "E_INVALID_INPUT" && entry.pattern.test(error.message),
+    );
+    assert.equal(fs.existsSync(target), false);
+  }
+});
+
+// TASK-107: A conservative estimate rejects before Store.query()/event parsing allocates a snapshot.
+test("export pre-estimate enforces E_EXPORT_TOO_LARGE without reading an oversized snapshot", (t) => {
+  const fixture = makeFixture(t, "nautli-export-size-limit-");
+  // Sparse storage keeps this regression test small while the 3x SQLite estimate exceeds 256 MiB.
+  fs.truncateSync(path.join(fixture.source, "index.sqlite"), 90 * 1024 * 1024);
+
+  assert.throws(
+    () => createExportSnapshot(fixture.source),
+    (error) => error.code === "E_EXPORT_TOO_LARGE"
+      && /Export estimate \d+ bytes exceeds 268435456 byte limit/.test(error.message),
+  );
+});
+
+// TASK-107: A failed staging->target rename must put an existing target back exactly as it was.
+test("import rename fault restores an existing target home intact", (t) => {
+  const fixture = makeFixture(t, "nautli-import-rename-rollback-");
+  const exported = path.join(fixture.root, "portable.json");
+  const target = path.join(fixture.root, "target");
+  const marker = path.join(target, "original.txt");
+  writeExportFile(fixture.source, exported);
+  fs.mkdirSync(target);
+  fs.writeFileSync(marker, "original target survives\n", "utf8");
+
+  const originalRename = fs.renameSync;
+  let injected = false;
+  fs.renameSync = function renameSyncWithFault(from, to, ...args) {
+    if (!injected && from.startsWith(`${target}.tmp-`) && to === target) {
+      injected = true;
+      const error = new Error("injected staging rename failure");
+      error.code = "EIO";
+      throw error;
+    }
+    return originalRename.call(this, from, to, ...args);
+  };
+  try {
+    assert.throws(() => importExportFile(exported, target), /injected staging rename failure/);
+  } finally {
+    fs.renameSync = originalRename;
+  }
+
+  assert.equal(injected, true);
+  assert.equal(fs.readFileSync(marker, "utf8"), "original target survives\n");
+  assert.deepEqual(fs.readdirSync(target), ["original.txt"]);
+  assert.deepEqual(
+    fs.readdirSync(fixture.root).filter((name) => name.startsWith("target.bak-")),
+    [],
+  );
+});
+
+// TASK-107: A parent-directory fsync failure retains the backup until rollback succeeds.
+test("import fsync failure rolls back rather than deleting the backup early", (t) => {
+  const fixture = makeFixture(t, "nautli-import-fsync-rollback-");
+  const exported = path.join(fixture.root, "portable.json");
+  const target = path.join(fixture.root, "target");
+  const marker = path.join(target, "original.txt");
+  writeExportFile(fixture.source, exported);
+  fs.mkdirSync(target);
+  fs.writeFileSync(marker, "original target survives\n", "utf8");
+
+  const originalRename = fs.renameSync;
+  const originalFsync = fs.fsyncSync;
+  const originalRemove = fs.rmSync;
+  let failNextFsync = false;
+  let installedReplacement = false;
+  let removedBackup = false;
+  fs.renameSync = function renameSyncWithFsyncFault(from, to, ...args) {
+    const result = originalRename.call(this, from, to, ...args);
+    if (from.startsWith(`${target}.tmp-`) && to === target) {
+      installedReplacement = true;
+      failNextFsync = true;
+    }
+    return result;
+  };
+  fs.fsyncSync = function fsyncSyncWithFault(descriptor) {
+    if (failNextFsync) {
+      failNextFsync = false;
+      const error = new Error("injected parent fsync failure");
+      error.code = "EIO";
+      throw error;
+    }
+    return originalFsync.call(this, descriptor);
+  };
+  fs.rmSync = function rmSyncWithBackupWatch(entry, ...args) {
+    if (String(entry).startsWith(`${target}.bak-`)) removedBackup = true;
+    return originalRemove.call(this, entry, ...args);
+  };
+  try {
+    assert.throws(() => importExportFile(exported, target), /injected parent fsync failure/);
+  } finally {
+    fs.renameSync = originalRename;
+    fs.fsyncSync = originalFsync;
+    fs.rmSync = originalRemove;
+  }
+
+  assert.equal(installedReplacement, true);
+  assert.equal(removedBackup, false, "backup must not be deleted before replacement verification succeeds");
+  assert.equal(fs.readFileSync(marker, "utf8"), "original target survives\n");
+  assert.deepEqual(fs.readdirSync(target), ["original.txt"]);
+  assert.deepEqual(
+    fs.readdirSync(fixture.root).filter((name) => name.startsWith("target.bak-")),
+    [],
+  );
 });
 
 // TASK-098-fix

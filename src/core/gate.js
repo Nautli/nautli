@@ -10,6 +10,35 @@ import { touchSpool } from "./spool.js";
 
 const FACT_TYPES = new Set(["episodic", "semantic", "procedural"]);
 
+// TASK-024: Both CLI and MCP reach remember() through this parser, so accepted
+// validity instants have one validation and storage path.
+export function normalizeValidTime(value) {
+  if (typeof value !== "string" || value.length === 0) return null;
+  const isCalendarDate = (year, month, day) => {
+    const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    return parsed.getUTCFullYear() === Number(year)
+      && parsed.getUTCMonth() + 1 === Number(month)
+      && parsed.getUTCDate() === Number(day);
+  };
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return isCalendarDate(year, month, day) ? value : null;
+  }
+
+  const dateTime = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/u.exec(value);
+  if (!dateTime) {
+    return null;
+  }
+  const [, year, month, day, hour, minute, second = "0", zone] = dateTime;
+  const zoneMinutes = zone === "Z" ? 0 : Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4, 6));
+  if (!isCalendarDate(year, month, day)
+    || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59
+    || zoneMinutes > 23 * 60 + 59) return null;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+}
+
 function rejected(reason) {
   return { status: "rejected", reason };
 }
@@ -24,7 +53,7 @@ function degradedAdded(id, ev_id) {
 function validOptionalInputs(input) {
   if (input.type !== undefined && !FACT_TYPES.has(input.type)) return false;
   if (input.subject !== undefined && typeof input.subject !== "string") return false;
-  if (input.t_valid !== undefined && (typeof input.t_valid !== "string" || input.t_valid.length === 0)) return false;
+  if (input.t_valid !== undefined && normalizeValidTime(input.t_valid) === null) return false;
   if (input.confidence !== undefined
     && (typeof input.confidence !== "number"
       || !Number.isFinite(input.confidence)
@@ -56,7 +85,9 @@ function makeFact(input, scope, claim) {
       ...(input.source === undefined ? {} : { source: input.source }),
       ...(injectionFlagged ? { injection_flagged: "true" } : {}),
     },
-    t_valid: input.t_valid ?? new Date().toLocaleDateString("sv-SE"),
+    t_valid: input.t_valid === undefined
+      ? new Date().toLocaleDateString("sv-SE")
+      : normalizeValidTime(input.t_valid),
     t_invalid: null,
     t_expired: null,
     superseded_by: null,

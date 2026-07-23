@@ -4,10 +4,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { recall } from "./recall.js";
-import { STATUS } from "./schema.js";
+import { ERR, STATUS, claimHash, validScope } from "./schema.js";
 import { Store } from "./store.js";
 
 export const EXPORT_FORMAT = "nautli-export/1";
+// TASK-107: Keep export construction bounded before JSON snapshot allocation.
+export const MAX_EXPORT_BYTES = 256 * 1024 * 1024;
 
 export const LOGICAL_FACT_FIELDS = Object.freeze([
   "id",
@@ -52,9 +54,9 @@ function compareStrings(left, right) {
 }
 
 // TASK-098
-function portabilityError(message) {
+function portabilityError(message, code = ERR.E_INVALID_INPUT) {
   const error = new Error(message);
-  error.code = "E_INVALID_INPUT";
+  error.code = code;
   return error;
 }
 
@@ -99,6 +101,32 @@ function eventLogNames(home) {
   return fs.readdirSync(directory)
     .filter((file) => /^\d{4}-\d{2}\.jsonl$/u.test(file))
     .sort();
+}
+
+// TASK-107: A pretty-printed JSON export expands JSONL events and SQLite rows;
+// use a deliberately conservative on-disk estimate before loading either into memory.
+function assertExportSizeWithinLimit(home, eventNames) {
+  const eventBytes = eventNames.reduce(
+    (total, name) => total + fs.statSync(path.join(home, "events", name)).size,
+    0,
+  );
+  const indexBytes = ["index.sqlite", "index.sqlite-wal"]
+    .map((name) => {
+      try {
+        return fs.statSync(path.join(home, name)).size;
+      } catch (error) {
+        if (error?.code === "ENOENT") return 0;
+        throw error;
+      }
+    })
+    .reduce((total, size) => total + size, 0);
+  const estimatedBytes = eventBytes * 2 + indexBytes * 3;
+  if (estimatedBytes > MAX_EXPORT_BYTES) {
+    throw portabilityError(
+      `Export estimate ${estimatedBytes} bytes exceeds ${MAX_EXPORT_BYTES} byte limit`,
+      ERR.E_EXPORT_TOO_LARGE,
+    );
+  }
 }
 
 // TASK-098-fix
@@ -171,6 +199,8 @@ export function createExportSnapshot(
       `nautli home not found or empty: ${requestedHome} — nothing to export`,
     );
   }
+  // TASK-107: reject before Store.query()/event parsing can allocate an oversized snapshot.
+  assertExportSizeWithinLimit(resolvedHome, initialEventNames);
   const store = new Store(resolvedHome);
   try {
     const facts = store.query()
@@ -280,6 +310,37 @@ function validateFact(fact, index) {
       `Export fact schema error at facts[${index}].confidence: expected finite number`,
     );
   }
+  // TASK-107: Import accepts only facts that the live store can safely reason about.
+  if (fact.confidence < 0 || fact.confidence > 1) {
+    throw portabilityError(
+      `Export fact schema error at facts[${index}].confidence: expected number in [0,1]`,
+    );
+  }
+  if (!validScope(fact.scope)) {
+    throw portabilityError(
+      `Export fact schema error at facts[${index}].scope: invalid scope "${fact.scope}"`,
+    );
+  }
+  for (const field of ["t_valid", "t_created"]) {
+    if (!Number.isFinite(Date.parse(fact[field]))) {
+      throw portabilityError(
+        `Export fact schema error at facts[${index}].${field}: invalid timestamp`,
+      );
+    }
+  }
+  for (const field of ["t_invalid", "t_expired"]) {
+    if (fact[field] !== null && !Number.isFinite(Date.parse(fact[field]))) {
+      throw portabilityError(
+        `Export fact schema error at facts[${index}].${field}: invalid timestamp`,
+      );
+    }
+  }
+  const computedClaimHash = claimHash(fact.claim);
+  if (fact.claim_hash !== computedClaimHash) {
+    throw portabilityError(
+      `Export fact schema error at facts[${index}].claim_hash: does not match claim`,
+    );
+  }
   if (!isPlainObject(fact.provenance)) {
     throw portabilityError(
       `Export fact schema error at facts[${index}].provenance: expected object`,
@@ -297,7 +358,7 @@ function validateEvent(event, index) {
   if (!isPlainObject(event)) {
     throw portabilityError(`Export event schema error at events[${index}]: expected object`);
   }
-  if (typeof event.at !== "string" || !/^\d{4}-\d{2}/u.test(event.at)) {
+  if (typeof event.at !== "string" || !Number.isFinite(Date.parse(event.at))) {
     throw portabilityError(
       `Export event schema error at events[${index}]: missing or invalid "at"`,
     );
@@ -336,6 +397,14 @@ export function validateExportSnapshot(snapshot) {
   if (factIds.size !== snapshot.facts.length) {
     throw portabilityError("Export fact schema error: duplicate fact id");
   }
+  // TASK-107: A supersession edge must resolve inside the imported snapshot.
+  snapshot.facts.forEach((fact, index) => {
+    if (fact.superseded_by !== null && !factIds.has(fact.superseded_by)) {
+      throw portabilityError(
+        `Export fact schema error at facts[${index}].superseded_by: dangling fact id "${fact.superseded_by}"`,
+      );
+    }
+  });
   if (typeof snapshot.checksum !== "string") {
     throw portabilityError("Export schema error: checksum must be a string");
   }
@@ -411,11 +480,12 @@ function factDiffSummary(diff) {
 }
 
 // TASK-098
-function assertImportTargetAvailable(target) {
+// TASK-107: An existing home is replaced only after the staging home validates.
+function assertImportTargetUsable(target) {
   if (!fs.existsSync(target)) return false;
   const stat = fs.lstatSync(target);
-  if (!stat.isDirectory() || fs.readdirSync(target).length > 0) {
-    throw portabilityError(`Import target home must be empty or nonexistent: ${target}`);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    throw portabilityError(`Import target home must be a directory or nonexistent: ${target}`);
   }
   return true;
 }
@@ -427,6 +497,43 @@ function makeStagingPath(target) {
     if (!fs.existsSync(candidate)) return candidate;
   }
   throw portabilityError(`Could not allocate import staging home for: ${target}`);
+}
+
+// TASK-107: Backup names are sibling paths so both renames have one durable parent.
+function makeBackupPath(target) {
+  for (let sequence = 0; sequence < 100; sequence += 1) {
+    const candidate = `${target}.bak-${process.pid}-${Date.now()}-${sequence}`;
+    if (!fs.existsSync(candidate)) return candidate;
+  }
+  throw portabilityError(`Could not allocate import backup home for: ${target}`);
+}
+
+function fsyncPath(file) {
+  const descriptor = fs.openSync(file, "r");
+  try {
+    fs.fsyncSync(descriptor);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function fsyncTree(root) {
+  const directories = [];
+  const visit = (entry) => {
+    const stat = fs.lstatSync(entry);
+    if (stat.isDirectory()) {
+      directories.push(entry);
+      for (const name of fs.readdirSync(entry).sort()) visit(path.join(entry, name));
+      return;
+    }
+    if (!stat.isSymbolicLink()) fsyncPath(entry);
+  };
+  visit(root);
+  for (const directory of directories.reverse()) fsyncPath(directory);
+}
+
+function removeDirectoryIfPresent(directory) {
+  if (fs.existsSync(directory)) fs.rmSync(directory, { recursive: true, force: true });
 }
 
 // TASK-098
@@ -441,7 +548,24 @@ function writeImportedEvents(staging, events) {
     byMonth.set(month, monthly);
   }
   for (const [month, lines] of [...byMonth.entries()].sort(([left], [right]) => left.localeCompare(right))) {
-    fs.writeFileSync(path.join(directory, `${month}.jsonl`), `${lines.join("\n")}\n`, "utf8");
+    const file = path.join(directory, `${month}.jsonl`);
+    fs.writeFileSync(file, `${lines.join("\n")}\n`, "utf8");
+    fsyncPath(file);
+  }
+  fsyncPath(directory);
+}
+
+function verifyImportedHome(home, snapshot) {
+  let store;
+  try {
+    store = new Store(home);
+    const diff = compareFactSnapshots(snapshot.facts, store.query());
+    if (!diff.equal) {
+      throw portabilityError(`Imported fact rows mismatch: ${factDiffSummary(diff)}`);
+    }
+    return snapshot.facts.length;
+  } finally {
+    store?.close();
   }
 }
 
@@ -449,10 +573,14 @@ function writeImportedEvents(staging, events) {
 export function importExportFile(file, targetHome) {
   const target = path.resolve(targetHome);
   const { snapshot, integrity } = readExportFile(file);
-  const targetExistedEmpty = assertImportTargetAvailable(target);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const targetExisted = assertImportTargetUsable(target);
+  const parent = path.dirname(target);
+  fs.mkdirSync(parent, { recursive: true });
   const staging = makeStagingPath(target);
   let store;
+  let backup;
+  let targetMoved = false;
+  let replacementInstalled = false;
   try {
     fs.mkdirSync(staging);
     writeImportedEvents(staging, snapshot.events);
@@ -465,8 +593,24 @@ export function importExportFile(file, targetHome) {
     }
     store.close();
     store = undefined;
-    if (targetExistedEmpty) fs.rmdirSync(target);
+    // TASK-107: Flush all staged files and directories before any target mutation.
+    fsyncTree(staging);
+    if (targetExisted) {
+      backup = makeBackupPath(target);
+      fs.renameSync(target, backup);
+      targetMoved = true;
+      fsyncPath(parent);
+    }
     fs.renameSync(staging, target);
+    replacementInstalled = true;
+    fsyncPath(parent);
+    verifyImportedHome(target, snapshot);
+    // The backup survives until the replacement is opened and compared successfully.
+    if (backup) {
+      fs.rmSync(backup, { recursive: true, force: true });
+      backup = undefined;
+      fsyncPath(parent);
+    }
     return {
       home: target,
       counts: { facts: actualFacts.length, events: integrity.events },
@@ -474,7 +618,25 @@ export function importExportFile(file, targetHome) {
     };
   } catch (error) {
     store?.close();
-    fs.rmSync(staging, { recursive: true, force: true });
+    // TASK-107: Faults after target->backup never discard the original target.
+    if (targetMoved && backup && fs.existsSync(backup)) {
+      try {
+        if (replacementInstalled) removeDirectoryIfPresent(target);
+        fs.renameSync(backup, target);
+        backup = undefined;
+        fsyncPath(parent);
+      } catch {
+        // Preserve the original failure; the surviving sibling backup is recoverable.
+      }
+    } else if (!targetExisted && replacementInstalled) {
+      try {
+        removeDirectoryIfPresent(target);
+        fsyncPath(parent);
+      } catch {
+        // Preserve the original failure; no original target existed to restore.
+      }
+    }
+    removeDirectoryIfPresent(staging);
     throw error;
   }
 }
@@ -487,30 +649,28 @@ function queryTerms(fact) {
 // TASK-098
 function representativeRecallQueries(facts) {
   const active = facts.filter((fact) => fact.status === STATUS.ACTIVE);
-  const scopeCounts = new Map();
-  for (const fact of active) {
-    scopeCounts.set(fact.scope, (scopeCounts.get(fact.scope) ?? 0) + 1);
-  }
-  const scopes = [...scopeCounts.entries()]
-    .sort((left, right) => right[1] - left[1] || compareStrings(left[0], right[0]))
-    .map(([scope]) => scope);
   const queries = [];
+  const scopes = [...new Set(active.map((fact) => fact.scope))].sort(compareStrings);
+  // TASK-107: Sample each scope deterministically with 1/2/3+ term queries and
+  // a claim containing non-ASCII or emoji when present.
   for (const scope of scopes) {
-    const fact = active.find((entry) => entry.scope === scope);
-    const term = queryTerms(fact)[0];
-    if (term) queries.push({ query: term, scope });
-    if (queries.length === 3) return queries;
-  }
-  for (const fact of active) {
-    for (const term of queryTerms(fact)) {
-      if (!queries.some((entry) => entry.query === term && entry.scope === fact.scope)) {
-        queries.push({ query: term, scope: fact.scope });
+    const scopeFacts = active
+      .filter((fact) => fact.scope === scope)
+      .sort((left, right) => compareStrings(left.id, right.id));
+    for (const termCount of [1, 2, 3]) {
+      const match = scopeFacts.find((fact) => queryTerms(fact).length >= termCount);
+      if (match) {
+        queries.push({ query: queryTerms(match).slice(0, termCount).join(" "), scope });
       }
-      if (queries.length === 3) return queries;
     }
-  }
-  if (queries.length === 1) {
-    queries.push({ query: active[0].claim, scope: active[0].scope });
+    const nonAscii = scopeFacts.find((fact) => /[^\x00-\x7F]/u.test(fact.claim));
+    if (nonAscii) {
+      queries.push({ query: nonAscii.claim, scope });
+    }
+    const emoji = scopeFacts.find((fact) => /\p{Extended_Pictographic}/u.test(fact.claim));
+    if (emoji && emoji.id !== nonAscii?.id) {
+      queries.push({ query: emoji.claim, scope });
+    }
   }
   if (queries.length === 0) {
     queries.push(
@@ -518,7 +678,7 @@ function representativeRecallQueries(facts) {
       { query: "nautli", scope: undefined },
     );
   }
-  return queries.slice(0, 3);
+  return queries;
 }
 
 // TASK-098

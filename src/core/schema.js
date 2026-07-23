@@ -7,6 +7,8 @@ export const ERR = Object.freeze({
   E_UNKNOWN_SCOPE: "E_UNKNOWN_SCOPE",
   E_NOT_FOUND: "E_NOT_FOUND",
   E_STORE_BUSY: "E_STORE_BUSY",
+  // TASK-107: export snapshot estimate exceeds the bounded in-memory export limit.
+  E_EXPORT_TOO_LARGE: "E_EXPORT_TOO_LARGE",
   E_BUDGET_TOO_SMALL: "E_BUDGET_TOO_SMALL",
   E_CLAUDE_CLI_MISSING: "E_CLAUDE_CLI_MISSING",
   E_CODEX_CLI_MISSING: "E_CODEX_CLI_MISSING",

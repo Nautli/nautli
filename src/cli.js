@@ -1013,10 +1013,12 @@ export async function main(argv = process.argv.slice(2)) {
     const store = new Store(home);
     try {
       if (command === "remember") {
+        // TASK-024: normalize through remember()'s shared MCP/CLI parser before storage.
         const parsed = parseCommand(args, {
           scope: { type: "string" },
           type: { type: "string" },
           supersedes: { type: "string" },
+          "t-valid": { type: "string" },
         });
         requirePositionals(parsed.positionals, 1);
         const result = remember(store, {
@@ -1024,9 +1026,13 @@ export async function main(argv = process.argv.slice(2)) {
           scope: parsed.values.scope,
           type: parsed.values.type,
           supersedes: parsed.values.supersedes,
+          t_valid: parsed.values["t-valid"],
           source: "cli",
         }, readConfig(home));
-        writeJson(result);
+        const stored = result.status === "added" || result.status === "duplicate"
+          ? store.getFact(result.id)
+          : null;
+        writeJson(stored ? { ...result, t_valid: stored.t_valid } : result);
         process.exitCode = result.status === "rejected" ? 2 : 0;
         return;
       }
