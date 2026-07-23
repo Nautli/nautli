@@ -156,6 +156,10 @@ export function buildSessionStartOutput(home, { sessionId, cwd, config } = {}) {
     "필요하면 해당 topic으로 recall하라.",
   ].join("\n");
 
+  // TASK-104: 실제 컨텍스트 주입(치료군)만 전달로 로깅한다 — 대조군은 로깅 없음.
+  // hit = 인덱스에 실제로 렌더된 fact id들. tool 이름은 정확히 "session-start.index".
+  logSessionStartDelivery(home, { sessionId, scope, facts });
+
   return {
     injected: true,
     arm,
@@ -164,6 +168,24 @@ export function buildSessionStartOutput(home, { sessionId, cwd, config } = {}) {
     tokens,
     output,
   };
+}
+
+// TASK-104: 세션 시작 인덱스 주입 전달을 type:"recall" 이벤트로 기록한다(§6 D5).
+function logSessionStartDelivery(home, { sessionId, scope, facts }) {
+  if (!Array.isArray(facts) || facts.length === 0) return;
+  const store = new Store(home);
+  try {
+    store.appendRecall({
+      tool: "session-start.index",
+      query: "",
+      scope,
+      hits: facts,
+      source: "session-start",
+      session_id: sessionId,
+    });
+  } finally {
+    store.close();
+  }
 }
 
 function appendSessionEvent(home, event) {

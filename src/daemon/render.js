@@ -45,6 +45,16 @@ export function renderViews(store, home) {
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, `${lines.join("\n").trimEnd()}\n`, "utf8");
     files.push(file);
+
+    // TASK-104: 생성된 읽기전용 뷰에 실제 렌더된 fact들을 전달로 로깅한다(§6 D5).
+    // tool 이름은 정확히 "generated-view", 세션 미상이라 session_id는 "unknown".
+    store.appendRecall({
+      tool: "generated-view",
+      query: "",
+      scope,
+      hits: facts.map((fact) => fact.id),
+      source: "daemon-render",
+    });
   }
 
   return { files };

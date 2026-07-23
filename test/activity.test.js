@@ -43,6 +43,8 @@ test("remember and recall activity survives rebuild without becoming facts", asy
     hits: [added.id],
     source: "cli",
     tool: "recall",
+    // TASK-104: session_id는 이제 항상 기록된다(미상="unknown").
+    session_id: "unknown",
     at: eventsBefore[1].at,
   });
 

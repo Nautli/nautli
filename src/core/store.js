@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 import { withReviewLock } from "./review-lock.js";
-import { ERR, STATUS, assertTransition, claimHash } from "./schema.js";
+import { ERR, STATUS, assertTransition, claimHash, newEventId } from "./schema.js";
 
 const EVENT_STATUS = Object.freeze({
   "fact.superseded": STATUS.SUPERSEDED,
@@ -267,6 +267,48 @@ function* reverseLines(file) {
   }
 }
 
+// TASK-104: 이벤트 정본을 파일명(월)→라인 순서로 그대로 읽는다(멱등 처리 없음).
+// 순서 규칙은 스펙 §3 — at은 표시용이고 라인 순서가 정본이다.
+export function readEventLog(home) {
+  const directory = path.join(home, "events");
+  if (!fs.existsSync(directory)) return [];
+  const events = [];
+  for (const name of fs.readdirSync(directory)
+    .filter((file) => /^\d{4}-\d{2}\.jsonl$/u.test(file))
+    .sort()) {
+    for (const line of fs.readFileSync(path.join(directory, name), "utf8").split("\n")) {
+      if (line.trim() === "") continue;
+      try {
+        events.push(JSON.parse(line));
+      } catch {
+        // 손상된 라인은 리플레이/감사에서 건너뛴다(정본 파일은 손대지 않는다).
+      }
+    }
+  }
+  return events;
+}
+
+// TASK-104: ev_id 기준 첫 등장 우선(멱등). ev_id 없는 레거시 라인은 전부 개별 유지.
+// TASK-105가 이 논리 리더를 그대로 소비한다 — 로직 복붙 금지, 이 함수를 호출할 것.
+export function firstWinsEvents(events) {
+  const seen = new Set();
+  const logical = [];
+  for (const event of events) {
+    const evId = typeof event?.ev_id === "string" && event.ev_id !== "" ? event.ev_id : null;
+    if (evId !== null) {
+      if (seen.has(evId)) continue;
+      seen.add(evId);
+    }
+    logical.push(event);
+  }
+  return logical;
+}
+
+// TASK-104: 홈의 이벤트 정본을 ev_id 첫-등장-우선으로 읽는 논리 리더(rebuild·감사 공용).
+export function readLogicalEvents(home) {
+  return firstWinsEvents(readEventLog(home));
+}
+
 export class Store {
   constructor(home) {
     if (typeof home !== "string" || home.length === 0) {
@@ -327,7 +369,11 @@ export class Store {
 
   appendEvent(evt, { apply = true } = {}) {
     const at = typeof evt?.at === "string" ? evt.at : new Date().toISOString();
-    const event = { ...evt, at };
+    // TASK-104: 호출자가 준 비어있지 않은 ev_id는 보존, 아니면 직렬화 전에 자동 발급.
+    const ev_id = typeof evt?.ev_id === "string" && evt.ev_id.trim() !== ""
+      ? evt.ev_id
+      : newEventId();
+    const event = { ...evt, ev_id, at };
     const month = /^\d{4}-\d{2}/.exec(at)?.[0];
     if (!month) throw codedError(ERR.E_INVALID_INPUT);
     const file = path.join(this.home, "events", `${month}.jsonl`);
@@ -446,9 +492,11 @@ export class Store {
       ...(Number.isFinite(returned_chars) && returned_chars >= 0
         ? { returned_chars: Math.trunc(returned_chars) }
         : {}),
-      ...(typeof session_id === "string" && session_id.trim() !== ""
-        ? { session_id: session_id.trim() }
-        : {}),
+      // TASK-104: session_id는 항상 기록한다 — 빈값/미상은 정확히 "unknown"으로.
+      // 이후 필드 자체의 부재는 오직 레거시 데이터만 가리킨다(§2 G1 해소).
+      session_id: typeof session_id === "string" && session_id.trim() !== ""
+        ? session_id.trim()
+        : "unknown",
       ...(typeof at === "string" ? { at } : {}),
     });
   }
@@ -493,18 +541,28 @@ export class Store {
     return events.reverse();
   }
 
-  transition(id, to, patch = {}, actor) {
+  transition(id, to, patch = {}, actor, { reason, policy_version } = {}) {
     const current = this.getFact(id);
     if (!current) throw codedError(ERR.E_NOT_FOUND);
     assertTransition(current.status, to, actor);
 
     const eventName = to === STATUS.ACTIVE ? "fact.restored" : `fact.${to}`;
-    this.appendEvent({
+    const event = {
       ev: eventName,
       at: new Date().toISOString(),
       id,
       patch,
-    });
+    };
+    // TASK-104: superseded/invalidated 판정 이벤트는 항상 비어있지 않은
+    // actor/reason/policy_version을 담는다(§2 갭 G3). 지정 안 되면 "n/a"로 채운다.
+    if (eventName === "fact.superseded" || eventName === "fact.invalidated") {
+      event.actor = actor;
+      event.reason = typeof reason === "string" && reason.trim() !== "" ? reason : "n/a";
+      event.policy_version = typeof policy_version === "string" && policy_version.trim() !== ""
+        ? policy_version
+        : "n/a";
+    }
+    this.appendEvent(event);
     return this.getFact(id);
   }
 
@@ -647,6 +705,11 @@ export class Store {
     fs.rmSync(journal, { force: true });
   }
 
+  // TASK-104: ev_id 첫-등장-우선 논리 리더(rebuild·감사 읽기 공용 API).
+  logicalEvents() {
+    return readLogicalEvents(this.home);
+  }
+
   rebuild() {
     this.close();
     for (const suffix of ["", "-wal", "-shm"]) {
@@ -654,15 +717,10 @@ export class Store {
     }
     this.open();
 
-    const eventsDirectory = path.join(this.home, "events");
-    const files = fs.readdirSync(eventsDirectory)
-      .filter((file) => /^\d{4}-\d{2}\.jsonl$/.test(file))
-      .sort();
-    for (const file of files) {
-      const lines = fs.readFileSync(path.join(eventsDirectory, file), "utf8").split("\n");
-      for (const line of lines) {
-        if (line.trim() !== "") this.applyEvent(JSON.parse(line));
-      }
+    // TASK-104: 리플레이는 ev_id 기준 멱등 — 같은 ev_id 재등장 시 1회만 적용,
+    // ev_id 없는 레거시 라인은 전부 개별 적용된다(§3).
+    for (const event of readLogicalEvents(this.home)) {
+      this.applyEvent(event);
     }
     return this.stats();
   }

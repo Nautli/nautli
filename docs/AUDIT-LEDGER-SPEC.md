@@ -117,16 +117,16 @@ scope `project:demo`, 세션 `S1`, `S2`. 시간은 전부 UTC.
 |---|---|---|---|
 | Q1 (validity as-of) | ✅ 가능 | SQLite `facts`가 superseded/invalidated 행을 보존하고 `t_valid/t_invalid` 보유. `recall.js`에 `as_of` 구현 존재 | 없음. CLI 노출(`nautli recall --as-of`)은 TASK-024와 병합 |
 | Q1-T (transaction as-of) | ⚠️ 원리상 가능 | 이벤트 리플레이(`store.js` REPLAY 로직)로 재구성 가능 | 도구 없음(v1 비대상, 102가 소비) |
-| Q2 (전달 추적) | ⚠️ 부분 | recall 이벤트에 `hits[]`·`tool`·`returned_chars` 기록됨. briefing도 `tool:"briefing"`으로 로깅됨. `session_id` 필드는 코어가 지원 | **G1: MCP 서버(`src/mcp/server.js`)가 session_id를 전파하지 않아 실데이터 전량 결측.** G2: handoff-card 등 recall 외 전달 경로의 로깅 여부 전수 확인 필요 |
-| Q3 (판정 근거) | ⚠️ 부분 | `superseded_by` 체인은 DB·이벤트 양쪽에서 재구성 가능. capture.decided에 action/confidence 있음 | **G3: 판정 이벤트에 `actor`·`reason`·`policy_version` 없음** — "왜/누가/어느 규칙으로"가 원장에 안 남는다. G4: capture.decided→fact_id 연결이 옵션 필드(과거 이벤트 다수 결측). G5: `ev_id` 부재로 중복·멱등 규칙이 레거시 튜플 의존 |
+| Q2 (전달 추적) | ⚠️ 부분 | recall 이벤트에 `hits[]`·`tool`·`returned_chars` 기록됨. briefing도 `tool:"briefing"`으로 로깅됨. `session_id` 필드는 코어가 지원 | **G1** (~~MCP 서버가 session_id를 전파하지 않아 실데이터 전량 결측~~): **resolved — 2026-07-23, TASK-104** (MCP recall/briefing이 session_id 전파, 미상은 `"unknown"`). **G2** (~~handoff-card 등 recall 외 전달 경로 로깅 여부 전수 확인~~): **resolved — 2026-07-23, TASK-104** (session-start.index·handoff-card·dashboard.memory/graph/cards·generated-view 전달 로깅) |
+| Q3 (판정 근거) | ⚠️ 부분 | `superseded_by` 체인은 DB·이벤트 양쪽에서 재구성 가능. capture.decided에 action/confidence 있음 | **G3** (~~판정 이벤트에 actor·reason·policy_version 없음~~): **resolved — 2026-07-23, TASK-104** (superseded/invalidated·capture.decided에 스탬프). G4: capture.decided→fact_id는 remember 결정에서 필수로 승격됨(TASK-104). **G5** (~~ev_id 부재~~): **resolved — 2026-07-23, TASK-104** (appendEvent가 ev_id 발급, 리플레이·감사 first-wins 멱등) |
 
 ### 후속 dev 태스크 분해안 (백로그 적재 후보 — 적재는 별도 승인)
 
-1. **D1 (G1)**: MCP recall/briefing 핸들러에 클라이언트 세션 식별자 전파(+ 미상 시 `"unknown"` 명기). CLI에도 `--session` 옵션.
-2. **D2 (G3)**: `fact.superseded`/`fact.invalidated`/`capture.decided` 발행부(store.js·review.js·daemon apply/resolve)에 `actor`·`reason`·`policy_version` 스탬프. policy_version 상수는 triage/resolver 모듈에 선언.
-3. **D3 (G5)**: `appendEvent`에 `ev_id` 자동 발급 + 리플레이 멱등 처리.
-4. **D4**: 감사 질의 CLI `nautli audit as-of|delivery|verdict` — §5 정의 그대로 구현, F1 fixture를 유닛테스트로 동봉.
-5. **D5 (G2)**: 전달 경로 전수 감사 — handoff-card·session-start 인덱스 등 recall 이벤트를 거치지 않는 fact 노출 경로가 있으면 로깅 추가.
+1. **D1 (G1)** — **resolved — 2026-07-23, TASK-104**: MCP recall/briefing 핸들러에 클라이언트 세션 식별자 전파(+ 미상 시 `"unknown"` 명기). CLI `--session` 옵션은 후속(TASK-104 범위 밖).
+2. **D2 (G3)** — **resolved — 2026-07-23, TASK-104**: `fact.superseded`/`fact.invalidated`/`capture.decided` 발행부(store.js·review.js·daemon apply/resolve)에 `actor`·`reason`·`policy_version` 스탬프. policy_version 상수(`TRIAGE_POLICY_VERSION="triage@3"`·`RESOLVER_POLICY_VERSION="resolver@2"`)는 triage/resolver 모듈에 선언.
+3. **D3 (G5)** — **resolved — 2026-07-23, TASK-104**: `appendEvent`에 `ev_id` 자동 발급 + 리플레이·감사 first-wins 멱등(`readLogicalEvents`, TASK-105 소비 API).
+4. **D4**: 감사 질의 CLI `nautli audit as-of|delivery|verdict` — §5 정의 그대로 구현, F1 fixture를 유닛테스트로 동봉. (별도 태스크 — 미완)
+5. **D5 (G2)** — **resolved — 2026-07-23, TASK-104**: 전달 경로 전수 감사 — session-start.index(치료군 한정)·handoff-card·dashboard.memory/graph/cards·generated-view를 `type:"recall"` 전달 이벤트로 로깅.
 
 ## 7. 한계 명시 (정직 원칙)
 

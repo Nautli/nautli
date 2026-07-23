@@ -64,7 +64,10 @@ function inWindow(value, cutoff, now) {
 
 function sessionId(event) {
   for (const field of ["session_id", "conversation_id", "session"]) {
-    if (typeof event[field] === "string" && event[field].trim() !== "") {
+    // TASK-104: "unknown"은 세션 미상 센티널 — 실제 식별자가 아니므로 버킷 폴백(approx)로 센다.
+    if (typeof event[field] === "string"
+      && event[field].trim() !== ""
+      && event[field].trim() !== "unknown") {
       return event[field].trim();
     }
   }

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { buildHandoffCard, renderHandoffCard } from "../core/handoff-card.js";
+import { buildHandoffCard, renderHandoffCard, handoffCardFactIds } from "../core/handoff-card.js";
 import { resolveLocale, makeT } from "../i18n/strings.js";
 
 function pendingReviews(home) {
@@ -73,7 +73,21 @@ export function writeReport(store, home, results) {
   const handoffCard = buildHandoffCard(home, store, { days: 1 });
   if (handoffCard && handoffCard.has_content) {
     const cardText = renderHandoffCard(handoffCard, t);
-    if (cardText) lines.push(cardText, "");
+    if (cardText) {
+      lines.push(cardText, "");
+      // TASK-104: 렌더된 카드 텍스트가 확정된 뒤에만 전달을 로깅한다(자기계수 방지).
+      // hit = 카드에 실제 렌더된 fact id들. 세션 미상이라 session_id는 "unknown".
+      const deliveredIds = handoffCardFactIds(handoffCard);
+      if (deliveredIds.length > 0) {
+        store.appendRecall({
+          tool: "handoff-card",
+          query: "",
+          scope: null,
+          hits: deliveredIds,
+          source: "daemon-report",
+        });
+      }
+    }
   } else {
     lines.push(t("report.handoff_empty"), "");
   }

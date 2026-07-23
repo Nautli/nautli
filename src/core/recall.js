@@ -153,15 +153,19 @@ export function recall(store, task, opts = {}) {
   const result = facts.length === 0
     ? { briefing: "", facts: [], tokens_used: 0, warning: ERR.W_EMPTY }
     : { briefing: lines.join("\n"), facts, tokens_used: tokensUsed };
-  store.appendRecall({
-    tool: opts.tool ?? "recall",
-    query: queryText,
-    scope,
-    hits: facts.map((fact) => fact.id),
-    source,
-    returned_chars: result.briefing.length,
-    session_id: opts.session_id,
-  });
+  // TASK-104: 표면(대시보드 등)이 최종 렌더 hit 집합으로 자기 tool 이름을 직접 로깅할 때는
+  // 내부 recall 로깅을 끈다(전달 중복 계수 방지). 기본은 로깅 on.
+  if (opts.log !== false) {
+    store.appendRecall({
+      tool: opts.tool ?? "recall",
+      query: queryText,
+      scope,
+      hits: facts.map((fact) => fact.id),
+      source,
+      returned_chars: result.briefing.length,
+      session_id: opts.session_id,
+    });
+  }
   return result;
 }
 

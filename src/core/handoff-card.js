@@ -101,7 +101,11 @@ function findDeliveredFact(events, store, cutoff, now) {
       || event.hits.length === 0
       || !inWindow(event.at, cutoff, now)) continue;
 
-    const sessionKey = event.session_id || `bucket:${Math.floor(Date.parse(event.at) / 600000)}`;
+    // TASK-104: session_id는 이제 항상 기록되며 미상은 "unknown" 센티널이다 —
+    // 실제 세션 식별자일 때만 세션 단위로 세고, "unknown"/결측은 시간 버킷으로 폴백한다.
+    const sessionKey = event.session_id && event.session_id !== "unknown"
+      ? event.session_id
+      : `bucket:${Math.floor(Date.parse(event.at) / 600000)}`;
 
     for (const factId of event.hits) {
       if (typeof factId !== "string") continue;
@@ -275,6 +279,24 @@ export function buildHandoffCard(home, store, { days = 1, now } = {}) {
     tokens,
     has_content: hasDelivery || hasDelta,
   };
+}
+
+// ── Rendered fact-id set (TASK-104) ────────────────────────────────────
+// The exact fact ids whose claim/topic renderHandoffCard actually renders —
+// mirrors the renderer's slices so delivery logging counts only shown facts.
+export function handoffCardFactIds(card) {
+  if (!card) return [];
+  const ids = [];
+  const push = (id) => {
+    if (typeof id === "string" && id !== "" && !ids.includes(id)) ids.push(id);
+  };
+  if (card.delivered) push(card.delivered.fact_id);
+  for (const added of card.delta.added.slice(0, 5)) push(added.id);
+  for (const replaced of card.delta.replaced.slice(0, 5)) {
+    push(replaced.old_id);
+    push(replaced.new_id);
+  }
+  return ids;
 }
 
 // ── Markdown renderer for daemon report ────────────────────────────────

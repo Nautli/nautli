@@ -43,6 +43,9 @@ export const CAPTURE_TRIAGE_PROMPT = `[출력 규칙 최우선] 너의 응답(st
 {"pair_id":"...","route":"remember|human|hold","why":"한 문장","crux_plain":"route=human일 때 필수","context_plain":"route=human일 때 필수","recommend":"remember|dismissed|none","recommend_reason_plain":"route=human일 때 필수"}
 `;
 
+// TASK-104: 트리아지 판정 이벤트의 policy_version 상수(§6 D2).
+export const TRIAGE_POLICY_VERSION = "triage@3";
+
 const ROUTES = new Set(["human", "machine", "auto"]);
 const CAPTURE_ROUTES = new Set(["remember", "human", "hold"]);
 const CAPTURE_RECOMMENDATIONS = new Set(["remember", "dismissed", "none"]);
@@ -279,7 +282,8 @@ export async function triagePendingQueue(store, home, config) {
         entry.pair_id,
         "remember",
         config,
-        { actor: "triage" },
+        // TASK-104: triage 처리 → capture.decided actor=daemon, policy=triage@3.
+        { actor: "triage", reason: "triage:remember", policy_version: TRIAGE_POLICY_VERSION },
       );
       if (applied.ok) {
         captureRemembered += 1;

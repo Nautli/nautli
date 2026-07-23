@@ -48,9 +48,27 @@ function encodeRandom(bytes) {
   return output;
 }
 
-export function newId(now = Date.now()) {
+// TASK-104: 감사 원장 판정 이벤트의 actor는 이 enum만 쓴다(새 값 발명 금지).
+export const TRANSITION_ACTORS = Object.freeze(["daemon", "client", "undo"]);
+
+// TASK-104: fact_id·ev_id는 동일한 (10자리 ts base32 + 13자리 rand) 몸통을 공유한다.
+function idBody(now) {
   const timestamp = Math.max(0, Math.trunc(Number(now))).toString(32).padStart(10, "0").slice(-10);
-  return `fa_${timestamp}${encodeRandom(randomBytes(8)).slice(0, 13)}`;
+  return `${timestamp}${encodeRandom(randomBytes(8)).slice(0, 13)}`;
+}
+
+export function newId(now = Date.now()) {
+  return `fa_${idBody(now)}`;
+}
+
+// TASK-104: 이벤트 유일 ID — 리플레이 멱등·감사 중복판정 기준(§3).
+export function newEventId(now = Date.now()) {
+  return `ev_${idBody(now)}`;
+}
+
+// TASK-104: 감사 검증 — 판정 이벤트 actor가 허용 enum에 드는지 확인한다.
+export function isTransitionActor(actor) {
+  return TRANSITION_ACTORS.includes(actor);
 }
 
 export function validScope(scope) {
@@ -74,6 +92,10 @@ export function claimHash(claim) {
 }
 
 export function assertTransition(from, to, actor) {
+  // TASK-104: actor는 TRANSITION_ACTORS enum 값만 허용한다.
+  if (!TRANSITION_ACTORS.includes(actor)) {
+    throw new Error(`Invalid transition: unknown actor ${actor}`);
+  }
   const allowed = actor === "daemon"
     ? (from === STATUS.ACTIVE && [STATUS.SUPERSEDED, STATUS.INVALIDATED, STATUS.ARCHIVED].includes(to))
       || (from === STATUS.ARCHIVED && to === STATUS.ACTIVE)

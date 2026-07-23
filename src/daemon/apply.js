@@ -119,9 +119,10 @@ export function applyJudgments(store, judgments, config = {}) {
               { id: oldFact.id, status: oldFact.status, claim: oldFact.claim },
               { id: newFact.id, status: newFact.status, claim: newFact.claim },
             ];
+            // TASK-104: judge 자동적용 — reason은 judge:<verdict>, policy는 "n/a".
             store.transition(oldFact.id, STATUS.SUPERSEDED, {
               superseded_by: newFact.id,
-            }, "daemon");
+            }, "daemon", { reason: `judge:${judgment.verdict}`, policy_version: "n/a" });
             recordAutoApply(store.home, {
               pair_id: judgment.pair_id,
               action: "merge",
@@ -167,9 +168,10 @@ export function applyJudgments(store, judgments, config = {}) {
             { id: oldFact.id, status: oldFact.status, claim: oldFact.claim },
             { id: newFact.id, status: newFact.status, claim: newFact.claim },
           ];
+          // TASK-104: judge 자동적용(모순) — reason은 judge:<verdict>, policy는 "n/a".
           store.transition(oldFact.id, STATUS.INVALIDATED, {
             t_invalid: newFact.t_valid,
-          }, "daemon");
+          }, "daemon", { reason: `judge:${judgment.verdict}`, policy_version: "n/a" });
           const winAction = judgment.newer === "a" ? "a_wins" : "b_wins";
           recordAutoApply(store.home, {
             pair_id: judgment.pair_id,

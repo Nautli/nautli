@@ -81,10 +81,11 @@ export function remember(store, input, config) {
     if (!oldFact || oldFact.status !== STATUS.ACTIVE) return rejected(ERR.E_NOT_FOUND);
     const fact = makeFact(input, scope, claim);
     store.addFact(fact);
+    // TASK-104: 유저의 remember 경유 supersede — 정해진 reason, policy는 "n/a"(직접 경로).
     store.transition(oldFact.id, STATUS.SUPERSEDED, {
       superseded_by: fact.id,
       t_invalid: fact.t_valid,
-    }, "client");
+    }, "client", { reason: "user supersedes via remember", policy_version: "n/a" });
     touchSpool(store.home);
     return { id: fact.id, status: "added" };
   }

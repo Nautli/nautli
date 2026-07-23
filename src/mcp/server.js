@@ -163,6 +163,8 @@ export function createServer(store, config) {
       budget_tokens: z.number().int().optional(),
       scope: z.string().optional(),
       as_of: z.string().optional(),
+      // TASK-104: 클라이언트 세션 식별자를 전파(§6 D1) — 없으면 코어가 "unknown"으로 기록.
+      session_id: z.string().optional(),
     },
   }, safe(({ task, ...options }) => recall(store, task, { ...options, source: "mcp" })));
 
@@ -171,9 +173,11 @@ export function createServer(store, config) {
     inputSchema: {
       context: z.string().optional(),
       scope: z.string().optional(),
+      // TASK-104: 브리핑 전달 세션 식별자 전파(§6 D1).
+      session_id: z.string().optional(),
     },
-  }, safe(({ context, scope }) => {
-    const result = buildBriefing(store, context, scope, { ...config, source: "mcp" });
+  }, safe(({ context, scope, session_id }) => {
+    const result = buildBriefing(store, context, scope, { ...config, source: "mcp", session_id });
     const t = makeT(resolveLocale());
     const status = daemonStatusHeader(store.home, t, store);
     if (status.lines.length > 0) {
