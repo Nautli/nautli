@@ -70,7 +70,7 @@ Memory that only grows turns into a junk drawer: three copies of every fact, two
 
 Numbers below are from our internal evaluation: a 4,000+ atom run on our own vault plus holdout runs on three external testers' vaults. The labeled eval set and methodology write-up will be published in this repo; until then, treat these as author-reported.
 
-- Wrong auto-merges: 0 out of 24 auto-merges observed (small sample, so read this as "0 observed", not "impossible")
+- Wrong auto-merges: none observed so far in our internal and holdout runs. The sample is still small, so we are not publishing the raw number until the public benchmark ships with the preregistered eval set (planned in this repo).
 - Contradiction detection recall: 100% on our labeled set
 - Wrong auto-applied actions: 0, because anything ambiguous goes to a review card by policy
 - The honest weak spot: junk filtering. Single digit junk on our own data, far worse on external vaults in early tests. A three-stage filter is in progress, and numbers will be published either way
