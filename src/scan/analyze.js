@@ -137,12 +137,6 @@ export function gradeForScore(score) {
   return "F";
 }
 
-/** @deprecated v1 scoring — kept only for external callers during migration. */
-export function scoreForFindings(findings) {
-  const penalty = findings.reduce((sum, finding) => sum + finding.weight * 4, 0);
-  return Math.max(20, 100 - Math.min(80, penalty));
-}
-
 /* ── v2 scoring helpers ─────────────────────────────────────────────── */
 
 function clamp01(x) { return Math.min(1, Math.max(0, x)); }
