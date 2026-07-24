@@ -4,3 +4,5 @@ node_modules/
 pipeline-*.json
 server/db/
 .claude/
+.vercel/
+.env.local
