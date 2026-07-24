@@ -70,7 +70,7 @@ Memory that only grows turns into a junk drawer: three copies of every fact, two
 
 Numbers below are from our internal evaluation: a 4,000+ atom run on our own vault plus holdout runs on three external testers' vaults. The labeled eval set and methodology write-up will be published in this repo; until then, treat these as author-reported.
 
-- Wrong auto-merges: 0 out of 24 auto-merges observed (small sample, so read this as "0 observed", not "impossible")
+- Wrong auto-merges: none observed so far in our internal and holdout runs. The sample is still small, so we are not publishing the raw number until the public benchmark ships with the preregistered eval set (planned in this repo).
 - Contradiction detection recall: 100% on our labeled set
 - Wrong auto-applied actions: 0, because anything ambiguous goes to a review card by policy
 - The honest weak spot: junk filtering. Single digit junk on our own data, far worse on external vaults in early tests. A three-stage filter is in progress, and numbers will be published either way
@@ -91,6 +91,28 @@ npx nautli daemon-run                                        # run one digestion
 npx nautli rebuild                                           # rebuild the index from source files
 ```
 
+## Portability / `export --verify`
+
+```bash
+nautli export --verify --out nautli-memory.json
+nautli import nautli-memory.json --home /path/to/empty/nautli-home
+```
+
+<!-- // TASK-098-fix -->
+`export --verify` separately checks the export file's format, fact schemas, counts, and
+facts+events checksum, then performs a verified round-trip in a temporary home. The
+round-trip compares every logical fact row (including supersedes chains and provenance),
+checks the rewritten events in their original logical order, and confirms that
+representative recall queries return the same fact IDs in the same order.
+
+This is a memory-portability check. It is not a backup-integrity proof and does not
+prove deletion from other copies or storage.
+
+<!-- // TASK-FIX-B12 (M-3) -->
+The pending review queue (unresolved contradiction/review cards) is included in the
+export as of format `nautli-export/1` `minor: 1`, and restored on import. Older export
+files that predate this (no `review` field) still import fine.
+
 Manual MCP registration:
 
 ```bash
@@ -104,6 +126,7 @@ claude mcp add -s user nautli -- npx nautli mcp
 Invariants (violations are bugs, pinned by tests): user files are the source of truth (rebuild round-trip) / no DELETE on facts / single-pass writes, cleanup only in the daemon / core works even if the daemon dies / no promotion injection into recall / when in doubt, no-op (asymmetric cost of a wrong merge).
 
 ## Known limits
+- npm 12 blocks native install scripts by default, so a fresh `npx nautli` fails until the user approves better-sqlite3's install script (`npm install-scripts approve`) and rebuilds. Measured 2026-07-24; full repro and recovery steps in docs/research/npm12-native-build.md. A no-lifecycle install path is under consideration.
 
 - t_valid is date-granular; same-day contradictions are judged from recorded time and context
 - LLM judge nondeterminism is defended four ways: isolated cwd, format examples, zero-parse retry, failed batches become no-ops

@@ -54,6 +54,9 @@ export function computeJudgment(home, { since } = {}) {
   const recallBySession = new Map();
   for (const ev of events) {
     if (ev.type !== "recall") continue;
+    // TASK-104: 인덱스 주입 자체(tool="session-start.index")는 다운스트림 소비가 아니라
+    // 전달 이벤트다 — 실험 소비 지표에서 제외해 자기계수(self-counting)를 막는다.
+    if (ev.tool === "session-start.index") continue;
     if (since && Date.parse(ev.at) < sinceTime) continue;
     const sid = ev.session_id;
     if (!sid) continue;

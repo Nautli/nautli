@@ -29,6 +29,7 @@ import subprocess
 import sys
 import threading
 import time
+import unicodedata
 
 # ── 브랜드 (이름 미정 — 여기 한 곳만 바꾸면 전체 반영) ──────────────────────
 BRAND = "vault-doctor"
@@ -60,24 +61,37 @@ _T = {
         "en": "\nGenerated {today} \u00b7 vault `{vault}` \u00b7 no third-party servers \u00b7 AI judgments via your own Claude subscription \u00b7 report is a local file\n",
         "ko": "\n생성일 {today} \u00b7 볼트 `{vault}` \u00b7 제3자 서버 0 \u00b7 AI 판정은 본인 Claude 구독 경유 \u00b7 리포트는 로컬 파일\n",
     },
-    "score_heading": { "en": "## Memory health score: **{score}/100**\n", "ko": "## 기억 건강 점수: **{score}/100**\n" },
+    "score_heading": { "en": "## AI taste-test signal: **{score}/100**\n", "ko": "## AI 맛보기 신호: **{score}/100**\n" },
     "score_breakdown": {
-        "en": "Score breakdown: discardable fragment ratio 40pts + contradiction density 30pts + duplicate density 20pts + structure (frontmatter, dead links) 10pts. Formula in README.\n",
-        "ko": "점수 구성: 버려도 되는 조각 비율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(머리말 정보\u00b7죽은 링크) 10점. 공식은 README에 있습니다.\n",
+        "en": "Taste-test signal breakdown: discardable fragment ratio 40pts + contradiction density 30pts + duplicate density 20pts + structure (frontmatter, dead links) 10pts. Formula in README.\n",
+        "ko": "맛보기 신호 구성: 버려도 되는 조각 비율 40점 + 모순 밀도 30점 + 중복 밀도 20점 + 구조(머리말 정보\u00b7죽은 링크) 10점. 공식은 README에 있습니다.\n",
     },
     "table_header": { "en": "| Axis | Score | Max |", "ko": "| 축 | 점수 | 만점 |" },
-    "waste_heading": { "en": "\n## What this score costs you\n", "ko": "\n## 이 점수의 비용: 낭비 추정\n" },
-    "waste_body": {
-        "en": "- **About {waste_pct}% of this record is waste**: duplicates ~{dup_pct}% + discardable fragments {junk_str}.\n"
-              "- The whole vault is roughly **{vault_tokens} tokens** of memory text, and about **{wasted_tokens} tokens** of that is waste sitting in place.\n"
-              "- Every time an AI reads this record as context, those ~{wasted_tokens} tokens are paid again for nothing. Cleaned up, you save **about {waste_pct}% of memory tokens vs today**.\n"
-              "- Method: measured bytes of {notes} scanned notes, extrapolated to all {total} notes, conservative 4 bytes = 1 token. An estimate, not a bill.",
-        "ko": "- 지금 이 기록은 **약 {waste_pct}%가 낭비 상태**입니다: 중복 약 {dup_pct}% + 버려도 되는 조각 {junk_str}.\n"
-              "- 볼트 전체는 약 **{vault_tokens} 토큰** 분량의 기억 텍스트이고, 그중 **약 {wasted_tokens} 토큰**이 낭비분으로 깔려 있습니다.\n"
-              "- AI가 이 기록을 컨텍스트로 읽을 때마다 그 약 {wasted_tokens} 토큰을 매번 다시 지불합니다. 정리하면 **지금 대비 약 {waste_pct}% 메모리 토큰 절약**입니다.\n"
-              "- 추정 방식: 스캔 노트 {notes}개의 실측 바이트를 전체 {total}개로 외삽, 4바이트=1토큰 보수 추정. 청구서가 아니라 추정치입니다.",
+    "waste_heading": { "en": "\n## Waste signals: local facts and AI taste-test signals\n", "ko": "\n## 낭비 신호: 로컬 실측과 AI 맛보기 신호\n" },
+    "waste_local_confirmed": {
+        "en": "- Local exact-duplicate scan: **confirmed duplicate text, at least {dup_kb}KB**.",
+        "ko": "- 로컬 정확중복 검사: **확인된 중복 텍스트 최소 {dup_kb}KB**.",
     },
-    "waste_junk_missing": { "en": "not measured", "ko": "측정 안 됨" },
+    "waste_local_none": {
+        "en": "- Local exact-duplicate scan found 0KB of confirmed duplicate text.",
+        "ko": "- 로컬 정확중복 검사에서 확인된 중복 텍스트는 0KB입니다.",
+    },
+    "waste_local_unmeasured": {
+        "en": "- Local exact-duplicate text was not measured for this legacy run.",
+        "ko": "- 이 레거시 실행에서는 로컬 정확중복 텍스트를 측정하지 못했습니다.",
+    },
+    "waste_ai_positive": {
+        "en": "- AI taste-test signal: about **{waste_pct}%** duplicate or stale-fragment signals. This was calculated from a selected sample that prioritizes records likely to be duplicates; it is not the whole vault's waste rate or an estimated savings rate.",
+        "ko": "- AI 맛보기 신호: 중복\u00b7낡은 조각 신호 약 **{waste_pct}%**. 중복 가능성이 높은 기록을 우선 포함한 선택 표본에서 계산했습니다. 전체 볼트의 낭비율이나 예상 절감률이 아닙니다.",
+    },
+    "waste_ai_none": {
+        "en": "- This AI taste test found no waste signals. Not finding one does not mean the whole vault is clean.",
+        "ko": "- 이번 AI 맛보기에서는 낭비 신호를 찾지 못했습니다. 미발견은 전체 볼트가 깨끗하다는 뜻이 아닙니다.",
+    },
+    "waste_ai_unmeasured": {
+        "en": "- This AI taste test could not measure waste signals. The state of the whole vault cannot be determined.",
+        "ko": "- 이번 AI 맛보기의 낭비 신호를 측정하지 못했습니다. 전체 볼트 상태는 판단할 수 없습니다.",
+    },
     "scan_heading": { "en": "\n## Vault scan summary\n", "ko": "\n## 볼트 스캔 요약\n" },
     "scan_notes": {
         "en": "- **{notes}** notes ({kb}KB), {fm_pct}% have frontmatter",
@@ -230,7 +244,7 @@ _T = {
         "en": "\n\u26a0\ufe0f {failed} extraction batch(es) failed. Re-run to resume",
         "ko": "\n\u26a0\ufe0f 추출 실패 배치 {failed}개. 같은 명령 재실행으로 이어받기 가능",
     },
-    "main_done": { "en": "\n\u2705 Done. Memory health score {score}/100", "ko": "\n\u2705 완료. 기억 건강 점수 {score}/100" },
+    "main_done": { "en": "\n\u2705 Done. AI taste-test signal {score}/100", "ko": "\n\u2705 완료. AI 맛보기 신호 {score}/100" },
     "main_summary": {
         "en": "   {dups} duplicate pair(s) \u00b7 {contras} contradiction pair(s) \u00b7 {cross} cross-source contradiction pair(s) \u00b7 discardable {junk} \u00b7 {cards} question(s)",
         "ko": "   중복 {dups}쌍 \u00b7 모순 {contras}쌍 \u00b7 교차소스 모순 {cross}쌍 \u00b7 버려도 되는 조각 {junk} \u00b7 질문 {cards}건",
@@ -386,6 +400,152 @@ class Ctx:
 # ── 0. scan — LLM 없는 정적 진단 ────────────────────────────────────────────
 WIKILINK = re.compile(r"\[\[([^\]\[|#]+)")
 
+# // TASK-020
+# 지시파일은 노트 walk의 숨김폴더 제외 규칙을 따르지 않는다. 이 레이어는 LLM
+# 판정과 별개로, 각 도구가 실제로 읽는 프로젝트 지시파일만 결정적으로 검사한다.
+INSTRUCTION_LOADERS = (
+    ("claude", ("CLAUDE.md",)),
+    ("codex", ("AGENTS.md",)),
+    ("cursor", (".cursorrules",)),
+)
+POLARITY_LINE = re.compile(
+    r"^\s*(?:[-*+]\s+|\d+[.)]\s+)?(?:please\s+)?"
+    r"(?P<polarity>do not|don't|never|must not|should not|do|must|should|always)\s+"
+    r"(?P<body>.+?)\s*[.!]*\s*$", re.IGNORECASE)
+BACKTICK = re.compile(r"`([^`\n]+)`")
+RELATIVE_PATH = re.compile(r"(?<![\w/])((?:\.{1,2}/)[^\s`\])>,;:]+|[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+|[A-Za-z0-9_.-]+\.(?:md|mdc|js|json|ya?ml|txt))(?![\w/])")
+
+
+def _instruction_line(path_rel, line_no, text):
+    return {"path": path_rel.replace(os.path.sep, "/"), "line": line_no,
+            "text": text.strip()}
+
+
+def _instruction_path_candidates(text):
+    """명령/코드 조각은 건너뛰고 상대 파일 참조만 돌려준다."""
+    values = [m.group(1).strip() for m in BACKTICK.finditer(text)]
+    values += [m.group(1).strip() for m in RELATIVE_PATH.finditer(text)]
+    result = []
+    for value in values:
+        if (not value or "://" in value or value.startswith("#") or
+                any(ch in value for ch in " <>|{}$")):
+            continue
+        if not (value.startswith(".") or "/" in value or
+                re.search(r"\.(?:md|mdc|js|json|ya?ml|txt)$", value, re.IGNORECASE)):
+            continue
+        if value not in result:
+            result.append(value)
+    return result
+
+
+def stage_instruction_layer(ctx):
+    """프로젝트 지시파일의 로딩 맵과 결정적 신호를 만든다 (LLM 호출 없음)."""
+    out = ctx.path("instruction_layer.json")
+    if os.path.exists(out):
+        return json.load(open(out, encoding="utf-8"))
+
+    per_tool = collections.defaultdict(list)
+    files = []
+    seen = set()
+    for source in ctx.sources:
+        root = source["root"]
+        for tool, names in INSTRUCTION_LOADERS:
+            for name in names:
+                absolute = os.path.join(root, name)
+                if os.path.isfile(absolute):
+                    rel = os.path.relpath(absolute, root).replace(os.path.sep, "/")
+                    entry = {"source": source["source_label"], "source_id": source["source_id"], "path": rel,
+                             "absolute": absolute, "tool": tool}
+                    per_tool[tool].append({"source": entry["source"], "path": rel})
+                    key = (absolute, tool)
+                    if key not in seen:
+                        files.append(entry)
+                        seen.add(key)
+        cursor_rules = os.path.join(root, ".cursor", "rules")
+        for dirpath, dirnames, filenames in os.walk(cursor_rules):
+            dirnames.sort()
+            for name in sorted(filenames):
+                if not name.endswith(".mdc"):
+                    continue
+                absolute = os.path.join(dirpath, name)
+                rel = os.path.relpath(absolute, root).replace(os.path.sep, "/")
+                per_tool["cursor"].append({"source": source["source_label"], "path": rel})
+                key = (absolute, "cursor")
+                if key not in seen:
+                    files.append({"source": source["source_label"], "source_id": source["source_id"], "path": rel,
+                                  "absolute": absolute, "tool": "cursor"})
+                    seen.add(key)
+
+    lines = []
+    for entry in files:
+        try:
+            content = open(entry["absolute"], encoding="utf-8", errors="replace").read()
+        except OSError as error:
+            ctx.log(f"INSTRUCTION_READFAIL {entry['path']} {error}")
+            continue
+        entry["kind"] = "rule"
+        for line_no, text in enumerate(content.splitlines(), 1):
+            if text.strip():
+                lines.append({**_instruction_line(entry["path"], line_no, text),
+                              "source": entry["source"], "absolute": entry["absolute"]})
+
+    duplicates = []
+    by_exact = collections.defaultdict(list)
+    for line in lines:
+        normalized = re.sub(r"\s+", " ", line["text"]).strip().casefold()
+        if normalized:
+            by_exact[normalized].append(line)
+    for normalized, evidence in sorted(by_exact.items()):
+        unique_paths = {item["path"] for item in evidence}
+        if len(unique_paths) > 1:
+            duplicates.append({"text": normalized,
+                               "evidence": [{k: item[k] for k in ("source", "path", "line", "text")}
+                                            for item in evidence]})
+
+    polarity = collections.defaultdict(lambda: {"positive": [], "negative": []})
+    for line in lines:
+        match = POLARITY_LINE.match(line["text"])
+        if not match:
+            continue
+        body = re.sub(r"\s+", " ", match.group("body")).strip(" .!").casefold()
+        if not body:
+            continue
+        key = "negative" if match.group("polarity").casefold() in {
+            "do not", "don't", "never", "must not", "should not"} else "positive"
+        polarity[body][key].append(line)
+    conflicts = []
+    for action, sides in sorted(polarity.items()):
+        if sides["positive"] and sides["negative"]:
+            conflicts.append({"action": action,
+                              "evidence": [{**{k: item[k] for k in ("source", "path", "line", "text")},
+                                            "polarity": key}
+                                           for key in ("positive", "negative") for item in sides[key]]})
+
+    dead_paths = []
+    seen_refs = set()
+    for line in lines:
+        for reference in _instruction_path_candidates(line["text"]):
+            target = os.path.normpath(os.path.join(os.path.dirname(line["absolute"]), reference))
+            key = (line["path"], line["line"], reference)
+            if key in seen_refs or os.path.exists(target):
+                continue
+            seen_refs.add(key)
+            dead_paths.append({"reference": reference,
+                               "evidence": {k: line[k] for k in ("source", "path", "line", "text")}})
+
+    result = {
+        "loading_map": {tool: sorted(entries, key=lambda item: (item["source"], item["path"]))
+                        for tool, entries in sorted(per_tool.items())},
+        "files": [{k: entry[k] for k in ("source", "source_id", "path", "tool", "kind")} for entry in files],
+        "signals": {"exact_duplicates": duplicates,
+                    "polarity_conflicts": conflicts,
+                    "dead_paths": dead_paths},
+    }
+    json.dump(result, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    ctx.log("instruction files={} duplicates={} conflicts={} dead_paths={}".format(
+        len(files), len(duplicates), len(conflicts), len(dead_paths)))
+    return result
+
 
 def stage_scan(ctx):
     out = ctx.path("scan.json")
@@ -467,12 +627,234 @@ def scope_of(rel):
     return "project:vault-root" if top == "(root)" else f"project:{top}"
 
 
+# NEARDUP-SAMPLER v1
+POSTINGS_CAP = 32
+CAND_PER_FILE = 64
+
+
+def prescan_near_dup(root_files, read_text):
+    """로컬 bottom-k 스케치로 near-dup 클러스터와 중복 바이트 하한을 구한다."""
+    sketches = []
+    exact_groups = collections.defaultdict(list)
+    for i, f in enumerate(root_files):
+        text = unicodedata.normalize("NFC", read_text(f)).casefold()
+        normalized = re.sub(r"\s+", " ", text).strip()
+        words = normalized.split()
+        shingles = ({" ".join(words[j:j + 4]) for j in range(len(words) - 3)}
+                    if len(words) >= 4 else set(words))
+        sketch = set(sorted(
+            int(hashlib.sha1(shingle.encode()).hexdigest(), 16)
+            for shingle in shingles
+        )[:48])
+        normalized_hash = hashlib.sha1(normalized.encode()).hexdigest()
+        sketches.append(sketch)
+        exact_groups[normalized_hash].append(i)
+
+    parent = list(range(len(root_files)))
+    rank = [0] * len(root_files)
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(a, b):
+        a, b = find(a), find(b)
+        if a == b:
+            return
+        if rank[a] < rank[b]:
+            a, b = b, a
+        parent[b] = a
+        if rank[a] == rank[b]:
+            rank[a] += 1
+
+    # 정확 중복은 star edge로 먼저 합치고 대표 하나만 역색인에 넣는다. 동일 파일이
+    # 수천 개여도 postings와 후보쌍이 제곱으로 불어나는 것을 막는다. 이 edge들은
+    # 아래 postings/candidate cap과 무관하므로 정확 중복을 빠뜨리지 않는다.
+    representatives = []
+    exact_edges = []
+    for members in exact_groups.values():
+        representative = members[0]
+        representatives.append(representative)
+        for member in members[1:]:
+            exact_edges.append((representative, member))
+            union(representative, member)
+
+    # normalized content가 같은 그룹만 보수적인 중복 바이트 하한에 포함한다.
+    dup_bytes = sum(
+        (len(members) - 1) * min(root_files[i]["size"] for i in members)
+        for members in exact_groups.values()
+        if len(members) >= 2
+    )
+
+    inverted = collections.defaultdict(list)
+    for i in representatives:
+        for shingle_hash in sorted(sketches[i]):
+            inverted[shingle_hash].append(i)
+
+    # 흔한 shingle은 변별력이 낮으면서 quadratic pair를 만들므로 버린다.
+    # cap 이하 postings에서 생기는 pair 수는 shingle당 상수이고, 이후 각 파일의
+    # 후보 degree도 제한해 전체 후보 그래프를 입력 파일 수에 선형으로 묶는다.
+    shared = collections.Counter()
+    for shingle_hash in sorted(inverted):
+        postings = inverted[shingle_hash]
+        if len(postings) > POSTINGS_CAP:
+            continue
+        for pos, left in enumerate(postings):
+            for right in postings[pos + 1:]:
+                pair = (left, right) if left < right else (right, left)
+                shared[pair] += 1
+
+    candidate_degree = [0] * len(root_files)
+    candidates = []
+    for (left, right), common in sorted(
+            shared.items(), key=lambda item: (-item[1], item[0])):
+        if (candidate_degree[left] >= CAND_PER_FILE or
+                candidate_degree[right] >= CAND_PER_FILE):
+            continue
+        candidate_degree[left] += 1
+        candidate_degree[right] += 1
+        candidates.append((left, right, common))
+
+    near_dup_edges = []
+    for left, right, common in candidates:
+        smaller_sketch = min(len(sketches[left]), len(sketches[right]))
+        thresh = max(1, min(8, math.ceil(smaller_sketch * 0.25)))
+        if common < thresh:
+            continue
+        union_sketch = sketches[left] | sketches[right]
+        jaccard = (len(sketches[left] & sketches[right]) / len(union_sketch)
+                   if union_sketch else 0.0)
+        if jaccard >= 0.5:
+            # exact 그룹에서는 대표 하나만 후보 생성에 참여하므로 이 목록은
+            # 실제 near-dup 판정을 통과한 non-exact edge만 담는다.
+            near_dup_edges.append((left, right))
+            union(left, right)
+
+    grouped = collections.defaultdict(set)
+    for i in range(len(root_files)):
+        grouped[find(i)].add(i)
+    near_edges_by_root = collections.defaultdict(list)
+    exact_edges_by_root = collections.defaultdict(list)
+    for edge in near_dup_edges:
+        near_edges_by_root[find(edge[0])].append(edge)
+    for edge in exact_edges:
+        exact_edges_by_root[find(edge[0])].append(edge)
+    clusters = []
+    for cluster_root, members in grouped.items():
+        if len(members) < 2:
+            continue
+        clusters.append({
+            "members": members,
+            "near_edges": near_edges_by_root[cluster_root],
+            "exact_edges": exact_edges_by_root[cluster_root],
+        })
+    clusters.sort(key=lambda cluster: min(cluster["members"]))
+    return clusters, dup_bytes, len(near_dup_edges)
+
+
+# NEARDUP-SAMPLER v1
+def select_sample(root_files, clusters, max_files, seed):
+    """중복 클러스터 쌍을 우선하고 나머지는 최상위 폴더별로 층화한다."""
+    total = len(root_files)
+    if not max_files or total <= max_files:
+        return list(root_files)
+
+    target = min(max_files, total)
+    risk_budget = round(max_files * 0.6)
+    chosen = []
+    chosen_indices = set()
+    ordered_clusters = sorted(
+        clusters,
+        key=lambda cluster: (
+            -len(cluster["members"]),
+            min(root_files[i]["rel"] for i in cluster["members"]),
+        ),
+    )
+    for cluster in ordered_clusters:
+        edges = cluster["near_edges"] or cluster["exact_edges"]
+        if not edges:
+            continue
+        representative_edge = min(
+            edges,
+            key=lambda edge: tuple(sorted(
+                (root_files[edge[0]]["rel"], root_files[edge[1]]["rel"]),
+            )),
+        )
+        representatives = sorted(
+            representative_edge, key=lambda i: root_files[i]["rel"])
+        if len(representatives) < 2 or len(chosen) + 2 > risk_budget:
+            continue
+        for i in representatives:
+            if i not in chosen_indices:
+                root_files[i]["sampling_reason"] = "dup-cluster"
+                chosen.append(root_files[i])
+                chosen_indices.add(i)
+
+    folders = collections.defaultdict(list)
+    for i, f in enumerate(root_files):
+        if i in chosen_indices:
+            continue
+        rel = f["rel"].replace(os.path.sep, "/")
+        folder = rel.split("/", 1)[0] if "/" in rel else "(root)"
+        folders[folder].append(i)
+
+    rng = random.Random(seed)
+    folder_names = sorted(folders)
+    rng.shuffle(folder_names)
+    for folder in folder_names:
+        rng.shuffle(folders[folder])
+
+    positions = {folder: 0 for folder in folder_names}
+    while len(chosen) < target:
+        added = False
+        for folder in folder_names:
+            pos = positions[folder]
+            if pos >= len(folders[folder]):
+                continue
+            i = folders[folder][pos]
+            positions[folder] += 1
+            root_files[i]["sampling_reason"] = "stratified"
+            chosen.append(root_files[i])
+            chosen_indices.add(i)
+            added = True
+            if len(chosen) == target:
+                break
+        if not added:
+            break
+    return chosen
+
+
+def _read_prescan_text(f):
+    with open(f["abs"], encoding="utf-8", errors="replace") as handle:
+        return handle.read(MAX_FILE_BYTES)
+
+
 def stage_manifest(ctx):
     out = ctx.path("manifest.json")
     if os.path.exists(out):
-        return json.load(open(out, encoding="utf-8"))
+        man = json.load(open(out, encoding="utf-8"))
+        man.setdefault("near_dup_pairs", 0)
+        man.setdefault("dup_bytes", None)
+        for batch in man.get("batches", []):
+            for item in batch:
+                item.setdefault("kind", "memory")
+        return man
+    # // TASK-020
+    # CLAUDE.md/AGENTS.md는 일반 .md walk에도 들어오지만, .cursorrules와
+    # .cursor/rules/*.mdc는 명시적으로 배치에 넣어 rule atom을 추출한다.
+    instruction_layer = stage_instruction_layer(ctx)
+    instruction_files = {}
+    source_by_id = {source["source_id"]: source for source in ctx.sources}
+    for entry in instruction_layer["files"]:
+        source = source_by_id.get(entry.get("source_id"))
+        if source:
+            instruction_files[os.path.abspath(os.path.join(source["root"], entry["path"]))] = entry
     files = []
     source_samples = collections.Counter()
+    near_dup_pairs = 0
+    dup_bytes = 0
     for source in ctx.sources:
         root_files = []
         root = source["root"]
@@ -487,22 +869,47 @@ def stage_manifest(ctx):
                 if is_excluded(rel, ctx.excludes):
                     continue
                 st = os.stat(p)
+                absolute = os.path.abspath(p)
                 root_files.append({
                     "source_id": source["source_id"],
                     "source_label": source["source_label"],
                     "root": root,
                     "rel": rel,
-                    "abs": os.path.abspath(p),
+                    "abs": absolute,
                     "size": min(st.st_size, MAX_FILE_BYTES),
                     "date": datetime.date.fromtimestamp(st.st_mtime).isoformat(),
                     "scope": scope_of(rel),
+                    "kind": instruction_files.get(absolute, {}).get("kind", "memory"),
                 })
+        # .cursorrules/.mdc는 일반 markdown walk에서 빠지므로 한 번만 추가한다.
+        existing = {item["abs"] for item in root_files}
+        for absolute, entry in instruction_files.items():
+            if entry.get("source_id") != source["source_id"] or absolute in existing:
+                continue
+            try:
+                st = os.stat(absolute)
+            except OSError:
+                continue
+            root_files.append({
+                "source_id": source["source_id"], "source_label": source["source_label"],
+                "root": root, "rel": entry["path"], "abs": absolute,
+                "size": min(st.st_size, MAX_FILE_BYTES),
+                "date": datetime.date.fromtimestamp(st.st_mtime).isoformat(),
+                "scope": scope_of(entry["path"]), "kind": "rule",
+            })
         root_files.sort(key=lambda f: f["rel"])
         seed = (ctx.sample_seed + "\x1f" + root if ctx.sample_seed
                 else hashlib.sha1(root.encode()).hexdigest())
-        random.Random(seed).shuffle(root_files)
-        if ctx.max_files:
-            root_files = root_files[:ctx.max_files]
+        clusters, source_dup_bytes, source_near_dup_pairs = prescan_near_dup(
+            root_files, _read_prescan_text)
+        near_dup_pairs += source_near_dup_pairs
+        dup_bytes += source_dup_bytes
+        if ctx.max_files and len(root_files) > ctx.max_files:
+            root_files = select_sample(
+                root_files, clusters, ctx.max_files, seed)
+        else:
+            # 풀 모드는 표본 편향 없이 기존의 결정적 전량 순서를 유지한다.
+            random.Random(seed).shuffle(root_files)
         files.extend(root_files)
         source_samples[source["source_label"]] += len(root_files)
     batches, cur, cur_sz = [], [], 0
@@ -518,7 +925,8 @@ def stage_manifest(ctx):
     if cur:
         batches.append(cur)
     man = {"vault": ctx.vault, "vaults": ctx.vaults, "files": len(files),
-           "source_samples": dict(source_samples), "batches": batches}
+           "source_samples": dict(source_samples), "batches": batches,
+           "near_dup_pairs": near_dup_pairs, "dup_bytes": dup_bytes}
     json.dump(man, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     ctx.log(f"manifest files={len(files)} batches={len(batches)}")
     return man
@@ -558,6 +966,8 @@ def stage_extract(ctx, man, model):
             if a.get("type") not in ("semantic", "procedural", "episodic"):
                 a["type"] = "semantic"
             meta = meta_by_file.get(a["source"])
+            # TASK-020: 기존 JSONL atom은 memory로 읽고, 지시파일 원자는 rule로 보존한다.
+            a["kind"] = meta.get("kind", "memory") if meta else "memory"
             a["scope"] = meta["scope"] if meta else "unknown"
             a["source_id"] = meta["source_id"] if meta else "unknown"
             a["source_label"] = meta["source_label"] if meta else "unknown"
@@ -580,6 +990,8 @@ def stage_extract(ctx, man, model):
         for fn in sorted(os.listdir(done)):
             out.write(open(os.path.join(done, fn), encoding="utf-8").read())
     atoms = [json.loads(l) for l in open(atoms_path, encoding="utf-8")]
+    for atom in atoms:
+        atom.setdefault("kind", "memory")
     atoms = list({a["id"]: a for a in atoms}.values())
     ctx.log(f"extract total atoms={len(atoms)}")
     return atoms
@@ -702,7 +1114,9 @@ def stage_pair(ctx, atoms, max_judge_pairs):
                    "cross_source": cross_source,
                    "src_label_a": idx[ia].get("source_label"),
                    "src_label_b": idx[ib].get("source_label"),
-                   "type_a": idx[ia].get("type"), "type_b": idx[ib].get("type")}
+                   "type_a": idx[ia].get("type"), "type_b": idx[ib].get("type"),
+                   "kind_a": idx[ia].get("kind", "memory"),
+                   "kind_b": idx[ib].get("kind", "memory")}
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
             result.append(row)
     open(fp_path, "w").write(fp)
@@ -765,6 +1179,8 @@ def stage_junk(ctx, atoms, model, sample_n):
         cached = json.load(open(out, encoding="utf-8"))
         if cached:  # 빈 결과(전배치 실패)는 캐시로 안 침 — 재시도
             return cached
+    # // TASK-020: rule atom의 LLM 평가는 검토용이며 점수 표본에 섞지 않는다.
+    atoms = [atom for atom in atoms if atom.get("kind", "memory") == "memory"]
     if not atoms:
         return []
     random.seed(42)
@@ -786,6 +1202,7 @@ def stage_junk(ctx, atoms, model, sample_n):
 
 
 # ── 6. report — 사람 언어 리포트 ────────────────────────────────────────────
+# // TASK-018
 def health_score(scan, atoms_n, dup_n, contra_n, junk_rate):
     """0~100. 축: junk 40 + 모순 30 + 중복 20 + 구조 10. 공식은 README에 문서화."""
     per1k = lambda n: n / atoms_n * 1000 if atoms_n else 0
@@ -793,8 +1210,72 @@ def health_score(scan, atoms_n, dup_n, contra_n, junk_rate):
     s_contra = 30 * max(0.0, 1 - max(0.0, per1k(contra_n) - 2) / 28)
     s_dup = 20 * max(0.0, 1 - max(0.0, per1k(dup_n) - 5) / 55)
     s_struct = 10 * (0.5 * scan["frontmatter_rate"] + 0.5 * (1 - scan["dead_link_rate"]))
-    return round(s_junk + s_contra + s_dup + s_struct), \
-        {"junk": round(s_junk), "contradiction": round(s_contra), "duplicate": round(s_dup), "structure": round(s_struct)}
+    axes = {"junk": round(s_junk), "contradiction": round(s_contra),
+            "duplicate": round(s_dup), "structure": round(s_struct)}
+    # 세부표의 정수 subtotal과 최종점수는 반드시 같은 산식 결과여야 한다.
+    return sum(axes.values()), axes
+
+
+def score_deductions(scan, atoms_n, dup_n, contra_n, junk_rate, score, axes):
+    """health_score의 축 점수를 기준으로만 감점 명세를 만든다 (별도 점수식 금지)."""
+    per1k = lambda n: round(n / atoms_n * 1000, 3) if atoms_n else 0
+    components = (
+        ("contradiction", "per 1,000 memory atoms", per1k(contra_n), 30),
+        ("duplicate", "per 1,000 memory atoms", per1k(dup_n), 20),
+        ("junk", "sample ratio", round(junk_rate, 3) if junk_rate is not None else "unmeasured", 40),
+        ("structure", "weighted frontmatter/dead-link rate", {
+            "frontmatter_rate": scan["frontmatter_rate"],
+            "dead_link_rate": scan["dead_link_rate"],
+        }, 10),
+    )
+    result = {"baseline": {"unit": "points", "actual": 100, "deduction": 0,
+                            "cap": 100, "subtotal": 100}}
+    for name, unit, actual, cap in components:
+        deduction = cap - axes[name]
+        result[name] = {"unit": unit, "actual": actual, "deduction": deduction,
+                        "cap": cap, "subtotal": -deduction}
+    result["final"] = score
+    # baseline + 각 음수 subtotal이 final이라는 출력 계약을 내부에서도 강제한다.
+    assert sum(item["subtotal"] for name, item in result.items() if name != "final") == score
+    return result
+
+
+def report_score_deduction_table(lines, deductions):
+    lines.extend(("## Score deductions", "| Component | Unit | Actual | Deduction | Cap | Subtotal |",
+                  "|---|---|---:|---:|---:|---:|"))
+    for name in ("baseline", "contradiction", "duplicate", "junk", "structure"):
+        item = deductions[name]
+        actual = json.dumps(item["actual"], ensure_ascii=False) if isinstance(item["actual"], dict) else item["actual"]
+        lines.append(f"| {name} | {item['unit']} | {actual} | {item['deduction']} | {item['cap']} | {item['subtotal']} |")
+    lines.append(f"| **final** | points |  |  |  | **{deductions['final']}** |")
+
+
+def report_instruction_layer(lines, layer, rule_reviews):
+    """지시파일 정적 진단은 파일·행 근거를 Markdown에도 그대로 남긴다."""
+    lines.extend(("\n## Instruction-file layer (deterministic)", "\n### Loading map",
+                  "| AI tool | Files loaded |", "|---|---|"))
+    for tool in ("claude", "codex", "cursor"):
+        entries = layer.get("loading_map", {}).get(tool, [])
+        loaded = ", ".join(f"`{item['path']}`" for item in entries) or "none"
+        lines.append(f"| {tool} | {loaded} |")
+    labels = (("exact_duplicates", "Exact duplicates"),
+              ("polarity_conflicts", "Explicit polarity conflicts"),
+              ("dead_paths", "Dead relative/backtick paths"))
+    lines.append("\n### Signals")
+    for key, label in labels:
+        values = layer.get("signals", {}).get(key, [])
+        lines.append(f"- **{label}: {len(values)}**")
+        for value in values:
+            evidence = value.get("evidence", [])
+            if isinstance(evidence, dict):
+                evidence = [evidence]
+            locations = ", ".join(
+                f"`{item.get('source', '') + ':' if item.get('source') else ''}{item['path']}:{item['line']}`"
+                for item in evidence)
+            detail = value.get("reference") or value.get("action") or value.get("text") or ""
+            lines.append(f"  - {detail} — {locations}")
+    lines.extend(("\n## Non-scoring LLM review appendix",
+                  f"- {len(rule_reviews)} candidate pair(s) involving rule atoms were retained for human review and excluded from the score."))
 
 
 def count_all_notes(ctx, cap=20000):
@@ -817,22 +1298,29 @@ def count_all_notes(ctx, cap=20000):
 
 def waste_estimate(ctx, scan, atoms_n, dup_n, junk_rate):
     """실측 기반 낭비 정량화: 낭비율 = 중복 원자 비율 + junk 비율, 토큰은 4바이트=1토큰 보수 외삽."""
-    if not atoms_n or not scan["notes"] or not scan["bytes"]:
-        return None
+    result = {
+        "waste_rate": None,
+        "waste_dup_rate": None,
+        "waste_junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
+    }
+    if not atoms_n:
+        return result
     dup_rate = dup_n / atoms_n
-    waste_rate = min(0.9, dup_rate + (junk_rate or 0.0))
-    if waste_rate <= 0:
-        return None
+    result["waste_dup_rate"] = round(dup_rate, 3)
+    if junk_rate is None:
+        return result
+    waste_rate = min(0.9, dup_rate + junk_rate)
+    result["waste_rate"] = round(waste_rate, 3)
+    if not scan["notes"] or not scan["bytes"]:
+        return result
     notes_total = max(scan["notes"], count_all_notes(ctx))
     est_vault_tokens = int(scan["bytes"] / scan["notes"] * notes_total / 4)
-    return {
-        "waste_rate": round(waste_rate, 3),
-        "waste_dup_rate": round(dup_rate, 3),
-        "waste_junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
+    result.update({
         "notes_total": notes_total,
         "est_vault_tokens": est_vault_tokens,
         "est_wasted_tokens": int(est_vault_tokens * waste_rate),
-    }
+    })
+    return result
 
 
 def build_cards(pairs, js, limit=10):
@@ -854,10 +1342,15 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     done_dir = ctx.path("done_extract")
     done_n = len(os.listdir(done_dir)) if os.path.isdir(done_dir) else 0
     failed_batches = max(0, len(man["batches"]) - done_n)
-    dups = [j for j in js if j["verdict"] == "duplicate"]
-    dups_hi = [j for j in dups if (j.get("confidence") or 0) >= 0.9]
-    contras = [j for j in js if j["verdict"] == "contradiction" and (j.get("confidence") or 0) >= 0.6]
     pair_by_id = {f'{p["a"]}|{p["b"]}': p for p in pairs}
+    # // TASK-020: rule 원자가 얽힌 LLM 판정은 review appendix에만 남기고 점수·카드에서 제외한다.
+    rule_reviews = [j for j in js if (pair_by_id.get(j.get("pair_id"), {}).get("kind_a", "memory") == "rule" or
+                                      pair_by_id.get(j.get("pair_id"), {}).get("kind_b", "memory") == "rule")]
+    scoring_js = [j for j in js if j not in rule_reviews]
+    scoring_atoms = [atom for atom in atoms if atom.get("kind", "memory") == "memory"]
+    dups = [j for j in scoring_js if j["verdict"] == "duplicate"]
+    dups_hi = [j for j in dups if (j.get("confidence") or 0) >= 0.9]
+    contras = [j for j in scoring_js if j["verdict"] == "contradiction" and (j.get("confidence") or 0) >= 0.6]
     cross_source_contradictions = sum(
         1 for j in contras if pair_by_id.get(j.get("pair_id"), {}).get("cross_source")
     )
@@ -868,8 +1361,10 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
         junk_items = [j for j in junk_judgments if j["label"] == "junk"]
         junk_rate = len(junk_items) / len(junk_judgments)
         junk_types = dict(collections.Counter(j.get("type") or _t("junk_type_other") for j in junk_items))
-    score, axes = health_score(scan, len(atoms), len(dups), len(contras), junk_rate)
-    cards, n_contra_cards, n_dup_cards = build_cards(pairs, js)
+    score, axes = health_score(scan, len(scoring_atoms), len(dups), len(contras), junk_rate)
+    deductions = score_deductions(scan, len(scoring_atoms), len(dups), len(contras), junk_rate, score, axes)
+    cards, n_contra_cards, n_dup_cards = build_cards(pairs, scoring_js)
+    instruction_layer = stage_instruction_layer(ctx)
 
     today = datetime.date.today().isoformat()
     L = []
@@ -879,23 +1374,25 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     L.append(_t("report_meta", today=today, vault=vault_display))
     L.append(_t("score_heading", score=score))
     L.append(_t("score_breakdown"))
-    L.append(_t("table_header"))
-    L.append("|---|---|---|")
-    for k, t_key, full in (("junk", "axis_junk", 40), ("contradiction", "axis_contradiction", 30),
-                           ("duplicate", "axis_duplicate", 20), ("structure", "axis_structure", 10)):
-        L.append(f"| {_t(t_key)} | {axes[k]} | {full} |")
-    waste = waste_estimate(ctx, scan, len(atoms), len(dups), junk_rate)
-    if waste:
-        junk_str = _t("waste_junk_missing") if waste["waste_junk_rate"] is None \
-            else f'~{round(waste["waste_junk_rate"] * 100)}%'
-        L.append(_t("waste_heading"))
-        L.append(_t("waste_body",
-                    waste_pct=round(waste["waste_rate"] * 100),
-                    dup_pct=round(waste["waste_dup_rate"] * 100),
-                    junk_str=junk_str,
-                    vault_tokens=f'{waste["est_vault_tokens"]:,}',
-                    wasted_tokens=f'{waste["est_wasted_tokens"]:,}',
-                    notes=scan["notes"], total=waste["notes_total"]))
+    report_score_deduction_table(L, deductions)
+    report_instruction_layer(L, instruction_layer, rule_reviews)
+    waste = waste_estimate(ctx, scan, len(scoring_atoms), len(dups), junk_rate)
+    L.append(_t("waste_heading"))
+    dup_bytes = man.get("dup_bytes")
+    if dup_bytes is None:
+        L.append(_t("waste_local_unmeasured"))
+    elif dup_bytes > 0:
+        L.append(_t("waste_local_confirmed",
+                    dup_kb=max(1, round(dup_bytes / 1024))))
+    else:
+        L.append(_t("waste_local_none"))
+    if waste["waste_rate"] is None:
+        L.append(_t("waste_ai_unmeasured"))
+    elif waste["waste_rate"] > 0:
+        L.append(_t("waste_ai_positive",
+                    waste_pct=round(waste["waste_rate"] * 100)))
+    else:
+        L.append(_t("waste_ai_none"))
     L.append(_t("scan_heading"))
     L.append(_t("scan_notes", notes=scan["notes"], kb=scan["bytes"] // 1024, fm_pct=round(scan["frontmatter_rate"] * 100)))
     L.append(_t("scan_dead_links", wikilinks=scan["wikilinks"], dead=scan["dead_links"], dl_pct=round(scan["dead_link_rate"] * 100)))
@@ -945,12 +1442,16 @@ def stage_report(ctx, scan, man, atoms, pairs, js, junk_judgments):
     report_path = ctx.path("report.md")
     open(report_path, "w", encoding="utf-8").write("\n".join(L) + "\n")
 
-    summary = {"score": score, "notes": scan["notes"], "atoms": len(atoms),
+    summary = {"score": score, "score_deductions": deductions, "score_axes": axes,
+               "notes": scan["notes"], "atoms": len(atoms), "memory_atoms": len(scoring_atoms),
                "duplicates": len(dups), "contradictions": len(contras),
                "source_samples": source_samples,
                "cross_source_contradictions": cross_source_contradictions,
                "junk_rate": round(junk_rate, 3) if junk_rate is not None else None,
+               "dup_bytes": man.get("dup_bytes"),
                "review_cards": n_contra_cards + n_dup_cards,
+               "instruction_layer": instruction_layer,
+               "rule_review_candidates": len(rule_reviews),
                "failed_extract_batches": failed_batches, "report": report_path,
                **(waste or {})}
     json.dump(summary, open(ctx.path("summary.json"), "w", encoding="utf-8"),

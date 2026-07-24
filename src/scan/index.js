@@ -15,10 +15,9 @@ export async function runScan({
   const result = analyze(discovered, { lang });
   const pingResult = noPing ? null : await ping(result);
   const pingStatus = noPing ? "disabled" : pingResult ? "sent" : "failed";
-  const percentile = pingResult?.percentile;
-  const reportFile = writeReport(result, { lang, percentile, pingStatus });
+  const reportFile = writeReport(result, { lang, pingStatus });
   if (!noOpen) openReport(reportFile, platform);
-  return { result, reportFile, percentile, pingStatus };
+  return { result, reportFile, pingStatus };
 }
 
 export { discover } from "./discover.js";

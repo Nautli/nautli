@@ -61,7 +61,12 @@ export function applyJudgments(store, judgments, config = {}) {
       .map((entry) => entry.pair_id)
       .filter((value) => typeof value === "string"));
     let applied = 0;
+    // TASK-061: 자동 병합과 모순 자동해결은 사용자 카피에서 다른 결과로 보여 준다.
+    let appliedDuplicates = 0;
+    let appliedContradictions = 0;
     let queued = 0;
+    // TASK-013: related 판정은 기억 그래프 엣지로 영속화된다(자동 병합/모순과 별개 카운터).
+    let appliedEdges = 0;
     let skipped = 0;
     let machineOracle = 0;
     let triageRouted = 0;
@@ -119,9 +124,10 @@ export function applyJudgments(store, judgments, config = {}) {
               { id: oldFact.id, status: oldFact.status, claim: oldFact.claim },
               { id: newFact.id, status: newFact.status, claim: newFact.claim },
             ];
+            // TASK-104: judge 자동적용 — reason은 judge:<verdict>, policy는 "n/a".
             store.transition(oldFact.id, STATUS.SUPERSEDED, {
               superseded_by: newFact.id,
-            }, "daemon");
+            }, "daemon", { reason: `judge:${judgment.verdict}`, policy_version: "n/a" });
             recordAutoApply(store.home, {
               pair_id: judgment.pair_id,
               action: "merge",
@@ -136,6 +142,7 @@ export function applyJudgments(store, judgments, config = {}) {
               type: "pair",
             });
             applied += 1;
+            appliedDuplicates += 1;
             outcome = "applied";
           } else {
             // 승자 방향 판별 불가(newer 부재 + t_valid·confidence 동률) — 조용한 누락 대신 shadow로 강등
@@ -167,9 +174,10 @@ export function applyJudgments(store, judgments, config = {}) {
             { id: oldFact.id, status: oldFact.status, claim: oldFact.claim },
             { id: newFact.id, status: newFact.status, claim: newFact.claim },
           ];
+          // TASK-104: judge 자동적용(모순) — reason은 judge:<verdict>, policy는 "n/a".
           store.transition(oldFact.id, STATUS.INVALIDATED, {
             t_invalid: newFact.t_valid,
-          }, "daemon");
+          }, "daemon", { reason: `judge:${judgment.verdict}`, policy_version: "n/a" });
           const winAction = judgment.newer === "a" ? "a_wins" : "b_wins";
           recordAutoApply(store.home, {
             pair_id: judgment.pair_id,
@@ -185,6 +193,7 @@ export function applyJudgments(store, judgments, config = {}) {
             type: "pair",
           });
           applied += 1;
+          appliedContradictions += 1;
           outcome = "applied";
         } else if ((judgment.verdict === "duplicate" && confidence < 0.9)
           || judgment.verdict === "contradiction"
@@ -217,6 +226,18 @@ export function applyJudgments(store, judgments, config = {}) {
             shadowed += 1;
             outcome = "shadowed";
           }
+        } else if (judgment.verdict === "related") {
+          // TASK-013: 야간 데몬 related 판정을 기억 그래프 엣지로 저장(edge.upserted 이벤트).
+          // 정규화·ev_id·idempotent upsert는 store.upsertEdge가 처리한다.
+          store.upsertEdge({
+            a_id: a.id,
+            b_id: b.id,
+            kind: "related",
+            confidence,
+            source: "judge",
+          });
+          appliedEdges += 1;
+          outcome = "edge";
         }
       }
 
@@ -237,6 +258,10 @@ export function applyJudgments(store, judgments, config = {}) {
 
     const results = {
       applied,
+      applied_duplicates: appliedDuplicates,
+      applied_contradictions: appliedContradictions,
+      // TASK-013: 이번 소화에서 저장된 related 엣지 수.
+      edges: appliedEdges,
       queued,
       shadowed,
       skipped,

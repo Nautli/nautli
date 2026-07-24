@@ -25,7 +25,7 @@ function validateBase(payload, allowedKeys) {
   if (payload.v !== 1) return fail("v must be 1");
 
   for (const [key, minimum, maximum] of [
-    ["score", 20, 100],
+    ["score", 0, 100],
     ["tools", 0, 20],
     ["tokens", 0, 10_000_000],
     ["alTokens", 0, 10_000_000],

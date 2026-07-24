@@ -156,6 +156,60 @@ function currentFile(home) {
   return path.join(checkupHome(home), "current.json");
 }
 
+// TASK-002
+function startLockPath(home) {
+  return path.join(checkupHome(home), ".start-lock");
+}
+
+// TASK-002
+function readStartLockOwner(lockPath) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(lockPath, "owner.json"), "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+// TASK-002
+function deadStartLockOwner(owner) {
+  if (!Number.isInteger(owner?.pid) || owner.pid <= 0) return false;
+  try {
+    process.kill(owner.pid, 0);
+    return false;
+  } catch (error) {
+    return error?.code === "ESRCH";
+  }
+}
+
+// TASK-002
+function acquireStartLock(home, t) {
+  const directory = checkupHome(home);
+  const lockPath = startLockPath(home);
+  fs.mkdirSync(directory, { recursive: true });
+  while (true) {
+    try {
+      fs.mkdirSync(lockPath);
+      try {
+        fs.writeFileSync(path.join(lockPath, "owner.json"), JSON.stringify({
+          pid: process.pid,
+          started_at: new Date().toISOString(),
+        }));
+        return lockPath;
+      } catch (error) {
+        // TASK-002
+        fs.rmSync(lockPath, { recursive: true, force: true });
+        throw error;
+      }
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      if (!deadStartLockOwner(readStartLockOwner(lockPath))) {
+        throw codedError(ERR.E_STORE_BUSY, t("checkup.already_running"));
+      }
+      fs.rmSync(lockPath, { recursive: true, force: true });
+    }
+  }
+}
+
 export function readCurrent(home) {
   const file = currentFile(home);
   if (!fs.existsSync(file)) return null;
@@ -282,7 +336,9 @@ export function checkupPreflight(home, vaultPathOrPaths, options = {}) {
     claude,
     files,
     sampled_files: sampledFiles,
-    estimated_minutes: Math.max(1, Math.ceil(sampledFiles / 30 * 8)),
+    // 실측 보정(2026-07-21): 40파일 맛보기 ≈ 5분(throughput ~8파일/분). 옛 상수(3.75파일/분)는 ~2배 과대였다.
+    // 소폭 버퍼를 둬 ~7파일/분으로 추정하고 최소 2분 바닥을 둔다.
+    estimated_minutes: Math.max(2, Math.ceil(sampledFiles / 7)),
     top_level_dirs: topLevel,
     directories: topLevel,
     excluded_dirs: excluded,
@@ -303,58 +359,69 @@ export function startCheckup(home, vaultPathOrPaths, options = {}) {
   if (resolved.every((vault) => countNotes(vault, 1, excluded) === 0)) {
     throw codedError(ERR.E_INVALID_INPUT, t("checkup.no_markdown"));
   }
-  const existing = readCurrent(home);
-  if (existing && existing.state === "running" && pidAlive(existing.pid)) {
-    throw codedError(ERR.E_STORE_BUSY, t("checkup.already_running"));
-  }
-  const python = spawnSync("python3", ["--version"], { stdio: "ignore" });
-  if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, t("checkup.python_required"));
-  const workHome = path.join(checkupHome(home), "doctor");
-  fs.mkdirSync(workHome, { recursive: true });
-  const sampleSeed = vaultSetSampleSeed(resolved);
-  const slug = doctorRunSlug(resolved, excluded, sampleSeed);
-  const runDir = path.resolve(workHome, "runs", slug);
-  const logPath = path.join(checkupHome(home), "checkup.log");
-  const log = fs.openSync(logPath, "a");
-  const args = [
-    DOCTOR_SCRIPT, ...resolved,
-    "--work-home", workHome,
-    "--max-files", String(TASTE.maxFiles),
-    "--sample-seed", sampleSeed,
-    "--junk-sample", String(TASTE.junkSample),
-    "--max-judge-pairs", String(TASTE.maxJudgePairs),
-  ];
-  for (const directory of excluded) args.push("--exclude", directory);
-  if (fs.existsSync(runDir)) {
-    args.push("--fresh");
-    fs.rmSync(runDir, { recursive: true, force: true });
-  }
-  const child = spawner("python3", args, { detached: true, stdio: ["ignore", log, log] });
-  const started = {
-    state: "running", vault: resolved[0], vaults: resolved, work_home: workHome, run_dir: runDir,
-    started_at: new Date().toISOString(), pid: child.pid ?? null, mode: "taste",
-    excluded_dirs: excluded, sample_seed: sampleSeed,
-  };
-  child.on?.("error", (error) => {
-    writeCurrent(home, {
-      ...started,
-      state: "failed",
-      error: t("checkup.python_start_failed", {
-        reason: error.message || t("checkup.check_runtime"),
-      }),
+  // TASK-002
+  const lockPath = acquireStartLock(home, t);
+  let log;
+  try {
+    const existing = readCurrent(home);
+    if (existing && existing.state === "running" && pidAlive(existing.pid)) {
+      throw codedError(ERR.E_STORE_BUSY, t("checkup.already_running"));
+    }
+    const python = spawnSync("python3", ["--version"], { stdio: "ignore" });
+    if (python.error || python.status !== 0) throw codedError(ERR.E_INVALID_INPUT, t("checkup.python_required"));
+    const workHome = path.join(checkupHome(home), "doctor");
+    fs.mkdirSync(workHome, { recursive: true });
+    const sampleSeed = vaultSetSampleSeed(resolved);
+    const slug = doctorRunSlug(resolved, excluded, sampleSeed);
+    const runDir = path.resolve(workHome, "runs", slug);
+    const logPath = path.join(checkupHome(home), "checkup.log");
+    log = fs.openSync(logPath, "a");
+    const args = [
+      DOCTOR_SCRIPT, ...resolved,
+      "--work-home", workHome,
+      "--max-files", String(TASTE.maxFiles),
+      "--sample-seed", sampleSeed,
+      "--junk-sample", String(TASTE.junkSample),
+      "--max-judge-pairs", String(TASTE.maxJudgePairs),
+    ];
+    for (const directory of excluded) args.push("--exclude", directory);
+    if (fs.existsSync(runDir)) {
+      args.push("--fresh");
+      fs.rmSync(runDir, { recursive: true, force: true });
+    }
+    const child = spawner("python3", args, { detached: true, stdio: ["ignore", log, log] });
+    const started = {
+      state: "running", vault: resolved[0], vaults: resolved, work_home: workHome, run_dir: runDir,
+      started_at: new Date().toISOString(), pid: child.pid ?? null, mode: "taste",
+      excluded_dirs: excluded, sample_seed: sampleSeed,
+    };
+    // TASK-002
+    child.on?.("error", (error) => {
+      writeCurrent(home, {
+        ...started,
+        state: "failed",
+        error: t("checkup.python_start_failed", {
+          reason: error.message || t("checkup.check_runtime"),
+        }),
+      });
     });
-  });
-  child.unref?.();
-  fs.closeSync(log);
-  writeCurrent(home, started);
-  return {
-    ok: true,
-    started: true,
-    vault: resolved[0],
-    vaults: resolved,
-    pid: child.pid ?? null,
-    excluded_dirs: excluded,
-  };
+    child.unref?.();
+    fs.closeSync(log);
+    log = undefined;
+    writeCurrent(home, started);
+    return {
+      ok: true,
+      started: true,
+      vault: resolved[0],
+      vaults: resolved,
+      pid: child.pid ?? null,
+      excluded_dirs: excluded,
+    };
+  } finally {
+    // TASK-002
+    if (log !== undefined) fs.closeSync(log);
+    fs.rmSync(lockPath, { recursive: true, force: true });
+  }
 }
 
 function readJson(file) {
@@ -527,6 +594,54 @@ export function dismissCheckup(home) {
 }
 
 // 처방 ①: 진단에서 뽑은 fact를 nautli 저장소로 가져온다 (쓰기 게이트 경유 = 중복은 게이트가 거른다)
+// TASK-023: scope 이원화 감지용 정규화 키 — 대소문자·구분자·project: 접두사를 무시한 알파벳/숫자만.
+function scopeNormKey(scope) {
+  return String(scope).toLowerCase().replace(/^project:/u, "").replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+function scopeBigrams(text) {
+  const set = new Set();
+  if (text.length <= 1) {
+    if (text.length === 1) set.add(text);
+    return set;
+  }
+  for (let i = 0; i < text.length - 1; i += 1) set.add(text.slice(i, i + 2));
+  return set;
+}
+
+function jaccard(a, b) {
+  if (a.size === 0 && b.size === 0) return 1;
+  let intersection = 0;
+  for (const gram of a) if (b.has(gram)) intersection += 1;
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+// TASK-023: 새 scope들을 기존 scope와 정규화/토큰 유사도로 비교해 병합 후보만 반환한다.
+// 절대 자동 병합/별칭 설정하지 않는다 — 제안(scope_suggestions)만 낸다.
+function scopeSuggestions(newScopes, existingScopes) {
+  const existing = existingScopes.filter((scope) => scope !== "person" && scope !== "procedure");
+  const suggestions = [];
+  for (const scope of newScopes) {
+    if (scope === "person" || scope === "procedure") continue;
+    if (existing.includes(scope)) continue; // 동일 scope가 이미 있으면 이원화 아님
+    const key = scopeNormKey(scope);
+    if (key === "") continue;
+    const grams = scopeBigrams(key);
+    let best = null;
+    for (const candidate of existing) {
+      const candidateKey = scopeNormKey(candidate);
+      if (candidateKey === "") continue;
+      const similarity = candidateKey === key ? 1 : jaccard(grams, scopeBigrams(candidateKey));
+      if (similarity >= 0.7 && (!best || similarity > best.similarity)) {
+        best = { scope, canonical: candidate, similarity: Math.round(similarity * 100) / 100 };
+      }
+    }
+    if (best) suggestions.push(best);
+  }
+  return suggestions;
+}
+
 export function importCheckup(home, config, { locale } = {}) {
   const t = translator(locale);
   const current = readCurrent(home);
@@ -539,6 +654,9 @@ export function importCheckup(home, config, { locale } = {}) {
   const atoms = runDir ? readJsonl(path.join(runDir, "atoms.jsonl")) : [];
   if (atoms.length === 0) throw codedError(ERR.E_NOT_FOUND, t("checkup.memories_missing"));
   const store = new Store(home);
+  // TASK-023: 병합 제안은 "새 scope vs 기존 scope" 비교이므로 import 전에 기존 scope를 스냅샷한다.
+  const existingScopes = Object.keys(store.stats().byScope);
+  const newScopes = new Set();
   const atomFactIds = new Map();
   const atomsById = new Map(atoms.map((atom) => [atom.id, atom]));
   const result = { imported: 0, duplicates: 0, rejected: 0, cards: 0, total: Math.min(atoms.length, IMPORT_CAP), omitted: Math.max(0, atoms.length - IMPORT_CAP) };
@@ -547,7 +665,16 @@ export function importCheckup(home, config, { locale } = {}) {
       const originalScope = atom.type === "procedural" ? "procedure" : String(atom.scope ?? "");
       const cleanedScope = originalScope.trim().replace(/\s+/gu, "-").replace(/[^\p{L}\p{N}:_.-]+/gu, "-");
       const scope = validScope(originalScope) ? originalScope : validScope(cleanedScope) ? cleanedScope : "project:vault";
-      const input = { claim: atom.claim, scope, subject: atom.subject || undefined, source: "checkup" };
+      newScopes.add(scope);
+      // TASK-038: 검진 원본의 경로는 source 배지와 별도로 provenance에 보존한다.
+      const atomPath = typeof atom.path === "string" ? atom.path : atom.source;
+      const input = {
+        claim: atom.claim,
+        scope,
+        subject: atom.subject || undefined,
+        source: "checkup",
+        provenance: typeof atomPath === "string" && atomPath !== "" ? { path: atomPath } : undefined,
+      };
       const validAt = atom.t_valid ?? atom.date;
       if (typeof validAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(validAt)) input.t_valid = validAt;
       try {
@@ -589,6 +716,8 @@ export function importCheckup(home, config, { locale } = {}) {
     }];
   });
   result.cards = appendCards(home, cards);
+  // TASK-023: scope 이원화 후보만 리턴한다(자동 병합 없음).
+  result.scope_suggestions = scopeSuggestions([...newScopes], existingScopes);
   writeCurrent(home, { ...current, imported_at: new Date().toISOString(), imported: result });
   return result;
 }

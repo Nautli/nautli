@@ -195,7 +195,7 @@ export function listSurfacedCards(home, { cap = 3, now = new Date() } = {}) {
   });
 }
 
-export function applyCard(store, home, pairId, action, extraText) {
+export function applyCard(store, home, pairId, action, extraText, { now = new Date() } = {}) {
   if (!ACTIONS.has(action)) throw codedError(ERR.E_INVALID_INPUT);
   return withReviewLock(home, () => {
     const entries = readQueue(home);
@@ -212,8 +212,16 @@ export function applyCard(store, home, pairId, action, extraText) {
     let status = "answered";
     let deferredUntil;
 
-    if (action === "keep_separate" || action === "both_valid" || action === "unknown") {
+    if (action === "keep_separate" || action === "both_valid") {
       status = "dismissed";
+    }
+    if (action === "unknown") {
+      // TASK-037: "몰라요"는 영구 dismiss가 아니라 14일 스누즈다 — 만료 후 재부상한다.
+      // (both_valid/keep_separate 같은 해소성 답변만 dismissed로 마커를 지운다.)
+      status = "deferred";
+      const until = new Date(now.getTime());
+      until.setDate(until.getDate() + 14);
+      deferredUntil = until.toLocaleDateString("sv-SE");
     }
     if (action === "report_issue") {
       // 엣지케이스 신고: 기억은 건드리지 않고 카드만 닫되, 사유를 영속 기록해
@@ -237,6 +245,8 @@ export function applyCard(store, home, pairId, action, extraText) {
       if (a.scope !== b.scope) throw codedError(ERR.E_INVALID_INPUT, "Review pair scopes differ");
     }
 
+    // TASK-104: 대시보드 수동 카드 처리 — reason은 manual:<action>, policy는 "n/a"(직접/수동 경로).
+    const manualMeta = { reason: `manual:${action}`, policy_version: "n/a" };
     let remembered;
     if (action === "merge"
       && chronologicalOlder.status === STATUS.ACTIVE
@@ -244,18 +254,18 @@ export function applyCard(store, home, pairId, action, extraText) {
       store.transition(chronologicalOlder.id, STATUS.SUPERSEDED, {
         superseded_by: chronologicalNewer.id,
         t_invalid: chronologicalNewer.t_valid,
-      }, "daemon");
+      }, "daemon", manualMeta);
     } else if (action === "newer_wins" || action === "older_wins") {
       const loser = action === "newer_wins" ? older : newer;
       const winner = action === "newer_wins" ? newer : older;
       if (loser.status === STATUS.ACTIVE) {
-        store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon");
+        store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon", manualMeta);
       }
     } else if (action === "a_wins" || action === "b_wins") {
       const winner = action === "a_wins" ? a : b;
       const loser = action === "a_wins" ? b : a;
       if (loser.status === STATUS.ACTIVE) {
-        store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon");
+        store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon", manualMeta);
       }
     } else if (action === "other") {
       remembered = remember(store, {
@@ -325,14 +335,26 @@ export function applyCaptureCard(store, home, pairId, action, config = {}, optio
       ? handledTime - createdTime
       : null;
 
+    // TASK-104: capture.decided의 actor는 처리 주체(client=대시보드/수동, daemon=triage/resolver).
+    // answered_by(라벨)는 별도 유지. reason·policy_version은 항상 비어있지 않게 스탬프하고,
+    // daemon 경로는 호출자가 policy_version(예: triage@3)을 넘긴다.
+    const answeredBy = typeof options.actor === "string" && options.actor !== ""
+      ? options.actor
+      : null;
+    const daemonHandled = answeredBy !== null;
+    const decidedActor = daemonHandled ? "daemon" : "client";
+    const decidedPolicy = typeof options.policy_version === "string" && options.policy_version.trim() !== ""
+      ? options.policy_version.trim()
+      : "n/a";
+    const decidedReason = typeof options.reason === "string" && options.reason.trim() !== ""
+      ? options.reason.trim()
+      : `${daemonHandled ? "daemon" : "manual"}:${action}`;
     entries[index] = {
       ...card,
       status,
       action,
       handled_at: handledAt,
-      ...(typeof options.actor === "string" && options.actor !== ""
-        ? { answered_by: options.actor }
-        : {}),
+      ...(answeredBy ? { answered_by: answeredBy } : {}),
       ...(remembered?.id ? { fact_id: remembered.id } : {}),
       ...(deferredUntil ? { deferred_until: deferredUntil } : {}),
     };
@@ -341,9 +363,12 @@ export function applyCaptureCard(store, home, pairId, action, config = {}, optio
       ev: "capture.decided",
       pair_id: pairId,
       action,
-      ...(typeof options.actor === "string" && options.actor !== ""
-        ? { answered_by: options.actor }
-        : {}),
+      actor: decidedActor,
+      reason: decidedReason,
+      policy_version: decidedPolicy,
+      ...(answeredBy ? { answered_by: answeredBy } : {}),
+      // TASK-104: remember로 이어진 결정은 fact_id 필수(기존 fact로의 중복 해소 포함).
+      ...(action === "remember" && remembered?.id ? { fact_id: remembered.id } : {}),
       confidence: card.confidence ?? null,
       latency_ms: latency,
       at: handledAt,
@@ -495,12 +520,14 @@ export function confirmShadowApply(store, home, undoId) {
       { id: loser.id, status: loser.status, claim: loser.claim },
       { id: winner.id, status: winner.status, claim: winner.claim },
     ];
+    // TASK-104: 마이크로 컨펌 자동적용 — reason은 judge:<verdict>, policy는 "n/a".
+    const shadowMeta = { reason: `judge:${entry.verdict}`, policy_version: "n/a" };
     let action;
     if (entry.verdict === "duplicate") {
-      store.transition(loser.id, STATUS.SUPERSEDED, { superseded_by: winner.id }, "daemon");
+      store.transition(loser.id, STATUS.SUPERSEDED, { superseded_by: winner.id }, "daemon", shadowMeta);
       action = "merge";
     } else if (entry.verdict === "contradiction") {
-      store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon");
+      store.transition(loser.id, STATUS.INVALIDATED, { t_invalid: winner.t_valid }, "daemon", shadowMeta);
       action = entry.newer === "a" ? "a_wins" : "b_wins";
     } else {
       return { ok: false, reason: "unsupported_verdict" };
@@ -530,6 +557,11 @@ export function undoAutoApply(store, home, undoId) {
     const entry = ledger[index];
     if (entry.undone) return { ok: false, reason: "already_undone" };
 
+    // TASK-BATCH-FIX (F-5): track which fact(s) the undo targeted and the status they were
+    // restored/moved to, so undo.applied carries a fact target (spec §2). Without it, `audit
+    // verdict` on a restored fact could never link the undo and showed stale history.
+    const undoneFactIds = [];
+    let restoredStatus = null;
     // Reverse the action
     if (entry.action === "merge" || entry.action === "newer_wins"
       || entry.action === "a_wins" || entry.action === "b_wins") {
@@ -539,6 +571,8 @@ export function undoAutoApply(store, home, undoId) {
         if (!current) continue;
         if (current.status === STATUS.SUPERSEDED || current.status === STATUS.INVALIDATED) {
           store.transition(snap.id, STATUS.ACTIVE, {}, "undo");
+          undoneFactIds.push(snap.id);
+          restoredStatus = STATUS.ACTIVE;
         }
       }
     } else if (entry.action === "remember" && entry.fact_id) {
@@ -546,6 +580,8 @@ export function undoAutoApply(store, home, undoId) {
       const fact = store.getFact(entry.fact_id);
       if (fact && fact.status === STATUS.ACTIVE) {
         store.transition(entry.fact_id, STATUS.ARCHIVED, {}, "daemon");
+        undoneFactIds.push(entry.fact_id);
+        restoredStatus = STATUS.ARCHIVED;
       }
     }
 
@@ -556,6 +592,9 @@ export function undoAutoApply(store, home, undoId) {
       undo_id: undoId,
       pair_id: entry.pair_id,
       action: entry.action,
+      // TASK-BATCH-FIX (F-5): fact target + restored-to status (nulls omitted when nothing changed).
+      ...(undoneFactIds.length > 0 ? { fact_id: undoneFactIds[0], fact_ids: undoneFactIds } : {}),
+      ...(restoredStatus !== null ? { restored_status: restoredStatus } : {}),
       at: new Date().toISOString(),
     });
     return { ok: true, undo_id: undoId, reversed_action: entry.action };
@@ -656,9 +695,10 @@ export function migratePendingToAutoApply(store, home) {
           { id: older.id, status: older.status, claim: older.claim },
           { id: newer.id, status: newer.status, claim: newer.claim },
         ];
+        // TASK-104: T1 자동병합 — reason은 judge:<verdict>, policy는 "n/a".
         store.transition(older.id, STATUS.SUPERSEDED, {
           superseded_by: newer.id,
-        }, "daemon");
+        }, "daemon", { reason: `judge:${entry.verdict}`, policy_version: "n/a" });
         recordAutoApply(home, {
           pair_id: entry.pair_id,
           action: "merge",

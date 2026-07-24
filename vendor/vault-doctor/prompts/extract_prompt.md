@@ -23,6 +23,7 @@
 - 같은 사실이 문서 내 반복되면 1번만.
 - 문서당 추출량 제한 없음. 지속 사실이 없으면 그 문서는 0건이 정상 — 억지로 만들지 마라. **노트 볼트에는 fact가 아예 없는 문서(일기·스크랩·초안)가 흔하다.**
 - type: 반드시 이 세 값 중 하나만 — semantic(상태·결정·선호 — "decision"이라 쓰지 마라, 결정은 semantic) | procedural(절차·방법) | episodic(마일스톤·사건)
+- kind: 이 값은 호출기가 문서 종류에 따라 강제한다. 출력해도 무시될 수 있으므로 memory|rule을 추측하지 마라.
 - subject: 소문자 슬러그 1개 (예: bridgr, pawcha, codex-cli, telegram-bridge, user, buildkit). 프로젝트명이 있으면 프로젝트명.
 - confidence: 문서가 "검증됨/확정"이라 하면 0.9, 일반 서술 0.7, 정황상 추정 0.5
 - t_valid: 문서 날짜(각 문서 헤더에 <DOC date=...>로 제공) 사용, ISO "YYYY-MM-DD"

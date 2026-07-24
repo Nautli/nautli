@@ -27,6 +27,7 @@ import {
   uninstallApp,
   uninstallDaemon,
 } from "../src/onboard/setup.js";
+import { doctor } from "../src/onboard/doctor.js";
 import { INSTRUCTIONS_START } from "../src/onboard/instructions.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -45,6 +46,38 @@ function isolatedHome(t) {
   });
   return { home, userHome };
 }
+
+// TASK-114: npm 12가 install script를 막아 better-sqlite3 바인딩이 없을 때 doctor는
+// 정확한 승인·rebuild 명령을 출력 가능한 결과에 고정한다.
+test("doctor reports npm 12 native-build recovery commands for missing better-sqlite3 bindings", (t) => {
+  const { home } = isolatedHome(t);
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, "index.sqlite"), "placeholder");
+  const setup = {
+    required: {
+      mcp: { cli_exists: true, registered: true },
+      daemon: { complete: true },
+    },
+  };
+  class MissingBindingsStore {
+    constructor() {
+      throw new Error("Could not locate the bindings file. Tried: better_sqlite3.node");
+    }
+  }
+
+  const result = doctor(home, { setup, Store: MissingBindingsStore });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.result.npm12_native_build.suspected, true);
+  assert.deepEqual(result.result.npm12_native_build.commands, [
+    "npm install-scripts approve --all --allow-scripts-pin",
+    "npm rebuild better-sqlite3 --foreground-scripts",
+  ]);
+  assert.equal(
+    result.result.npm12_native_build.reference,
+    "https://github.com/Nautli/nautli/blob/main/docs/research/npm12-native-build.md",
+  );
+});
 
 test("notifyDigestResult posts a macOS notification via argv (no injection)", () => {
   const calls = [];
@@ -71,6 +104,78 @@ test("notifyDigestResult posts a macOS notification via argv (no injection)", ()
 
   assert.equal(notifyDigestResult({ ok: true, skipped_run: true }, { runner }).notified, false);
   assert.equal(notifyDigestResult({ ok: true }, { runner, config: { notifications: false } }).notified, false);
+});
+
+test("TASK-061 notify combines held counts, distinguishes outcomes, and shows partial work", () => {
+  const calls = [];
+  const runner = (command, args) => { calls.push([command, args]); return ""; };
+  const options = { runner, locale: "ko", config: {}, platform: "darwin" };
+
+  assert.equal(notifyDigestResult({
+    ok: true,
+    applied: 2,
+    applied_duplicates: 1,
+    applied_contradictions: 1,
+    shadowed: 2,
+    capture_triage: { capture_shadowed: 3 },
+  }, options).notified, true);
+  const combined = calls[0][1].at(-2);
+  assert.match(combined, /중복 1건.*모순 1건.*애매한 5건/u);
+
+  assert.equal(notifyDigestResult({ ok: true, partial: true }, options).notified, true);
+  assert.match(calls[1][1].at(-2), /일부 판정은 다음 순찰에서 다시 시도/u);
+});
+
+test("TASK-084 skipped notifications do not mutate state or alert, while actual failures do", (t) => {
+  const { home } = isolatedHome(t);
+  const calls = [];
+  const runner = (command, args) => { calls.push([command, args]); return ""; };
+  const now = new Date(2026, 6, 20, 9, 0, 0);
+  const options = { home, now, runner, locale: "ko", config: {}, platform: "darwin" };
+
+  assert.equal(notifyDigestResult({ ok: true, applied: 1 }, options).notified, true);
+  const stateFile = path.join(home, "daemon", "notify-state.json");
+  const beforeSkip = fs.readFileSync(stateFile, "utf8");
+  const beforeCalls = calls.length;
+
+  assert.deepEqual(notifyDigestResult({ ok: true, skipped_run: true }, options), {
+    notified: false,
+    reason: "skipped_run",
+  });
+  assert.equal(fs.readFileSync(stateFile, "utf8"), beforeSkip);
+  assert.equal(calls.length, beforeCalls);
+
+  assert.equal(notifyDigestResult({ ok: false }, options).notified, true);
+  const state = JSON.parse(fs.readFileSync(stateFile, "utf8"));
+  assert.equal(state.last_failure_day, "2026-07-20");
+  assert.match(calls.at(-1)[1].at(-2), /npx nautli doctor.*npx nautli daemon-run --force/u);
+});
+
+// TASK-FIX-B12 (L-1): a held-only second run of the day is suppressed by the daily
+// cap, but its held count must be preserved (accumulated) in state, not dropped.
+test("TASK-FIX-B12 daily-cap preserves the held count from a held-only second run", (t) => {
+  const { home } = isolatedHome(t);
+  const calls = [];
+  const runner = (command, args) => { calls.push([command, args]); return ""; };
+  const now = new Date(2026, 6, 21, 9, 0, 0);
+  const options = { home, now, runner, locale: "ko", config: {}, platform: "darwin" };
+  const stateFile = path.join(home, "daemon", "notify-state.json");
+
+  // First run of the day notifies on an applied change and resets accumulators.
+  assert.equal(notifyDigestResult({ ok: true, applied: 1 }, options).notified, true);
+  assert.equal(JSON.parse(fs.readFileSync(stateFile, "utf8")).accum_held, 0);
+
+  // Second run same day carries ONLY held changes — the daily cap suppresses the
+  // notification, but the held count must survive in state, not vanish.
+  const second = notifyDigestResult({ ok: true, applied: 0, shadowed: 2 }, options);
+  assert.equal(second.notified, false);
+  assert.equal(second.reason, "daily_cap");
+  assert.equal(JSON.parse(fs.readFileSync(stateFile, "utf8")).accum_held, 2);
+
+  // A third held-only run accumulates on top — the count is never lost.
+  const third = notifyDigestResult({ ok: true, applied: 0, capture_triage: { capture_shadowed: 3 } }, options);
+  assert.equal(third.reason, "daily_cap");
+  assert.equal(JSON.parse(fs.readFileSync(stateFile, "utf8")).accum_held, 5);
 });
 
 test("notifyDigestResult sends limit_wait notification with correct body", () => {
@@ -459,6 +564,33 @@ test("runDigestOnce returns limit_wait and writes health.log when judge hits rat
   assert.ok(markers.length > 0, "at least one retry marker file should exist");
 });
 
+test("TASK-061 runDigestOnce marks capture triage setup failures as partial", async (t) => {
+  const { home } = isolatedHome(t);
+  initStore(home);
+  const queueFile = path.join(home, "review", "queue.jsonl");
+  fs.mkdirSync(path.dirname(queueFile), { recursive: true });
+  fs.writeFileSync(queueFile, `${JSON.stringify({
+    pair_id: "cap:partial",
+    type: "capture",
+    status: "pending",
+    claim: "partial marker",
+    scope: "project:partial",
+  })}\n`, "utf8");
+  fs.writeFileSync(path.join(home, "config.json"), JSON.stringify({
+    default_scope: "person",
+    triage_cmd: ["not-an-allowed-triage-command"],
+    resolve_cmd: false,
+  }), "utf8");
+
+  const result = await runDigestOnce(home);
+  assert.equal(result.ok, true);
+  assert.equal(result.partial, true);
+  assert.equal(result.capture_triage.ok, false);
+  const health = JSON.parse(fs.readFileSync(path.join(home, "daemon", "health.log"), "utf8").trim());
+  assert.equal(health.exit, 0);
+  assert.equal(health.result.partial, true);
+});
+
 // --- TASK-083: enhanced error logging, escalation, smoke test ---
 
 test("runDigestOnce catch logs error_detail with code, message, and stack", async (t) => {
@@ -533,7 +665,7 @@ test("checkAndEscalate does not fire with 1 day failure", (t) => {
   assert.equal(result.consecutiveFails, 1);
 });
 
-test("checkAndEscalate with defaultRunner calls discord-notify binary", (t) => {
+test("TASK-085 checkAndEscalate uses the env-injected local Discord fixture", (t) => {
   const { home } = isolatedHome(t);
   fs.mkdirSync(path.join(home, "daemon"), { recursive: true });
   const healthFile = path.join(home, "daemon", "health.log");
@@ -546,27 +678,25 @@ test("checkAndEscalate with defaultRunner calls discord-notify binary", (t) => {
   ];
   fs.writeFileSync(healthFile, entries.map((e) => JSON.stringify(e)).join("\n") + "\n", "utf8");
 
-  // runner를 전달하지 않아 defaultRunner 경로를 탄다.
-  // discord-notify 바이너리가 존재하면 실제 호출 — 테스트 환경에서도 ~/.local/bin/discord-notify가 있으므로
-  // escalated:true 또는 discord_failed(웹훅 미설정 등)를 반환해야 한다.
-  // 핵심: E_INVALID_INPUT(ALLOWED_COMMANDS 거부)으로 실패하지 않는 것을 확인.
-  const discordBin = path.join(os.homedir(), ".local", "bin", "discord-notify");
-  const binExists = fs.existsSync(discordBin);
+  const fixture = path.join(root, "test", "fixtures", "mock-discord-notify");
+  const log = path.join(home, "discord-argv.jsonl");
+  const previousBin = process.env.NAUTLI_DISCORD_BIN;
+  const previousLog = process.env.NAUTLI_DISCORD_LOG;
+  process.env.NAUTLI_DISCORD_BIN = fixture;
+  process.env.NAUTLI_DISCORD_LOG = log;
+  t.after(() => {
+    if (previousBin === undefined) delete process.env.NAUTLI_DISCORD_BIN;
+    else process.env.NAUTLI_DISCORD_BIN = previousBin;
+    if (previousLog === undefined) delete process.env.NAUTLI_DISCORD_LOG;
+    else process.env.NAUTLI_DISCORD_LOG = previousLog;
+  });
 
   const result = checkAndEscalate(home, { now, threshold: 2 });
-  // defaultRunner가 ALLOWED_COMMANDS로 거부했다면 discord_failed가 되지만
-  // 근본원인이 E_INVALID_INPUT이 아님을 확인 — execFileSync 직접 호출 경로를 탔는지.
-  if (binExists) {
-    // 바이너리 존재 → escalated:true 또는 discord_failed(웹훅 설정 문제)
-    assert.ok(
-      result.escalated === true || result.reason === "discord_failed",
-      `expected escalated or discord_failed, got: ${JSON.stringify(result)}`,
-    );
-  } else {
-    // CI 등에서 바이너리 미존재 → discord_failed (ENOENT)
-    assert.equal(result.reason, "discord_failed");
-  }
+  assert.equal(result.escalated, true);
   assert.equal(result.consecutiveFails, 2);
+  const [channel, message] = JSON.parse(fs.readFileSync(log, "utf8").trim());
+  assert.equal(channel, "general");
+  assert.match(message, /2일 연속 실패/u);
 });
 
 test("runDigestOnce smoke-tests store query after init", async (t) => {

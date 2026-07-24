@@ -178,10 +178,11 @@ function diagnosePage(locale, copy) {
   const d = copy.diagnose;
   const runtimeKeys = [
     "scanningProgress", "errorGeneric", "errorNoMarkdown", "folderFallbackLabel",
-    "resultEyebrow", "resultSignals", "resultMeta", "resultPartial", "resultClean",
-    "scoreLabel", "scoreNote", "evidenceToggle", "evidenceMore", "restToggle",
+    "resultEyebrow", "resultSignals", "resultSignalsSub", "resultMeta", "resultPartial", "resultClean",
+    "scoreLabel", "scoreBasis", "scoreNote", "evidenceToggle", "evidenceMore", "restHeading", "restIntro",
+    "snippetLabel", "sevHigh", "sevMid", "sevLow", "sevInfo",
     "boundaryTitle", "boundaryBody", "ctaTitle", "ctaTitleClean", "ctaBody",
-    "ctaButton", "ctaNote",
+    "ctaButton", "ctaBenefits", "ctaNote",
     "wordFileOne", "wordFileMany", "wordMarkerOne", "wordMarkerMany",
     "wordSignalOne", "wordSignalMany",
     "findAlwaysLoadedTitle", "findAlwaysLoadedMeasure", "findAlwaysLoadedWhy",
@@ -201,9 +202,9 @@ function diagnosePage(locale, copy) {
       <h1>${escapeHtml(d.promptTitle)}</h1>
       <p class="section-intro">${escapeHtml(d.promptIntro)}</p>
       <div class="dg-prompt-box">
-        <pre><code>${escapeHtml(d.prompt)}</code></pre>
-        <button class="primary-button copy-button" type="button" data-copy="${promptValue}" aria-describedby="copy-status-diagnose-prompt">${escapeHtml(d.promptCopy)}</button>
+        <button class="primary-button copy-button dg-copy-main" type="button" data-copy="${promptValue}" aria-describedby="copy-status-diagnose-prompt">${escapeHtml(d.promptCopy)}</button>
         <span class="copy-status" id="copy-status-diagnose-prompt" role="status" aria-live="polite"></span>
+        <p class="dg-copy-next" data-copy-next hidden>${escapeHtml(d.promptCopied)}</p>
       </div>
       <p class="dg-prompt-why"><strong>${escapeHtml(d.promptWhyTitle)}</strong> ${escapeHtml(d.promptWhy)}</p>
     </section>

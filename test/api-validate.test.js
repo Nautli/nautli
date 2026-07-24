@@ -22,6 +22,10 @@ const valid = {
 
 test("ping validation accepts every numeric boundary", () => {
   assert.equal(validatePingPayload(valid).ok, true);
+  // v2 scoring has no floor — low scores are valid data, not schema violations.
+  assert.equal(validatePingPayload({ ...valid, score: 0 }).ok, true);
+  assert.equal(validatePingPayload({ ...valid, score: 5 }).ok, true);
+  assert.equal(validatePingPayload({ ...valid, score: 19 }).ok, true);
   assert.equal(validatePingPayload({
     ...valid,
     score: 100,
@@ -36,7 +40,8 @@ test("ping validation accepts every numeric boundary", () => {
 test("ping validation rejects values outside the schema", () => {
   for (const payload of [
     { ...valid, v: 2 },
-    { ...valid, score: 19 },
+    { ...valid, score: -1 },
+    { ...valid, score: 101 },
     { ...valid, score: 20.5 },
     { ...valid, tools: 21 },
     { ...valid, tokens: 10_000_001 },

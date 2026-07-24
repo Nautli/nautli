@@ -23,7 +23,15 @@ import {
 } from "./capture/metrics.js";
 import { writeSpoolEntry } from "./capture/spool.js";
 import { remember } from "./core/gate.js";
+import {
+  importExportFile,
+  readExportFile,
+  verifyRoundTrip,
+  writeExportFile,
+} from "./core/portability.js";
 import { recall } from "./core/recall.js";
+// TASK-105
+import { auditAsOf, auditDelivery, auditVerdict } from "./core/audit.js";
 import { applyCard, listCards } from "./core/review.js";
 import { ERR } from "./core/schema.js";
 import {
@@ -40,7 +48,12 @@ import {
   TASTE,
   validateVaultPath,
 } from "./onboard/checkup.js";
-import { checkClaudeLogin, doctor } from "./onboard/doctor.js";
+import {
+  checkClaudeLogin,
+  doctor,
+  isBetterSqlite3BindingsError,
+  npm12NativeBuildGuidance,
+} from "./onboard/doctor.js";
 import {
   digestFreshness,
   initStore,
@@ -141,6 +154,28 @@ function parseBudget(value) {
   return budget;
 }
 
+// TASK-105
+function auditCommand(home, args) {
+  const [subcommand, ...subcommandArgs] = args;
+  if (subcommand === "as-of") {
+    const parsed = parseCommand(subcommandArgs, { scope: { type: "string" } });
+    requirePositionals(parsed.positionals, 1);
+    if (parsed.values.scope === undefined) throw codedError(ERR.E_INVALID_INPUT);
+    return auditAsOf(home, parsed.positionals[0], parsed.values.scope);
+  }
+  if (subcommand === "delivery") {
+    const parsed = parseCommand(subcommandArgs, { chain: { type: "boolean", default: false } });
+    requirePositionals(parsed.positionals, 1);
+    return auditDelivery(home, parsed.positionals[0], { chain: parsed.values.chain });
+  }
+  if (subcommand === "verdict") {
+    const parsed = parseCommand(subcommandArgs);
+    requirePositionals(parsed.positionals, 1);
+    return auditVerdict(home, parsed.positionals[0]);
+  }
+  throw codedError(ERR.E_INVALID_INPUT);
+}
+
 function initialize(home, args) {
   const parsed = parseCommand(args);
   requirePositionals(parsed.positionals, 0);
@@ -186,6 +221,12 @@ async function scanCommand(args) {
     score: scan.result.score,
     grade: scan.result.grade,
   })}\n`);
+  if (Number.isInteger(scan.result.potential) && scan.result.potential > scan.result.score) {
+    process.stdout.write(`${scanT("cli.scan.potential", {
+      score: scan.result.score,
+      potential: scan.result.potential,
+    })}\n`);
+  }
   process.stdout.write(`${scanT("cli.scan.tools", { count: scan.result.tools.length })}\n`);
   process.stdout.write(`${scanT("cli.scan.top", {
     finding: scan.result.findings[0]?.title ?? scanT("cli.scan.clean"),
@@ -751,6 +792,72 @@ async function reviewCommand(home, args) {
   return { ok: true, reviewed };
 }
 
+// TASK-098-fix
+function exportCommand(home, args) {
+  const parsed = parseCommand(args, {
+    out: { type: "string" },
+    verify: { type: "boolean", default: false },
+  });
+  requirePositionals(parsed.positionals, 0);
+  const date = new Date().toISOString().slice(0, 10);
+  const output = path.resolve(parsed.values.out ?? `nautli-export-${date}.json`);
+  const written = writeExportFile(home, output);
+  process.stdout.write(
+    `Exported ${written.snapshot.counts.facts} facts and `
+    + `${written.snapshot.counts.events} events to ${written.output}\n`,
+  );
+  process.stdout.write(`Checksum: ${written.snapshot.checksum}\n`);
+
+  if (!parsed.values.verify) return;
+
+  try {
+    try {
+      const { integrity } = readExportFile(written.output);
+      process.stdout.write(
+        `FILE INTEGRITY: PASS — format, ${integrity.facts} fact schemas, `
+        + `${integrity.events} event counts, and facts+events checksum verified\n`,
+      );
+    } catch (error) {
+      process.stdout.write(`FILE INTEGRITY: FAIL — ${error.message}\n`);
+      throw error;
+    }
+
+    try {
+      const proof = verifyRoundTrip(home, written.output);
+      process.stdout.write(
+        `ROUND-TRIP: PASS — ${proof.facts} logical fact rows, supersedes/provenance fields, `
+        + `events, and recall equality across ${proof.recall_queries} representative queries `
+        + "verified\n",
+      );
+    } catch (error) {
+      process.stdout.write(`ROUND-TRIP: FAIL — ${error.message}\n`);
+      throw error;
+    }
+  } catch (error) {
+    // TASK-098-fix
+    process.stdout.write(
+      `VERIFY: FAIL — export file retained but NOT verified: ${written.output}\n`,
+    );
+    throw error;
+  }
+  // TASK-098-fix
+  process.stdout.write("VERIFY: PASS\n");
+}
+
+// TASK-098
+function importCommand(defaultHome, args) {
+  const parsed = parseCommand(args, {
+    home: { type: "string" },
+  });
+  requirePositionals(parsed.positionals, 1);
+  const target = path.resolve(parsed.values.home ?? defaultHome);
+  const result = importExportFile(path.resolve(parsed.positionals[0]), target);
+  process.stdout.write(
+    `Imported ${result.counts.facts} facts and ${result.counts.events} events into ${result.home}\n`,
+  );
+  process.stdout.write(`Checksum: ${result.checksum}\n`);
+}
+
 export async function main(argv = process.argv.slice(2)) {
   try {
     const [command, ...args] = argv;
@@ -893,13 +1000,36 @@ export async function main(argv = process.argv.slice(2)) {
       return;
     }
 
+    // TASK-098
+    if (command === "export") {
+      exportCommand(home, args);
+      process.exitCode = 0;
+      return;
+    }
+
+    // TASK-098
+    if (command === "import") {
+      importCommand(home, args);
+      process.exitCode = 0;
+      return;
+    }
+
+    // TASK-105
+    if (command === "audit") {
+      writeJson(auditCommand(home, args));
+      process.exitCode = 0;
+      return;
+    }
+
     const store = new Store(home);
     try {
       if (command === "remember") {
+        // TASK-024: normalize through remember()'s shared MCP/CLI parser before storage.
         const parsed = parseCommand(args, {
           scope: { type: "string" },
           type: { type: "string" },
           supersedes: { type: "string" },
+          "t-valid": { type: "string" },
         });
         requirePositionals(parsed.positionals, 1);
         const result = remember(store, {
@@ -907,10 +1037,29 @@ export async function main(argv = process.argv.slice(2)) {
           scope: parsed.values.scope,
           type: parsed.values.type,
           supersedes: parsed.values.supersedes,
+          t_valid: parsed.values["t-valid"],
           source: "cli",
         }, readConfig(home));
-        writeJson(result);
+        const stored = result.status === "added" || result.status === "duplicate"
+          ? store.getFact(result.id)
+          : null;
+        writeJson(stored ? { ...result, t_valid: stored.t_valid } : result);
         process.exitCode = result.status === "rejected" ? 2 : 0;
+        return;
+      }
+
+      // TASK-015: `nautli ingest <file>` — 로컬 .md/.txt를 원자 fact로 분해해 적재한다.
+      if (command === "ingest") {
+        const parsed = parseCommand(args);
+        requirePositionals(parsed.positionals, 1);
+        const config = readConfig(home);
+        const ingestOverride = commandArgv(process.env.NAUTLI_INGEST_CMD);
+        if (ingestOverride) config.ingest_cmd = ingestOverride;
+        const judgeOverride = commandArgv(process.env.NAUTLI_JUDGE_CMD);
+        if (judgeOverride) config.judge_cmd = judgeOverride;
+        const { ingest } = await import("./core/ingest.js");
+        writeJson(await ingest(store, parsed.positionals[0], config));
+        process.exitCode = 0;
         return;
       }
 
@@ -974,6 +1123,79 @@ export async function main(argv = process.argv.slice(2)) {
         return;
       }
 
+      // TASK-067: `nautli procedure-route <current_intent> --scope <s> [--tool-event <e>]`
+      // — 발동해야 할 active procedure fact를 우선순위로 반환한다(레포 밖 훅이 소비).
+      if (command === "procedure-route") {
+        const parsed = parseCommand(args, {
+          scope: { type: "string" },
+          "tool-event": { type: "string" },
+        });
+        requirePositionals(parsed.positionals, 1);
+        const { matchProcedures } = await import("./core/procedure.js");
+        const procedures = matchProcedures(store.listProcedureTriggers(), {
+          current_intent: parsed.positionals[0],
+          scope: parsed.values.scope,
+          tool_event: parsed.values["tool-event"],
+        });
+        writeJson({ procedures });
+        process.exitCode = 0;
+        return;
+      }
+
+      // TASK-067: `nautli procedure-set <fact_id> --intent a,b --includes ... --priority N`
+      // — procedure fact에 발동 트리거를 확정 저장한다(데몬은 초안만, 확정은 이 명시적 경로로).
+      if (command === "procedure-set") {
+        const parsed = parseCommand(args, {
+          intent: { type: "string" },
+          includes: { type: "string" },
+          excludes: { type: "string" },
+          "tool-events": { type: "string" },
+          priority: { type: "string" },
+          scope: { type: "string" },
+        });
+        requirePositionals(parsed.positionals, 1);
+        const list = (value) => (typeof value === "string" && value.trim() !== ""
+          ? value.split(",").map((item) => item.trim()).filter(Boolean)
+          : []);
+        const trigger = {
+          intent: list(parsed.values.intent),
+          includes: list(parsed.values.includes),
+          excludes: list(parsed.values.excludes),
+          tool_events: list(parsed.values["tool-events"]),
+          ...(parsed.values.scope ? { scope: parsed.values.scope } : {}),
+          ...(parsed.values.priority !== undefined ? { priority: Number(parsed.values.priority) } : {}),
+        };
+        store.setProcedureTrigger(parsed.positionals[0], trigger);
+        writeJson({ ok: true, fact_id: parsed.positionals[0], trigger });
+        process.exitCode = 0;
+        return;
+      }
+
+      // TASK-023: `nautli scope alias <alias> --to <canonical>` — 별칭을 canonical scope에 묶는다.
+      // 저장된 fact의 scope는 재기록되지 않으며 recall만 canonical+alias로 확장된다.
+      if (command === "scope") {
+        const [subcommand, ...rest] = args;
+        if (subcommand === "alias") {
+          const parsed = parseCommand(rest, { to: { type: "string" } });
+          requirePositionals(parsed.positionals, 1);
+          const canonical = parsed.values.to;
+          if (typeof canonical !== "string" || canonical.trim() === "") {
+            throw codedError(ERR.E_INVALID_INPUT);
+          }
+          store.setScopeAlias(parsed.positionals[0], canonical);
+          writeJson({ ok: true, alias: parsed.positionals[0], canonical });
+          process.exitCode = 0;
+          return;
+        }
+        if (subcommand === "aliases") {
+          requirePositionals(parseCommand(rest).positionals, 0);
+          writeJson({ aliases: store.listScopeAliases() });
+          process.exitCode = 0;
+          return;
+        }
+        throw codedError(ERR.E_INVALID_INPUT);
+      }
+
       throw codedError(
         ERR.E_INVALID_INPUT,
         t("cli.unknown_command", { command: command ?? "" }),
@@ -982,6 +1204,11 @@ export async function main(argv = process.argv.slice(2)) {
       store.close();
     }
   } catch (error) {
+    // TASK-114: npm 12 install-script 차단으로 생긴 better-sqlite3 바인딩 오류를
+    // 범용 E_INVALID_INPUT 대신 복구 가능한 전용 오류로 정규화한다.
+    if (isBetterSqlite3BindingsError(error)) {
+      error = codedError(ERR.E_NATIVE_BINDINGS_MISSING, npm12NativeBuildGuidance({ short: true }));
+    }
     writeJson(errorPayload(error));
     process.exitCode = 1;
   }

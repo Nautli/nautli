@@ -8,16 +8,53 @@ import {
 import { isInjectionLike } from "./policy.js";
 import { touchSpool } from "./spool.js";
 
-const FACT_TYPES = new Set(["episodic", "semantic", "procedural"]);
+// TASK-FIX-B12 (M-2): exported so import deep-validation checks the same fact-type enum the gate accepts.
+export const FACT_TYPES = new Set(["episodic", "semantic", "procedural"]);
+
+// TASK-024: Both CLI and MCP reach remember() through this parser, so accepted
+// validity instants have one validation and storage path.
+export function normalizeValidTime(value) {
+  if (typeof value !== "string" || value.length === 0) return null;
+  const isCalendarDate = (year, month, day) => {
+    const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+    return parsed.getUTCFullYear() === Number(year)
+      && parsed.getUTCMonth() + 1 === Number(month)
+      && parsed.getUTCDate() === Number(day);
+  };
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+    return isCalendarDate(year, month, day) ? value : null;
+  }
+
+  const dateTime = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/u.exec(value);
+  if (!dateTime) {
+    return null;
+  }
+  const [, year, month, day, hour, minute, second = "0", zone] = dateTime;
+  const zoneMinutes = zone === "Z" ? 0 : Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4, 6));
+  if (!isCalendarDate(year, month, day)
+    || Number(hour) > 23 || Number(minute) > 59 || Number(second) > 59
+    || zoneMinutes > 23 * 60 + 59) return null;
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+}
 
 function rejected(reason) {
   return { status: "rejected", reason };
 }
 
+// TASK-003: degraded (not rejected) — the fact is durably logged but the index write failed.
+// status stays "added" so CLI/MCP/dashboard treat it as a creation; degraded/warning/ev_id
+// let consumers surface the failure (dashboard maps this to 202).
+function degradedAdded(id, ev_id) {
+  return { id, status: "added", degraded: true, warning: ERR.W_INDEX_DEGRADED, ev_id };
+}
+
 function validOptionalInputs(input) {
   if (input.type !== undefined && !FACT_TYPES.has(input.type)) return false;
   if (input.subject !== undefined && typeof input.subject !== "string") return false;
-  if (input.t_valid !== undefined && (typeof input.t_valid !== "string" || input.t_valid.length === 0)) return false;
+  if (input.t_valid !== undefined && normalizeValidTime(input.t_valid) === null) return false;
   if (input.confidence !== undefined
     && (typeof input.confidence !== "number"
       || !Number.isFinite(input.confidence)
@@ -49,7 +86,9 @@ function makeFact(input, scope, claim) {
       ...(input.source === undefined ? {} : { source: input.source }),
       ...(injectionFlagged ? { injection_flagged: "true" } : {}),
     },
-    t_valid: input.t_valid ?? new Date().toLocaleDateString("sv-SE"),
+    t_valid: input.t_valid === undefined
+      ? new Date().toLocaleDateString("sv-SE")
+      : normalizeValidTime(input.t_valid),
     t_invalid: null,
     t_expired: null,
     superseded_by: null,
@@ -80,13 +119,18 @@ export function remember(store, input, config) {
     // active가 아닌 대상(stale id, 이미 대체/무효화됨)은 throw 대신 거부 반환 — remember()는 예외를 안 던진다
     if (!oldFact || oldFact.status !== STATUS.ACTIVE) return rejected(ERR.E_NOT_FOUND);
     const fact = makeFact(input, scope, claim);
-    store.addFact(fact);
-    store.transition(oldFact.id, STATUS.SUPERSEDED, {
+    // TASK-003: either the add or the supersede transition may hit an index-apply failure;
+    // surface the degraded warning (event is durably logged) instead of a false success.
+    const added = store.addFact(fact);
+    // TASK-104: 유저의 remember 경유 supersede — 정해진 reason, policy는 "n/a"(직접 경로).
+    const transitioned = store.transition(oldFact.id, STATUS.SUPERSEDED, {
       superseded_by: fact.id,
       t_invalid: fact.t_valid,
-    }, "client");
+    }, "client", { reason: "user supersedes via remember", policy_version: "n/a" });
     touchSpool(store.home);
-    return { id: fact.id, status: "added" };
+    return added?.index_degraded || transitioned?.index_degraded
+      ? degradedAdded(fact.id, added?.index_degraded ? added.ev_id : transitioned.ev_id)
+      : { id: fact.id, status: "added" };
   }
 
   const hash = claimHash(claim);
@@ -103,7 +147,11 @@ export function remember(store, input, config) {
   }
 
   const fact = makeFact(input, scope, claim);
-  store.addFact(fact);
+  // TASK-003: index write may have failed after the event was durably logged — return a
+  // degraded shape rather than a false 201/success, without provoking a duplicate-creating retry.
+  const added = store.addFact(fact);
   touchSpool(store.home);
-  return { id: fact.id, status: "added" };
+  return added?.index_degraded
+    ? degradedAdded(fact.id, added.ev_id)
+    : { id: fact.id, status: "added" };
 }

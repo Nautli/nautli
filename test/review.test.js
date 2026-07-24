@@ -81,7 +81,8 @@ test("b_wins invalidates the first fact in pair_id", (t) => {
   assert.equal(store.getFact(oldFact.id).t_invalid, store.getFact(newFact.id).t_valid);
 });
 
-test("unknown dismisses the card without transitioning either fact", (t) => {
+// TASK-037: "몰라요"(unknown)는 영구 dismiss가 아니라 14일 스누즈다.
+test("unknown snoozes the card 14 days without transitioning either fact", (t) => {
   const { home, store, oldFact, newFact, pairId } = fixture(t, "contradiction");
   let transitions = 0;
   const transition = store.transition.bind(store);
@@ -90,17 +91,22 @@ test("unknown dismisses the card without transitioning either fact", (t) => {
     return transition(...args);
   };
 
-  const result = applyCard(store, home, pairId, "unknown");
+  const now = new Date();
+  const result = applyCard(store, home, pairId, "unknown", undefined, { now });
 
   assert.deepEqual(result, {
     ok: true,
-    status: "dismissed",
+    status: "deferred",
     action: "unknown",
     remembered: undefined,
   });
   assert.equal(transitions, 0);
   assert.equal(store.getFact(oldFact.id).status, STATUS.ACTIVE);
   assert.equal(store.getFact(newFact.id).status, STATUS.ACTIVE);
+  // 즉시 숨김(14일 스누즈), 15일 뒤 재부상 (clock 주입)
+  assert.equal(listSurfacedCards(home, { now }).cards.length, 0);
+  const later = new Date(now.getTime() + 15 * 86_400_000);
+  assert.ok(listSurfacedCards(home, { now: later }).cards.some((card) => card.pair_id === pairId));
 });
 
 test("report_issue dismisses without touching facts and logs the report", (t) => {

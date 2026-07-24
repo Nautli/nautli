@@ -26,16 +26,22 @@ test("analyze applies cross-tool, always-loaded, score, and grade formulas", () 
     },
   ], { os: "mac", lang: "ko" });
 
-  assert.equal(result.v, 1);
+  assert.equal(result.v, 2);
   assert.equal(result.os, "mac");
   assert.equal(result.totals.files, 2);
   assert.equal(result.totals.tokens, 4_000);
   assert.equal(result.totals.alTokens, 4_000);
   assert.equal(result.findings.filter((finding) => finding.group === "alwaysLoaded").length, 2);
+  // v2: findings sorted by delta descending; crossTool has highest delta
   assert.equal(result.findings[0].group, "crossTool");
-  assert.equal(result.findings[0].weight, 3);
-  assert.equal(result.score, 72);
-  assert.equal(result.grade, "B");
+  assert.ok(result.findings[0].delta > 0, "crossTool finding has positive delta");
+  assert.equal(result.findings[0].severity, "HIGH");
+  // v2 subscores
+  assert.ok(result.subscores.fixed >= 0 && result.subscores.fixed <= 100);
+  assert.ok(result.subscores.waste >= 0 && result.subscores.waste <= 100);
+  assert.ok(result.subscores.hygiene >= 0 && result.subscores.hygiene <= 100);
+  assert.equal(result.score, 46);
+  assert.equal(result.grade, "F");
 });
 
 test("grade matches the schema boundaries", () => {

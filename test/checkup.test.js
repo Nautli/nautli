@@ -9,6 +9,7 @@ import { listCards } from "../src/core/review.js";
 import { Store } from "../src/core/store.js";
 import { initStore } from "../src/onboard/setup.js";
 import {
+  TASTE,
   checkupCandidates,
   checkupPreflight,
   readCurrent,
@@ -220,6 +221,29 @@ test("checkup preflight checks python3 and Claude CLI login", (t) => {
   assert.equal(ready.files, 1);
 });
 
+test("checkup preflight estimate is calibrated to observed throughput", (t) => {
+  const userHome = tempHome(t, "nautli-estimate-");
+  const home = path.join(userHome, ".nautli");
+  const vault = path.join(userHome, "vault");
+  fs.mkdirSync(vault, { recursive: true });
+  const ready = () => ({ status: 0 });
+
+  // 작은 볼트: 최소 2분 바닥
+  fs.writeFileSync(path.join(vault, "one.md"), "# 한 개");
+  const tiny = checkupPreflight(home, vault, { userHome, runner: ready });
+  assert.equal(tiny.files, 1);
+  assert.equal(tiny.estimated_minutes, 2);
+
+  // 40파일 이상: 맛보기 캡(40) 표본 → ceil(40/7)=6분 (옛 상수였다면 11분)
+  for (let i = 0; i < 60; i += 1) {
+    fs.writeFileSync(path.join(vault, `note-${i}.md`), `# 노트 ${i}`);
+  }
+  const full = checkupPreflight(home, vault, { userHome, runner: ready });
+  assert.equal(full.sampled_files, TASTE.maxFiles);
+  assert.equal(full.estimated_minutes, 6);
+  assert.ok(full.estimated_minutes < 11, "옛 과대 견적(11분)으로 회귀하면 안 된다");
+});
+
 test("checkup sample seed is reproducible and excluded_dirs become vendor excludes", (t) => {
   const userHome = tempHome(t, "nautli-sample-");
   const vault = path.join(userHome, "vault");
@@ -354,6 +378,7 @@ test("checkupStatus surfaces summary and cards, importCheckup loads atoms throug
   try {
     const facts = store.query();
     assert.equal(facts.filter((fact) => fact.provenance?.source === "checkup").length, 2);
+    assert.equal(facts.find((fact) => fact.claim.includes("포트는 3100"))?.provenance?.path, "a.md");
     assert.ok(facts.some((fact) => fact.scope === "procedure")); // procedural type → procedure scope
   } finally {
     store.close();

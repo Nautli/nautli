@@ -7,15 +7,23 @@ export const ERR = Object.freeze({
   E_UNKNOWN_SCOPE: "E_UNKNOWN_SCOPE",
   E_NOT_FOUND: "E_NOT_FOUND",
   E_STORE_BUSY: "E_STORE_BUSY",
+  // TASK-114: better-sqlite3의 네이티브 바인딩이 없을 때(주로 npm 12 script 차단) 전용 오류.
+  E_NATIVE_BINDINGS_MISSING: "E_NATIVE_BINDINGS_MISSING",
+  // TASK-107: export snapshot estimate exceeds the bounded in-memory export limit.
+  E_EXPORT_TOO_LARGE: "E_EXPORT_TOO_LARGE",
   E_BUDGET_TOO_SMALL: "E_BUDGET_TOO_SMALL",
   E_CLAUDE_CLI_MISSING: "E_CLAUDE_CLI_MISSING",
   E_CODEX_CLI_MISSING: "E_CODEX_CLI_MISSING",
   E_SCAN_TIMEOUT: "E_SCAN_TIMEOUT",
   E_EXTRACT_FAILED: "E_EXTRACT_FAILED",
+  // TASK-015: ingest v0는 로컬 .md/.txt만 지원 — URL·PDF·기타 확장자는 명시적 거부.
+  E_INGEST_UNSUPPORTED: "E_INGEST_UNSUPPORTED",
   E_MCP_REGISTER_FAILED: "E_MCP_REGISTER_FAILED",
   E_LAUNCHCTL_FAILED: "E_LAUNCHCTL_FAILED",
   W_DUPLICATE: "W_DUPLICATE",
   W_EMPTY: "W_EMPTY",
+  // TASK-003: index/FTS apply failed after the event was durably logged — degraded, not lost.
+  W_INDEX_DEGRADED: "W_INDEX_DEGRADED",
 });
 
 export const STATUS = Object.freeze({
@@ -48,9 +56,27 @@ function encodeRandom(bytes) {
   return output;
 }
 
-export function newId(now = Date.now()) {
+// TASK-104: 감사 원장 판정 이벤트의 actor는 이 enum만 쓴다(새 값 발명 금지).
+export const TRANSITION_ACTORS = Object.freeze(["daemon", "client", "undo"]);
+
+// TASK-104: fact_id·ev_id는 동일한 (10자리 ts base32 + 13자리 rand) 몸통을 공유한다.
+function idBody(now) {
   const timestamp = Math.max(0, Math.trunc(Number(now))).toString(32).padStart(10, "0").slice(-10);
-  return `fa_${timestamp}${encodeRandom(randomBytes(8)).slice(0, 13)}`;
+  return `${timestamp}${encodeRandom(randomBytes(8)).slice(0, 13)}`;
+}
+
+export function newId(now = Date.now()) {
+  return `fa_${idBody(now)}`;
+}
+
+// TASK-104: 이벤트 유일 ID — 리플레이 멱등·감사 중복판정 기준(§3).
+export function newEventId(now = Date.now()) {
+  return `ev_${idBody(now)}`;
+}
+
+// TASK-104: 감사 검증 — 판정 이벤트 actor가 허용 enum에 드는지 확인한다.
+export function isTransitionActor(actor) {
+  return TRANSITION_ACTORS.includes(actor);
 }
 
 export function validScope(scope) {
@@ -74,6 +100,10 @@ export function claimHash(claim) {
 }
 
 export function assertTransition(from, to, actor) {
+  // TASK-104: actor는 TRANSITION_ACTORS enum 값만 허용한다.
+  if (!TRANSITION_ACTORS.includes(actor)) {
+    throw new Error(`Invalid transition: unknown actor ${actor}`);
+  }
   const allowed = actor === "daemon"
     ? (from === STATUS.ACTIVE && [STATUS.SUPERSEDED, STATUS.INVALIDATED, STATUS.ARCHIVED].includes(to))
       || (from === STATUS.ARCHIVED && to === STATUS.ACTIVE)

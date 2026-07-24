@@ -227,7 +227,24 @@ function cardsFor(home) {
 
   const store = new Store(home);
   try {
-    return { cards: cards.map((card) => cardFacts(store, card)), backlog };
+    const enriched = cards.map((card) => cardFacts(store, card));
+    // TASK-104: 카드에 실제 렌더된 fact(쌍 카드의 a/b)들을 dashboard.cards 전달로 로깅한다.
+    const renderedIds = [];
+    for (const card of enriched) {
+      for (const fact of [card.facts?.a, card.facts?.b]) {
+        if (fact?.id && !renderedIds.includes(fact.id)) renderedIds.push(fact.id);
+      }
+    }
+    if (renderedIds.length > 0) {
+      store.appendRecall({
+        tool: "dashboard.cards",
+        query: "",
+        scope: null,
+        hits: renderedIds,
+        source: "dashboard",
+      });
+    }
+    return { cards: enriched, backlog };
   } finally {
     store.close();
   }
@@ -249,10 +266,12 @@ function memoryFor(home, searchParams) {
     const includeDead = ["1", "true"].includes(
       (searchParams.get("includeDead") ?? "").toLocaleLowerCase(),
     );
+    // TASK-104: 내부 recall 로깅을 끄고, 최종 렌더 집합으로 dashboard.memory를 직접 로깅한다.
     const result = recall(store, searchParams.get("q") ?? "", {
       scope,
       include_archived: includeDead,
       source: "dashboard",
+      log: false,
     });
     const byId = new Map(result.facts.map((fact) => [fact.id, fact]));
 
@@ -281,16 +300,27 @@ function memoryFor(home, searchParams) {
       supersedes.set(fact.superseded_by, current);
     }
 
-    return {
-      ...result,
-      facts: [...byId.keys()]
-        .map((id) => store.getFact(id))
-        .filter(Boolean)
-        .map((fact) => ({
-          ...fact,
-          supersedes: supersedes.get(fact.id) ?? [],
-        })),
-    };
+    const facts = [...byId.keys()]
+      .map((id) => store.getFact(id))
+      .filter(Boolean)
+      .map((fact) => ({
+        ...fact,
+        supersedes: supersedes.get(fact.id) ?? [],
+      }));
+
+    // TASK-104: 기억 탭에 실제 렌더된 fact들을 dashboard.memory 전달로 로깅한다(세션 미상="unknown").
+    if (facts.length > 0) {
+      store.appendRecall({
+        tool: "dashboard.memory",
+        query: searchParams.get("q") ?? "",
+        scope: scope ?? null,
+        hits: facts.map((fact) => fact.id),
+        source: "dashboard",
+        returned_chars: result.briefing.length,
+      });
+    }
+
+    return { ...result, facts };
   } finally {
     store.close();
   }
@@ -332,15 +362,28 @@ function continuityRecallFor(home, factId) {
       throw error;
     }
 
+    // TASK-BATCH-FIX (F-6): run the lookup with internal recall logging OFF, then log a delivery
+    // for only the fact ids actually present in the response payload. The prior code let recall()
+    // log its full candidate hit set, so audit delivery counted facts that were never delivered.
     const result = recall(store, fact.claim, {
       scope: fact.scope,
       source: "dashboard",
+      log: false,
     });
     if (!result.facts.some((candidate) => candidate.id === fact.id)) {
       const error = new Error(ERR.E_NOT_FOUND);
       error.code = ERR.E_NOT_FOUND;
       throw error;
     }
+
+    store.appendRecall({
+      tool: "dashboard.continuity",
+      query: fact.claim,
+      scope: fact.scope,
+      hits: [fact.id],
+      source: "dashboard",
+      returned_chars: fact.claim.length,
+    });
 
     return {
       fact: {
@@ -641,6 +684,18 @@ function graphFor(home, t) {
       const order = { contradiction: 0, duplicate: 1, related: 2 };
       return (order[a.kind] ?? 3) - (order[b.kind] ?? 3);
     });
+
+    // TASK-104: 그래프에 실제 렌더된 fact 노드들을 dashboard.graph 전달로 로깅한다(세션 미상="unknown").
+    const factNodeIds = nodes.filter((node) => node.kind === "fact").map((node) => node.id);
+    if (factNodeIds.length > 0) {
+      store.appendRecall({
+        tool: "dashboard.graph",
+        query: "",
+        scope: null,
+        hits: factNodeIds,
+        source: "dashboard",
+      });
+    }
 
     return {
       nodes,
@@ -1175,6 +1230,9 @@ export function createDashboardServer(home, options = {}) {
             const error = new Error(result.reason);
             error.code = result.reason;
             fail(response, 400, error, t);
+          } else if (result.degraded) {
+            // TASK-003: durable event logged but index write failed — degraded creation, not a false 201.
+            json(response, 202, result);
           } else {
             json(response, 201, result);
           }

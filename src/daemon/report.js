@@ -1,33 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
-import { buildHandoffCard, renderHandoffCard } from "../core/handoff-card.js";
+import { buildHandoffCard, renderHandoffCard, handoffCardFactIds } from "../core/handoff-card.js";
 import { resolveLocale, makeT } from "../i18n/strings.js";
-
-function pendingReviews(home) {
-  const file = path.join(home, "review", "queue.jsonl");
-  if (!fs.existsSync(file)) return [];
-  const pending = [];
-  for (const line of fs.readFileSync(file, "utf8").split("\n")) {
-    if (line.trim() === "") continue;
-    try {
-      const entry = JSON.parse(line);
-      if (entry.status === "pending") pending.push(entry);
-    } catch {
-      // Ignore an incomplete trailing line.
-    }
-  }
-  return pending;
-}
 
 function oneLine(value) {
   return String(value ?? "").replace(/\s+/gu, " ").trim();
 }
 
 export function writeReport(store, home, results) {
+  // TASK-061: reports are summaries and handoff only; review queue cards are no longer rendered here.
   const t = makeT(resolveLocale());
-  const pending = pendingReviews(home).filter((review) => review.type !== "capture");
-  const cards = pending.slice(0, 3);
-  const deferred = Math.max(0, pending.length - cards.length);
   const machineOracle = results.machine_oracle ?? 0;
   const triageRouted = results.triage_routed ?? 0;
   const captureRemembered = results.capture_remembered ?? 0;
@@ -39,8 +21,15 @@ export function writeReport(store, home, results) {
   const oraclePromoted = Number(oracle?.promoted ?? 0);
   const hasOracleStats = oracle && ["resolved", "remembered", "discarded"]
     .some((field) => Object.hasOwn(oracle, field));
+  const hasAppliedBreakdown = Object.hasOwn(results, "applied_duplicates")
+    || Object.hasOwn(results, "applied_contradictions");
   const summaryParts = [
-    t("report.summary_applied", { count: results.applied ?? 0 }),
+    ...(hasAppliedBreakdown
+      ? [
+        t("report.summary_applied_duplicates", { count: results.applied_duplicates ?? 0 }),
+        t("report.summary_applied_contradictions", { count: results.applied_contradictions ?? 0 }),
+      ]
+      : [t("report.summary_applied", { count: results.applied ?? 0 })]),
     t("report.summary_queued", { count: results.queued ?? 0 }),
     t("report.summary_skipped", { count: results.skipped ?? 0 }),
   ];
@@ -67,13 +56,30 @@ export function writeReport(store, home, results) {
   if (captureHeld > 0) {
     lines.push(t("report.capture_held_note"));
   }
+  if (results.partial === true) {
+    lines.push(t("report.partial"));
+  }
   lines.push("");
 
   // Handoff card v2 (replaces v1 receipt in report body)
   const handoffCard = buildHandoffCard(home, store, { days: 1 });
   if (handoffCard && handoffCard.has_content) {
     const cardText = renderHandoffCard(handoffCard, t);
-    if (cardText) lines.push(cardText, "");
+    if (cardText) {
+      lines.push(cardText, "");
+      // TASK-104: 렌더된 카드 텍스트가 확정된 뒤에만 전달을 로깅한다(자기계수 방지).
+      // hit = 카드에 실제 렌더된 fact id들. 세션 미상이라 session_id는 "unknown".
+      const deliveredIds = handoffCardFactIds(handoffCard);
+      if (deliveredIds.length > 0) {
+        store.appendRecall({
+          tool: "handoff-card",
+          query: "",
+          scope: null,
+          hits: deliveredIds,
+          source: "daemon-report",
+        });
+      }
+    }
   } else {
     lines.push(t("report.handoff_empty"), "");
   }
@@ -89,41 +95,10 @@ export function writeReport(store, home, results) {
     lines.push("");
   }
 
-  cards.forEach((review, index) => {
-    const duplicate = review.verdict === "duplicate";
-    const headline = oneLine(review.crux_plain) || oneLine(review.crux) || (duplicate
-      ? t("report.card_headline_duplicate")
-      : t("report.card_headline_contradiction"));
-    const question = duplicate
-      ? t("report.card_question_duplicate")
-      : t("report.card_question_contradiction");
-    const recommendation = review.newer === "a" || review.newer === "b"
-      ? t("report.card_recommendation", { side: review.newer.toUpperCase(), pct: Math.round(Number(review.confidence) * 100) })
-      : null;
-    const reason = oneLine(review.reason);
-    const reasonSuffix = reason ? t("report.card_reason_prefix", { reason }) : "";
-    lines.push(
-      t("report.card_heading", { index: index + 1 }),
-      `**${headline}**`,
-      t("report.card_question_label", { text: question }),
-    );
-    if (recommendation) lines.push(recommendation);
-    lines.push(
-      t("report.card_dashboard"),
-      "",
-      t("report.card_reference"),
-      `- A: ${oneLine(review.claims?.a)}`,
-      `- B: ${oneLine(review.claims?.b)}`,
-      t("report.card_verdict", { verdict: review.verdict, confidence: review.confidence, pair_id: review.pair_id, reason: reasonSuffix }),
-      "",
-    );
-  });
-  if (deferred > 0) lines.push(t("report.deferred", { count: deferred }), "");
-
   // 로컬 날짜 필수 — UTC면 KST 새벽 실행(04:14)이 전날 리포트를 덮어쓴다 (실사고 2026-07-17)
   const date = new Date().toLocaleDateString("sv-SE");
   const file = path.join(home, "reports", `${date}.md`);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${lines.join("\n").trimEnd()}\n`, "utf8");
-  return { file, pending: pending.length, cards: cards.length, deferred };
+  return { file };
 }

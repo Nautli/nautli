@@ -60,8 +60,7 @@ function pageShell({ title, description, content, accent = "#00E6A1", canonical 
     .center{display:flex;align-items:center;gap:clamp(14px,3vw,36px)}
     .score{font-size:clamp(58px,15vw,190px);font-weight:700;line-height:.78;letter-spacing:-.075em}
     .grade{display:grid;width:clamp(52px,10vw,116px);aspect-ratio:1;place-items:center;border:2px solid var(--accent);border-radius:50%;color:var(--accent);font-size:clamp(27px,6vw,68px);font-weight:700}
-    .nick,.percentile{margin-top:clamp(9px,1.6vw,20px);color:var(--dim);font-size:clamp(12px,2vw,22px)}
-    .percentile{display:inline-block;border:1px solid var(--accent);border-radius:999px;padding:4px 10px;color:var(--accent)}
+    .nick{margin-top:clamp(9px,1.6vw,20px);color:var(--dim);font-size:clamp(12px,2vw,22px)}
     .bottom{display:flex;align-items:end;justify-content:space-between;gap:20px}
     .stats{margin:0;color:var(--dim);font-size:clamp(11px,2vw,24px);font-weight:500;white-space:nowrap}
     .site{color:var(--faint);font-size:clamp(11px,1.8vw,21px);white-space:nowrap}
@@ -76,19 +75,14 @@ function pageShell({ title, description, content, accent = "#00E6A1", canonical 
 
 function cardPage(card) {
   const grade = Object.hasOwn(ACCENTS, card.grade) ? card.grade : "F";
-  const score = Number.isInteger(card.score) ? card.score : 20;
+  const score = Number.isInteger(card.score) ? card.score : 0;
   const tools = Number.isInteger(card.tools) ? card.tools : 0;
   const tokens = Number.isInteger(card.tokens) ? card.tokens : 0;
   const findings = Number.isInteger(card.findings) ? card.findings : 0;
-  const topPercent = Number.isInteger(card.percentile)
-    ? Math.max(1, 100 - Math.min(99, Math.max(0, card.percentile)))
-    : null;
+  // Percentile badge removed (design §D-2); stored card.percentile is ignored.
   const nick = typeof card.nick === "string" && card.nick
     ? `<div class="nick">${escapeHtml(card.nick)}</div>`
     : "";
-  const percentile = topPercent === null
-    ? ""
-    : `<div class="percentile">Top ${topPercent}%</div>`;
   const title = `nautli memory score ${score} · ${grade}`;
   return pageShell({
     title,
@@ -97,7 +91,7 @@ function cardPage(card) {
     canonical: `https://nautli.ai/r/${escapeHtml(card.id)}`,
     content: `<article class="score-card" aria-label="nautli memory score ${score}, grade ${grade}">
       <div class="brand">nautli<span>.</span></div>
-      <div><div class="center"><div class="score">${score}</div><div class="grade">${grade}</div></div>${nick}${percentile}</div>
+      <div><div class="center"><div class="score">${score}</div><div class="grade">${grade}</div></div>${nick}</div>
       <div class="bottom"><p class="stats">${tools} AIs · ${tokens.toLocaleString("en-US")}tok memory · ${findings} signals</p><span class="site">nautli.ai</span></div>
     </article>
     <div class="cta"><a href="/diagnose">Check my score →</a></div>`,

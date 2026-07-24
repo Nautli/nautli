@@ -14,7 +14,7 @@ export function buildPingPayload(result) {
   const tokens = integer(result?.totals?.tokens, { max: 10_000_000 });
   return {
     v: 1,
-    score: integer(result?.score, { min: 20, max: 100, fallback: 20 }),
+    score: integer(result?.score, { min: 0, max: 100, fallback: 0 }),
     tools: integer(result?.tools?.length, { max: 20 }),
     tokens,
     alTokens: integer(result?.totals?.alTokens, { max: tokens }),
@@ -49,13 +49,7 @@ export async function ping(result, {
     if (!response.ok) return null;
     const data = await response.json();
     if (data?.ok !== true || !Number.isInteger(data.count)) return null;
-    return {
-      ok: true,
-      count: data.count,
-      ...(Number.isInteger(data.percentile)
-        ? { percentile: Math.min(99, Math.max(0, data.percentile)) }
-        : {}),
-    };
+    return { ok: true, count: data.count };
   } catch {
     return null;
   } finally {

@@ -40,9 +40,30 @@ purge      기억을 완전히 삭제해요.
 mcp        MCP 서버를 실행해요.
 
 처음이면: npx nautli dashboard`,
+    ja: `nautli - すべてのAIで共有する一つの頭脳
+
+dashboard  ダッシュボードを開き、設定と記憶を管理します
+scan       ローカルAIの記憶ファイルを診断します。オプション: --json --no-open --no-ping --lang en|ko|ja
+init       記憶ストアを初期化します
+setup      AI接続と巡回を設定します
+remember   新しい記憶を保存します
+recall     保存した記憶を検索します
+checkup    ノートフォルダの重複と矛盾を診断します。例: nautli checkup ~/Documents/vault
+daemon-run 巡回を一度実行します
+rebuild    記憶ストアのインデックスを再構築します
+stats      記憶ストアの統計を表示します
+doctor     インストールとストアの状態を確認します
+review     あなたの判断が必要な質問に答えます
+capture    プロジェクトの自動キャプチャ同意と指標を管理します
+           指標表示: nautli capture metrics [--json]
+purge      記憶を完全に削除します
+mcp        MCPサーバーを実行します
+
+初めてなら: npx nautli dashboard`,
   },
   "cli.error.invalid_input": { en: "Check your input", ko: "입력 내용을 확인해 주세요.", ja: "入力内容を確認してください。" },
   "cli.scan.score": { en: "Score {score}/100 · grade {grade}", ko: "점수 {score}/100 · 등급 {grade}", ja: "スコア {score}/100 · グレード {grade}" },
+  "cli.scan.potential": { en: "Now {score} → {potential} after cleanup", ko: "지금 {score} → 정리하면 {potential}", ja: "現在{score} → 整理後{potential}" },
   "cli.scan.tools": { en: "Detected tools: {count}", ko: "감지한 도구: {count}개", ja: "検出したツール: {count}個" },
   "cli.scan.top": { en: "Top signal: {finding}", ko: "상위 신호: {finding}", ja: "上位シグナル: {finding}" },
   "cli.scan.clean": { en: "No weighted signals found", ko: "점수에 반영할 신호 없음", ja: "スコアに反映するシグナルなし" },
@@ -50,46 +71,47 @@ mcp        MCP 서버를 실행해요.
   "cli.scan.privacy_sent": { en: "Sent = 7 anonymous aggregate fields. Disable with --no-ping", ko: "전송됨=익명 집계 필드 7개. --no-ping으로 끌 수 있음", ja: "送信=匿名の集計フィールド7つのみ。--no-pingで無効化できます" },
   "cli.scan.privacy_failed": { en: "Sending failed. No scan aggregate was sent", ko: "전송 실패. 진단 집계를 보내지 못함", ja: "送信失敗。診断の集計は送信されませんでした" },
   "cli.scan.privacy_disabled": { en: "Ping disabled. No scan aggregate was sent", ko: "핑 비활성화. 진단 집계를 보내지 않음", ja: "Ping無効。診断の集計は送信されませんでした" },
-  "cli.checkup.other_running": { en: "A checkup is already running for another folder: {vault}. Try again when it finishes", ko: "다른 폴더 진단이 돌고 있어요: {vault}. 끝난 뒤 다시 시도해 주세요." },
-  "cli.checkup.already_running": { en: "A checkup is already running for this folder. Watching it now", ko: "이미 이 폴더 진단이 돌고 있어요. 이어서 지켜볼게요." },
-  "cli.checkup.claude_missing": { en: "Claude CLI is required. Install it with npm install -g @anthropic-ai/claude-code, then try again", ko: "claude CLI가 필요해요. npm install -g @anthropic-ai/claude-code 후 다시 실행해 주세요." },
-  "cli.checkup.claude_login": { en: "Claude CLI login is required. Run claude /login, then try again", ko: "claude CLI 로그인이 필요해요. claude /login 후 다시 실행해 주세요." },
-  "cli.checkup.started": { en: "Checkup started: {vault} (up to {maxFiles} sampled)", ko: "진단 시작: {vault} (표본 최대 {maxFiles}개)" },
-  "cli.checkup.complete": { en: "Done. View the result in the nautli dashboard setup tab or at report_file", ko: "완료. nautli dashboard 설정 탭이나 report_file에서 결과를 볼 수 있어요." },
-  "cli.checkup.judge_progress": { en: "Checking duplicates and contradictions {done}/{total} batches", ko: "중복·모순 판정 {done}/{total} 배치" },
-  "cli.checkup.extract_progress": { en: "Extracting {done}/{total} batches", ko: "추출 {done}/{total} 배치" },
-  "cli.checkup.timeout": { en: "The checkup may still be running. Check with nautli checkup --status", ko: "진단 프로세스가 아직 돌고 있을 수 있어요. nautli checkup --status 로 확인해 주세요." },
-  "cli.metrics.not_measured": { en: "Not measured", ko: "측정 전" },
-  "cli.metrics.seconds": { en: "{value}s", ko: "{value}초" },
-  "cli.metrics.badge_pass": { en: "[PASS]", ko: "[통과]" },
-  "cli.metrics.badge_kill": { en: "[STOP RECOMMENDED]", ko: "[중단 권고]" },
-  "cli.metrics.badge_insufficient": { en: "[INSUFFICIENT SAMPLE]", ko: "[표본 부족]" },
-  "cli.metrics.title": { en: "{badge} Auto-capture metrics · {days} days", ko: "{badge} 자동 캡처 계측 · {days}일" },
-  "cli.metrics.header": { en: "Metric                Auto capture      Direct save", ko: "지표                  자동 캡처        직접 저장" },
-  "cli.metrics.approval": { en: "Approval rate         {value}", ko: "승인율                {value}" },
-  "cli.metrics.false_positive": { en: "False positive rate   {value}", ko: "오탐률                {value}" },
-  "cli.metrics.review_latency": { en: "Median review time    {value}", ko: "검토시간 중앙값       {value}" },
-  "cli.metrics.useful_recall": { en: "Useful recall rate    {auto}{explicit}", ko: "유용 회상률           {auto}{explicit}" },
-  "cli.metrics.recall_refs": { en: "Recall refs per fact  {auto}{explicit}", ko: "fact당 회상 참조      {auto}{explicit}" },
-  "cli.metrics.sample": { en: "Sample                candidates {candidates} · decisions {decided}/{minDecided} · recalls {recalls}/{minRecall}", ko: "표본                  후보 {candidates} · 결정 {decided}/{minDecided} · 회상 {recalls}/{minRecall}" },
-  "cli.metrics.facts": { en: "Facts                 auto {auto} · direct {explicit} · sessions {sessions}", ko: "fact                  자동 {auto} · 직접 {explicit} · 세션 {sessions}" },
-  "cli.metrics.need_more": { en: "Not enough data yet. Add {decided} question answers and {recalls} recalls to evaluate", ko: "아직 판정할 수 없어요. 질문 답변 {decided}건과 회상 {recalls}건이 더 필요해요." },
-  "cli.metrics.pass_reason": { en: "All auto-capture retention criteria are met", ko: "자동 캡처 유지 기준을 모두 충족했습니다." },
-  "cli.metrics.kill_reason": { en: "Some retention criteria were not met. Review candidate extraction and the approval flow", ko: "일부 유지 기준에 미달했습니다. 후보 추출 기준과 승인 전 검토 흐름을 조정하세요." },
-  "cli.metrics.raw_reason": { en: "{reason}", ko: "{reason}" },
-  "cli.capture.invalid_payload": { en: "Invalid capture hook payload", ko: "자동 캡처 훅 입력이 올바르지 않아요." },
-  "cli.dashboard.invalid_port": { en: "Invalid dashboard port", ko: "대시보드 포트를 확인해 주세요." },
-  "cli.daemon.not_built": { en: "daemon not built", ko: "데몬이 빌드되지 않았어요." },
-  "cli.daemon.skipped_fresh": { en: "Digestion already succeeded for the current 02:00 slot ({last}); skipping this run", ko: "이번 02:00 슬롯의 소화가 이미 성공해서({last}) 이번 실행은 건너뛰어요." },
-  "cli.setup.unknown_step": { en: "Unknown setup step: {name}", ko: "알 수 없는 설치 단계: {name}" },
-  "cli.review.empty": { en: "No questions to answer. As memories build up, the patrol will create them.", ko: "답할 질문이 없어요. 새 기억이 쌓이면 순찰이 질문을 만들어요." },
-  "cli.review.duplicate": { en: "Duplicate", ko: "중복 정리" },
-  "cli.review.contradiction": { en: "Contradiction", ko: "모순 발견" },
-  "cli.review.duplicate_prompt": { en: "[O] Merge / [X] Keep separate / [L] Review tomorrow: ", ko: "[O] 합치기 / [X] 따로 유지 / [L] 내일 다시 보기: " },
-  "cli.review.contradiction_prompt": { en: "[A] A is right / [B] B is right / [O] Both are right / [?] I don't know / Other correction: ", ko: "[A] A가 맞아요 / [B] B가 맞아요 / [O] 둘 다 맞아요 / [?] 몰라요 / 기타 정정문: " },
+  "cli.checkup.other_running": { en: "A checkup is already running for another folder: {vault}. Try again when it finishes", ko: "다른 폴더 진단이 돌고 있어요: {vault}. 끝난 뒤 다시 시도해 주세요.", ja: "別のフォルダで診断が実行中です: {vault}。完了後にもう一度試してください。" },
+  "cli.checkup.already_running": { en: "A checkup is already running for this folder. Watching it now", ko: "이미 이 폴더 진단이 돌고 있어요. 이어서 지켜볼게요.", ja: "このフォルダの診断はすでに実行中です。続けて監視します。" },
+  "cli.checkup.claude_missing": { en: "Claude CLI is required. Install it with npm install -g @anthropic-ai/claude-code, then try again", ko: "claude CLI가 필요해요. npm install -g @anthropic-ai/claude-code 후 다시 실행해 주세요.", ja: "Claude CLIが必要です。npm install -g @anthropic-ai/claude-code でインストールしてから再試行してください。" },
+  "cli.checkup.claude_login": { en: "Claude CLI login is required. Run claude /login, then try again", ko: "claude CLI 로그인이 필요해요. claude /login 후 다시 실행해 주세요.", ja: "Claude CLIへのログインが必要です。claude /login を実行してから再試行してください。" },
+  "cli.checkup.started": { en: "Checkup started: {vault} (up to {maxFiles} sampled)", ko: "진단 시작: {vault} (표본 최대 {maxFiles}개)", ja: "診断を開始しました: {vault}（最大 {maxFiles} 件をサンプリング）" },
+  "cli.checkup.complete": { en: "Done. View the result in the nautli dashboard setup tab or at report_file", ko: "완료. nautli dashboard 설정 탭이나 report_file에서 결과를 볼 수 있어요.", ja: "完了しました。nautli dashboard の記憶品質確認タブまたは report_file で結果を確認できます。" },
+  "cli.checkup.judge_progress": { en: "Checking duplicates and contradictions {done}/{total} batches", ko: "중복·모순 판정 {done}/{total} 배치", ja: "重複・矛盾を判定中 {done}/{total} バッチ" },
+  "cli.checkup.extract_progress": { en: "Extracting {done}/{total} batches", ko: "추출 {done}/{total} 배치", ja: "抽出中 {done}/{total} バッチ" },
+  "cli.checkup.timeout": { en: "The checkup may still be running. Check with nautli checkup --status", ko: "진단 프로세스가 아직 돌고 있을 수 있어요. nautli checkup --status 로 확인해 주세요.", ja: "診断はまだ実行中の可能性があります。nautli checkup --status で確認してください。" },
+  // TASK-082: CLI는 ja fallback 없이 en/ko와 같은 placeholder 계약을 지킨다.
+  "cli.metrics.not_measured": { en: "Not measured", ko: "측정 전", ja: "未計測" },
+  "cli.metrics.seconds": { en: "{value}s", ko: "{value}초", ja: "{value}秒" },
+  "cli.metrics.badge_pass": { en: "[PASS]", ko: "[통과]", ja: "[合格]" },
+  "cli.metrics.badge_kill": { en: "[STOP RECOMMENDED]", ko: "[중단 권고]", ja: "[停止推奨]" },
+  "cli.metrics.badge_insufficient": { en: "[INSUFFICIENT SAMPLE]", ko: "[표본 부족]", ja: "[サンプル不足]" },
+  "cli.metrics.title": { en: "{badge} Auto-capture metrics · {days} days", ko: "{badge} 자동 캡처 계측 · {days}일", ja: "{badge} 自動キャプチャ指標 · {days} 日" },
+  "cli.metrics.header": { en: "Metric                Auto capture      Direct save", ko: "지표                  자동 캡처        직접 저장", ja: "指標                  自動キャプチャ    直接保存" },
+  "cli.metrics.approval": { en: "Approval rate         {value}", ko: "승인율                {value}", ja: "承認率                {value}" },
+  "cli.metrics.false_positive": { en: "False positive rate   {value}", ko: "오탐률                {value}", ja: "誤検出率              {value}" },
+  "cli.metrics.review_latency": { en: "Median review time    {value}", ko: "검토시간 중앙값       {value}", ja: "レビュー時間の中央値   {value}" },
+  "cli.metrics.useful_recall": { en: "Useful recall rate    {auto}{explicit}", ko: "유용 회상률           {auto}{explicit}", ja: "有用な想起率          {auto}{explicit}" },
+  "cli.metrics.recall_refs": { en: "Recall refs per fact  {auto}{explicit}", ko: "fact당 회상 참조      {auto}{explicit}", ja: "fact ごとの想起参照   {auto}{explicit}" },
+  "cli.metrics.sample": { en: "Sample                candidates {candidates} · decisions {decided}/{minDecided} · recalls {recalls}/{minRecall}", ko: "표본                  후보 {candidates} · 결정 {decided}/{minDecided} · 회상 {recalls}/{minRecall}", ja: "サンプル              候補 {candidates} · 判断 {decided}/{minDecided} · 想起 {recalls}/{minRecall}" },
+  "cli.metrics.facts": { en: "Facts                 auto {auto} · direct {explicit} · sessions {sessions}", ko: "fact                  자동 {auto} · 직접 {explicit} · 세션 {sessions}", ja: "fact                  自動 {auto} · 直接 {explicit} · セッション {sessions}" },
+  "cli.metrics.need_more": { en: "Not enough data yet. Add {decided} question answers and {recalls} recalls to evaluate", ko: "아직 판정할 수 없어요. 질문 답변 {decided}건과 회상 {recalls}건이 더 필요해요.", ja: "まだ評価に十分なデータがありません。質問への回答を {decided} 件、想起を {recalls} 件追加してください。" },
+  "cli.metrics.pass_reason": { en: "All auto-capture retention criteria are met", ko: "자동 캡처 유지 기준을 모두 충족했습니다.", ja: "自動キャプチャの継続基準をすべて満たしています。" },
+  "cli.metrics.kill_reason": { en: "Some retention criteria were not met. Review candidate extraction and the approval flow", ko: "일부 유지 기준에 미달했습니다. 후보 추출 기준과 승인 전 검토 흐름을 조정하세요.", ja: "一部の継続基準を満たしていません。候補抽出と承認フローを見直してください。" },
+  "cli.metrics.raw_reason": { en: "{reason}", ko: "{reason}", ja: "{reason}" },
+  "cli.capture.invalid_payload": { en: "Invalid capture hook payload", ko: "자동 캡처 훅 입력이 올바르지 않아요.", ja: "キャプチャフックの入力が正しくありません。" },
+  "cli.dashboard.invalid_port": { en: "Invalid dashboard port", ko: "대시보드 포트를 확인해 주세요.", ja: "ダッシュボードのポートが正しくありません。" },
+  "cli.daemon.not_built": { en: "daemon not built", ko: "데몬이 빌드되지 않았어요.", ja: "デーモンがビルドされていません。" },
+  "cli.daemon.skipped_fresh": { en: "Digestion already succeeded for the current 02:00 slot ({last}); skipping this run", ko: "이번 02:00 슬롯의 소화가 이미 성공해서({last}) 이번 실행은 건너뛰어요.", ja: "現在の 02:00 スロットでは消化がすでに成功しています（{last}）。今回の実行はスキップします。" },
+  "cli.setup.unknown_step": { en: "Unknown setup step: {name}", ko: "알 수 없는 설치 단계: {name}", ja: "不明な設定ステップです: {name}" },
+  "cli.review.empty": { en: "No questions to answer. As memories build up, the patrol will create them.", ko: "답할 질문이 없어요. 새 기억이 쌓이면 순찰이 질문을 만들어요.", ja: "答える質問はありません。記憶が増えると巡回が質問を作成します。" },
+  "cli.review.duplicate": { en: "Duplicate", ko: "중복 정리", ja: "重複" },
+  "cli.review.contradiction": { en: "Contradiction", ko: "모순 발견", ja: "矛盾" },
+  "cli.review.duplicate_prompt": { en: "[O] Merge / [X] Keep separate / [L] Review tomorrow: ", ko: "[O] 합치기 / [X] 따로 유지 / [L] 내일 다시 보기: ", ja: "[O] 統合 / [X] 別々に保持 / [L] 明日確認: " },
+  "cli.review.contradiction_prompt": { en: "[A] A is right / [B] B is right / [O] Both are right / [?] I don't know / Other correction: ", ko: "[A] A가 맞아요 / [B] B가 맞아요 / [O] 둘 다 맞아요 / [?] 몰라요 / 기타 정정문: ", ja: "[A] Aが正しい / [B] Bが正しい / [O] 両方正しい / [?] 分からない / その他の修正: " },
   "telemetry.first_run_notice": { en: "Telemetry is on by default. Only judgment meta (card counts, routing stats) is sent — never your notes or memory content. Turn it off anytime: nautli telemetry off", ko: "판정 메타 수집이 기본으로 켜져 있어요. 카드 개수와 판정 통계만 보내고 노트나 기억 내용은 절대 보내지 않아요. 끄려면: nautli telemetry off" },
-  "cli.init.next": { en: "Next: npx nautli dashboard (opens setup)", ko: "다음 단계: npx nautli dashboard (설정 화면이 열려요)" },
-  "cli.unknown_command": { en: "Unknown command: {command}", ko: "알 수 없는 명령: {command}" },
+  "cli.init.next": { en: "Next: npx nautli dashboard (opens setup)", ko: "다음 단계: npx nautli dashboard (설정 화면이 열려요)", ja: "次: npx nautli dashboard（設定を開きます）" },
+  "cli.unknown_command": { en: "Unknown command: {command}", ko: "알 수 없는 명령: {command}", ja: "不明なコマンドです: {command}" },
 
   "setup.command_not_allowed": { en: "Command not allowed: {command}", ko: "허용되지 않은 명령: {command}" },
   "setup.claude_missing": { en: "Claude CLI is not installed. Install it, then run the manual command", ko: "Claude CLI가 설치되어 있지 않아요. 설치한 뒤 수동 명령을 실행해 주세요." },
@@ -112,7 +134,11 @@ mcp        MCP 서버를 실행해요.
   "daemon.notify.held_body": { en: "Your nautli held back {held} uncertain {chg} to recheck on the next patrol.", ko: "nautli가 애매한 변경 {held}건을 막아뒀어요. 다음 순찰에서 다시 확인할게요." },
   "daemon.notify.clear_body": { en: "Your nautli kept watch. Nothing found that could disrupt your next session.", ko: "nautli가 기억을 지켰어요. 다음 세션을 방해할 문제는 없었어요." },
   "daemon.notify.partial_body": { en: "Patrol finished. Some judgments will be retried on the next patrol.", ko: "nautli 순찰이 끝났어요. 일부 판정은 다음 순찰에서 다시 시도할게요." },
-  "daemon.notify.failed_body": { en: "Patrol was interrupted. Run npx nautli checkup to inspect.", ko: "순찰이 중단됐어요. npx nautli checkup으로 점검해 주세요." },
+  "daemon.notify.failed_body": { en: "Patrol was interrupted. Diagnose with npx nautli doctor, then retry with npx nautli daemon-run --force.", ko: "순찰이 중단됐어요. npx nautli doctor로 진단한 뒤 npx nautli daemon-run --force로 다시 시도해 주세요." },
+  "daemon.notify.caught_mixed_body": { en: "Your nautli applied {duplicates} duplicate(s) and resolved {contradictions} contradiction(s).", ko: "nautli가 중복 기억 {duplicates}건을 정리하고 모순 {contradictions}건을 해결했어요." },
+  "daemon.notify.caught_contradictions_body": { en: "Your nautli resolved {contradictions} contradiction(s) using the latest record.", ko: "nautli가 최신 기록으로 모순 {contradictions}건을 해결했어요." },
+  "daemon.notify.caught_mixed_held_body": { en: "Your nautli applied {duplicates} duplicate(s), resolved {contradictions} contradiction(s), and is watching {held} more.", ko: "nautli가 중복 {duplicates}건을 정리하고 모순 {contradictions}건을 해결했어요. 애매한 {held}건은 지켜보는 중이에요." },
+  "daemon.notify.caught_contradictions_held_body": { en: "Your nautli resolved {contradictions} contradiction(s) and is watching {held} more.", ko: "nautli가 모순 {contradictions}건을 해결했어요. 애매한 {held}건은 지켜보는 중이에요." },
   "daemon.notify.limit_wait_body": { en: "Usage limit reached. Will retry automatically after reset.", ko: "사용량 한도 대기 중. 리셋 후 자동 재시도합니다." },
 
   "checkup.harness_claude": { en: "Claude harness (~/.claude)", ko: "Claude 하네스 (~/.claude)" },
@@ -136,11 +162,13 @@ mcp        MCP 서버를 실행해요.
   "checkup.memories_missing": { en: "No memories were extracted by the checkup", ko: "진단에서 추출된 기억이 없어요." },
 
   "mcp.briefing.auto_cleanup": { en: "[nautli] {count} memories auto-organized so far ({undone} reversed by user).", ko: "[nautli] 기억 {count}건 자동 정리 완료 (사용자 되돌리기 {undone}건)." },
-  "mcp.briefing.digest_stale": { en: "[nautli] Patrol has not succeeded since {last}. Please suggest the user run npx nautli checkup.", ko: "[nautli] 순찰이 {last} 이후 성공하지 못했어요. 사용자에게 npx nautli checkup 점검을 권해 주세요." },
+  "mcp.briefing.digest_stale": { en: "[nautli] Patrol has not succeeded since {last}. Suggest npx nautli doctor, then npx nautli daemon-run --force.", ko: "[nautli] 순찰이 {last} 이후 성공하지 못했어요. npx nautli doctor로 진단한 뒤 npx nautli daemon-run --force 재시도를 권해 주세요." },
   "mcp.briefing.receipt": { en: "In the last {days} days, memory carried across {conversations} conversations and delivered about {tokens} tokens of relevant memory.", ko: "최근 {days}일, 기억으로 이어간 대화 {conversations}번, 필요한 기억 약 {tokens}토큰만 골라 건넸어요." },
   "mcp.briefing.receipt_building": { en: "Memory is building up. {facts} facts currently carry forward.", ko: "기억이 쌓이는 중이에요. 현재 이어지는 사실 {facts}개." },
 
   "report.summary_applied": { en: "{count} applied", ko: "적용 {count}건" },
+  "report.summary_applied_duplicates": { en: "{count} duplicate(s) applied", ko: "중복 적용 {count}건" },
+  "report.summary_applied_contradictions": { en: "{count} contradiction(s) resolved", ko: "모순 자동 해결 {count}건" },
   "report.summary_queued": { en: "{count} queued for review", ko: "리뷰 대기 추가 {count}건" },
   "report.summary_skipped": { en: "{count} skipped", ko: "건너뜀 {count}건" },
   "report.summary_machine_oracle": { en: "{count} held (technical record)", ko: "기술 기록 보류 {count}건" },
@@ -154,6 +182,7 @@ mcp        MCP 서버를 실행해요.
   "report.machine_oracle_note": { en: "(Technical record held: the answer is in the repo or logs, so the user was not asked)", ko: "(기술 기록 보류: 정답이 레포나 로그에 있는 갈림이라 사람에게 묻지 않았어요)" },
   "report.triage_routed_note": { en: "(Handled by AI: questions that do not need a human answer were held)", ko: "(AI가 대신 맡음: 사람이 답할 필요 없는 질문이라 보류해 뒀어요)" },
   "report.capture_held_note": { en: "(Held: uncertain automatic findings were kept on record without deleting)", ko: "(보류: 확정하기 어려운 자동 발견은 지우지 않고 기록에 남겼어요)" },
+  "report.partial": { en: "(Some automatic follow-up work did not finish and will retry on the next patrol)", ko: "(일부 자동 후속 처리가 끝나지 않아 다음 순찰 때 다시 시도해요)" },
   "report.receipt_heading": { en: "## Savings receipt", ko: "## 절감 영수증" },
   "report.receipt_first_week": { en: "During the first week, we show how memories build up rather than savings", ko: "첫 주에는 절감보다 기억이 쌓이는 과정을 보여드려요" },
   "report.receipt_conversations": { en: "- {count} conversation(s)", ko: "- 대화 {count}번" },

@@ -6,7 +6,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { remember } from "../src/core/gate.js";
 import { STATUS } from "../src/core/schema.js";
-import { Store } from "../src/core/store.js";
+import { Store, readEventLog } from "../src/core/store.js";
 import { initStore } from "../src/onboard/setup.js";
 import { startDashboard } from "../src/dashboard/server.js";
 
@@ -71,6 +71,43 @@ test("dashboard status combines setup, doctor, stats, and pending count", async 
   assert.equal(status.doctor.index_exists, true);
   assert.equal(status.stats.total, 0);
   assert.equal(status.pending, 0);
+});
+
+// TASK-075: /api/receipt/multi 라우트가 4개 윈도우 + 숫자별 근거 묶음을 돌려준다.
+test("dashboard receipt multi route returns windows with drill-down evidence groups", async (t) => {
+  const target = await dashboard(t);
+  const store = new Store(target.home);
+  const fact = remember(store, {
+    claim: "영수증 라우트 근거로 쓸 활성 기억",
+    scope: "person",
+    t_valid: "2026-07-01",
+  });
+  store.appendRecall({
+    hits: [fact.id],
+    session_id: "receipt-route-session",
+    returned_chars: 40,
+    at: new Date().toISOString(),
+  });
+  store.close();
+  fs.writeFileSync(path.join(target.home, "review", "queue.jsonl"), `${JSON.stringify({
+    pair_id: "receipt-route-pair",
+    status: "answered",
+    answered_by: "user",
+    handled_at: new Date().toISOString(),
+  })}\n`, "utf8");
+
+  const response = await fetch(`${target.url}/api/receipt/multi`);
+  assert.equal(response.status, 200);
+  const multi = await response.json();
+
+  assert.deepEqual(Object.keys(multi.windows).sort(), ["2d", "30d", "7d", "lifetime"]);
+  assert.equal(multi.windows.lifetime.is_lifetime, true);
+  assert.equal(typeof multi.active_start_approximate, "boolean");
+  const groups = multi.windows["2d"].evidence_groups;
+  assert.deepEqual(Object.keys(groups).sort(), ["active", "organized", "recall"]);
+  assert.equal(groups.recall[0].hits, 1);
+  assert.equal(groups.organized[0].pair_id, "receipt-route-pair");
+  assert.ok(groups.active.some((item) => typeof item.sample_claim === "string"));
 });
 
 test("dashboard graph includes scope, supersedes, and pending review links", async (t) => {
@@ -349,6 +386,41 @@ test("dashboard continuity recall returns the detected fact and records a dashbo
     && event.source === "dashboard" && event.hits.includes(added.id)));
 });
 
+// TASK-BATCH-FIX (F-6): the continuity lookup must log a delivery for ONLY the fact in the response
+// payload, not every candidate the internal recall surfaced — otherwise audit delivery over-counts.
+test("dashboard continuity delivery logs only the fact returned in the response", async (t) => {
+  const target = await dashboard(t);
+  const store = new Store(target.home);
+  // Two facts share query terms, so recall() would surface both — but the response is only fact A.
+  const a = remember(store, {
+    claim: "the staging deployment port is 3000 for service alpha",
+    scope: "person",
+    source: "mcp",
+  }, config);
+  const b = remember(store, {
+    claim: "the staging deployment port is 3000 for service beta",
+    scope: "person",
+    source: "mcp",
+  }, config);
+  store.close();
+  assert.notEqual(a.id, b.id);
+
+  const response = await fetch(`${target.url}/api/continuity/recall`, {
+    method: "POST",
+    headers: { origin: target.origin, "content-type": "application/json" },
+    body: JSON.stringify({ fact_id: a.id }),
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).fact.id, a.id);
+
+  const deliveries = readEventLog(target.home).filter(
+    (event) => event.type === "recall" && event.tool === "dashboard.continuity",
+  );
+  assert.equal(deliveries.length, 1);
+  assert.deepEqual(deliveries[0].hits, [a.id]);
+  assert.equal(deliveries[0].hits.includes(b.id), false, "the other candidate fact is not logged as delivered");
+});
+
 test("dashboard share-card contract contains only aggregate render fields", async (t) => {
   const target = await dashboard(t);
   const runDir = path.join(target.home, "checkup", "doctor", "runs", "share-test");
@@ -518,4 +590,164 @@ test("dashboard served script parses after template-literal unescaping (i18n reg
   }
   const dict = HTML.match(/var DASH_EN=\{/);
   assert.ok(dict, "DASH_EN dictionary embedded");
+});
+
+// TASK-FIX-B45: TASK-071/009가 추가한 스텝 benefit·AI 연결 카드 문자열은 ko/en/ja 로케일 맵에
+// 모두 있어야 한다 — 하나라도 빠지면 en/ja에서 한국어 원문이 새어 나간다.
+test("new TASK-071/009 dashboard strings are mapped in both en and ja (no Korean leak)", async () => {
+  const { HTML } = await import("../src/dashboard/public.js");
+  const dictStart = HTML.indexOf("  var DASH_EN=");
+  const dictEnd = HTML.indexOf("  function resolveDashLang", dictStart);
+  assert.ok(dictStart >= 0 && dictEnd > dictStart);
+  const source = [
+    HTML.slice(dictStart, dictEnd),
+    "result={en:DASH_EN,ja:DASH_JA};",
+  ].join("\n");
+  const context = { result: null };
+  new vm.Script(source).runInNewContext(context);
+  const { en, ja } = context.result;
+
+  const newKeys = [
+    "완료하면: ",
+    "사용 중",
+    "연결 필요",
+    "이 AI에서도 같은 기억을 바로 이어서 써요.",
+    "AI마다 다시 설명하지 않아도 돼요.",
+  ];
+  for (const key of newKeys) {
+    assert.equal(typeof en[key], "string", `${key} missing from DASH_EN`);
+    assert.notEqual(en[key], key, `${key} must not leak Korean into English`);
+    assert.equal(typeof ja[key], "string", `${key} missing from DASH_JA`);
+    assert.notEqual(ja[key], key, `${key} must not leak Korean into Japanese`);
+  }
+});
+
+async function renderDoneCheckup(summary, lang = "ko", checkupState = "done") {
+  const { HTML } = await import("../src/dashboard/public.js");
+  const dictStart = HTML.indexOf("  var DASH_EN=");
+  const dictEnd = HTML.indexOf("  function resolveDashLang", dictStart);
+  const blockStart = HTML.indexOf("  function checkupBlock(){", dictEnd);
+  const blockEnd = HTML.indexOf("  function checkupSlot()", blockStart);
+  assert.ok(dictStart >= 0 && dictEnd > dictStart && blockStart >= 0 && blockEnd > blockStart);
+  const source = [
+    HTML.slice(dictStart, dictEnd),
+    "var LANG=" + JSON.stringify(lang) + ";",
+    "function T(s){if(LANG===\"ko\")return s;var v=DASH_EN[s];return v===undefined?s:v;}",
+    "function esc(value){return String(value==null?\"\":value).replace(/[&<>\"']/g,function(ch){return {\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\",\"'\":\"&#39;\"}[ch];});}",
+    "var state={checkup:" + JSON.stringify({
+      state: checkupState,
+      vault: "/taste-vault",
+      files_sampled: 30,
+      cards: [],
+      summary,
+    }) + "};",
+    HTML.slice(blockStart, blockEnd),
+    "result=checkupBlock();",
+  ].join("\n");
+  const context = { result: "" };
+  new vm.Script(source).runInNewContext(context);
+  return context.result;
+}
+
+test("done checkup always renders dup_bytes as a separate confirmed local fact", async () => {
+  const base = {
+    score: 62,
+    notes: 30,
+    atoms: 3,
+    duplicates: 0,
+    contradictions: 0,
+    junk_rate: null,
+    waste_rate: 0,
+  };
+  const confirmed = await renderDoneCheckup({ ...base, dup_bytes: 512 });
+  const zero = await renderDoneCheckup({ ...base, dup_bytes: 0 });
+  const unmeasured = await renderDoneCheckup({ ...base, dup_bytes: null });
+
+  for (const rendered of [confirmed, zero, unmeasured]) {
+    assert.match(rendered, /class="checkup-waste neutral"/u);
+    assert.match(rendered, /이번 AI 맛보기에서는 낭비 신호를 찾지 못했어요/u);
+  }
+  assert.match(confirmed, /확인된 중복 텍스트 최소 1KB\./u);
+  assert.doesNotMatch(zero, /확인된 중복 텍스트 최소/u);
+  assert.doesNotMatch(unmeasured, /확인된 중복 텍스트 최소/u);
+});
+
+test("done checkup preserves positive, zero, and null waste signal meanings", async () => {
+  const base = {
+    score: 62,
+    notes: 30,
+    atoms: 3,
+    duplicates: 0,
+    contradictions: 0,
+    junk_rate: null,
+    dup_bytes: 0,
+  };
+  const positive = await renderDoneCheckup({ ...base, waste_rate: 0.126 });
+  const zero = await renderDoneCheckup({ ...base, waste_rate: 0 });
+  const unmeasured = await renderDoneCheckup({ ...base, waste_rate: null });
+
+  assert.match(positive, /class="checkup-waste warn"/u);
+  assert.match(positive, /중복·낡은 조각 신호 약 13%/u);
+  assert.match(positive, /전체 볼트의 낭비율이나 예상 절감률이 아닙니다/u);
+  assert.match(zero, /class="checkup-waste neutral"/u);
+  assert.match(zero, /미발견은 전체 볼트가 깨끗하다는 뜻이 아닙니다/u);
+  assert.match(unmeasured, /class="checkup-waste neutral"/u);
+  assert.match(unmeasured, /낭비 신호를 측정하지 못했어요/u);
+  assert.match(unmeasured, /전체 볼트 상태는 판단할 수 없습니다/u);
+});
+
+// TASK-FIX-B45: 이미 가져온 상태로 재진입하면 활성 CTA가 아니라 "가져오기 완료" 비활성 상태여야 한다.
+test("re-entered imported checkup shows a disabled done state, not the import CTA", async () => {
+  const summary = {
+    score: 62,
+    notes: 30,
+    atoms: 3,
+    duplicates: 1,
+    contradictions: 0,
+    junk_rate: null,
+    dup_bytes: 1024,
+    waste_rate: 0.2,
+  };
+  const importedCard = await renderDoneCheckup(summary, "ko", "imported");
+  // Waste signal is still shown on re-entry.
+  assert.match(importedCard, /class="checkup-waste warn"/u);
+  // The CTA is now a disabled "가져오기 완료" state — clicking again would no-op server-side.
+  assert.match(importedCard, /data-checkup-import disabled>가져오기 완료</u);
+  assert.doesNotMatch(importedCard, /건 가져오고 연결 계속/u, "no active import CTA after import");
+  assert.doesNotMatch(importedCard, /가져오면 위 중복·모순/u, "no pre-import hint after import");
+
+  // A done-but-not-imported card still offers the enabled import CTA.
+  const doneCard = await renderDoneCheckup(summary, "ko", "done");
+  assert.match(doneCard, /data-checkup-import >이 기억 3건 가져오고 연결 계속</u);
+  assert.doesNotMatch(doneCard, /가져오기 완료/u);
+});
+
+test("checkup taste-signal copy is mapped in English without savings or health framing", async () => {
+  const summary = {
+    score: 62,
+    notes: 30,
+    atoms: 3,
+    duplicates: 0,
+    contradictions: 0,
+    junk_rate: null,
+    dup_bytes: 2048,
+    waste_rate: 0.2,
+  };
+  const ko = await renderDoneCheckup(summary, "ko");
+  const en = await renderDoneCheckup(summary, "en");
+
+  assert.match(ko, /AI 맛보기 신호 62\/100 · 선택 표본 30개/u);
+  assert.match(ko, /이번 맛보기에서 바로 확인할 중복·모순을 찾지 못했어요/u);
+  assert.match(en, /AI taste signal 62\/100 · selected sample 30/u);
+  assert.match(en, /Confirmed duplicate text: at least 2KB\./u);
+  assert.match(en, /This AI taste test found about 20% duplicate or stale-fragment signals/u);
+  for (const rendered of [ko, en]) {
+    assert.doesNotMatch(rendered, /전체 클린|whole vault waste|health score|건강 점수|[0-9]+% 아껴요/iu);
+  }
+
+  const { HTML } = await import("../src/dashboard/public.js");
+  assert.match(HTML, /ctx\.fillText\("taste signal "\+data\.score\+"\/100"/u);
+  assert.match(HTML, /c\.state==="done"\|\|c\.state==="imported"/u);
+  assert.match(HTML, /data-checkup-import/u);
+  assert.match(HTML, /"이번 AI 맛보기의 낭비 신호를 측정하지 못했어요\. 전체 볼트 상태는 판단할 수 없습니다\.":"This AI taste test could not measure waste signals\. The state of the whole vault cannot be determined\."/u);
 });

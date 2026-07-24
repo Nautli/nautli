@@ -14,6 +14,28 @@ const TOOL_ORDER = [
 
 const ALWAYS_LOADED = /^(CLAUDE\.md|AGENTS\.md|GEMINI\.md|\.cursorrules|\.windsurfrules|\.clinerules|copilot-instructions\.md|MEMORY\.md)$/iu;
 
+// Same-directory version/number series (v1/v2, 01_, final, copy, 발송용, 백업)
+// are usually intentional per-item documents, not stray copies — merging them
+// destroys user documents, so they are excluded from waste scoring.
+const SERIES_NAME = /(?:^|[^a-z0-9])v\d+(?:[^a-z0-9]|$)|^\d{2}[-_.]|final|copy|발송용|백업/iu;
+
+function markSeriesBlocks(blocks) {
+  for (const block of blocks.values()) {
+    const tools = new Set(block.docs.map((doc) => doc.tool));
+    if (tools.size !== 1 || block.docs.length < 2) continue;
+    const dirCounts = new Map();
+    for (const doc of block.docs) {
+      const dir = path.dirname(doc.path);
+      dirCounts.set(dir, (dirCounts.get(dir) || 0) + 1);
+    }
+    const [topDir] = [...dirCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    const seriesCount = block.docs.filter((doc) =>
+      path.dirname(doc.path) === topDir && SERIES_NAME.test(path.basename(doc.path)),
+    ).length;
+    if (seriesCount / block.docs.length >= 0.6) block.suppressed = true;
+  }
+}
+
 const COPY = Object.freeze({
   en: {
     alwaysTitle: (name) => `${name} is loaded every session`,
@@ -115,9 +137,169 @@ export function gradeForScore(score) {
   return "F";
 }
 
-export function scoreForFindings(findings) {
-  const penalty = findings.reduce((sum, finding) => sum + finding.weight * 4, 0);
-  return Math.max(20, 100 - Math.min(80, penalty));
+/* ── v2 scoring helpers ─────────────────────────────────────────────── */
+
+function clamp01(x) { return Math.min(1, Math.max(0, x)); }
+
+const LN_64K = Math.log(64_000);
+const LN_2K  = Math.log(2_000);
+
+function subFixedCost(alTokens) {
+  return 100 * clamp01((LN_64K - Math.log(Math.max(alTokens, 2_000))) / (LN_64K - LN_2K));
+}
+
+function subWaste(docs, blocks) {
+  const totalTok = docs.reduce((s, d) => s + d.tokens, 0);
+  if (totalTok === 0) return 100;
+
+  // duplicate portion: (n-1) × blockTokens for non-suppressed blocks with n≥2 same-tool copies
+  let dupTok = 0;
+  for (const block of blocks.values()) {
+    if (block.suppressed) continue;
+    const toolCounts = new Map();
+    for (const doc of block.docs) {
+      toolCounts.set(doc.tool, (toolCounts.get(doc.tool) || 0) + 1);
+    }
+    const blockTok = estimateTokens(block.sample);
+    for (const count of toolCounts.values()) {
+      if (count >= 2) dupTok += (count - 1) * blockTok;
+    }
+    // cross-tool duplicates also count
+    const tools = [...toolCounts.keys()];
+    if (tools.length >= 2) {
+      dupTok += (tools.length - 1) * blockTok;
+    }
+  }
+
+  // large excess: per-file tokens above 20K threshold
+  let largeTok = 0;
+  const LARGE_THRESHOLD = 20_000;
+  for (const doc of docs) {
+    if (doc.tokens > LARGE_THRESHOLD) {
+      largeTok += doc.tokens - LARGE_THRESHOLD;
+    }
+  }
+
+  const R = (dupTok + largeTok) / totalTok;
+  return 100 * (1 - Math.min(1, R / 0.40));
+}
+
+function subHygiene(docs) {
+  if (docs.length === 0) return 100;
+  const emptyCount = docs.filter(d => d.body.trim().length <= 20).length;
+  let todoFileCount = 0;
+  for (const doc of docs) {
+    if (/\b(TODO|FIXME|XXX|WIP)\b/gu.test(doc.body)) todoFileCount++;
+  }
+  const emptyRatio = emptyCount / docs.length;
+  const todoRatio = todoFileCount / docs.length;
+  return 100 * (1 - Math.min(1, emptyRatio / 0.10 + todoRatio / 0.50));
+}
+
+function computeScore(docs, blocks) {
+  const alTokens = docs.filter(d => ALWAYS_LOADED.test(d.name)).reduce((s, d) => s + d.tokens, 0);
+  const sFixed = subFixedCost(alTokens);
+  const sWaste = subWaste(docs, blocks);
+  const sHygiene = subHygiene(docs);
+  const total = 0.45 * sFixed + 0.45 * sWaste + 0.10 * sHygiene;
+  return { score: Math.round(total), sFixed: Math.round(sFixed), sWaste: Math.round(sWaste), sHygiene: Math.round(sHygiene) };
+}
+
+function severityFromDelta(delta) {
+  if (delta >= 5) return "HIGH";
+  if (delta >= 1) return "MED";
+  if (delta > 0) return "LOW";
+  return "INFO";
+}
+
+/**
+ * Apply a finding's fix to virtual docs/blocks and return the transformed pair.
+ * This modifies nothing — transforms compose, so fixes can be applied cumulatively.
+ */
+function applyFix(docs, blocks, finding) {
+  const filePaths = new Set(finding.files || []);
+
+  if (finding.group === "alwaysLoaded") {
+    // Fix = compress AL file to <2K tokens
+    const fixedDocs = docs.map(d =>
+      filePaths.has(d.path) && ALWAYS_LOADED.test(d.name)
+        ? { ...d, tokens: Math.min(d.tokens, 1_500), body: d.body.slice(0, 1_500) }
+        : d
+    );
+    return { docs: fixedDocs, blocks };
+  }
+
+  if (finding.group === "crossTool") {
+    // Fix = consolidate to one tool, remove copies from others
+    const fixedBlocks = new Map(blocks);
+    for (const [key, block] of fixedBlocks) {
+      const blockDocs = block.docs.filter(d => filePaths.has(d.path));
+      const blockTools = [...new Set(blockDocs.map(d => d.tool))];
+      if (blockTools.length >= 2) {
+        fixedBlocks.set(key, { ...block, suppressed: true });
+      }
+    }
+    return { docs, blocks: fixedBlocks };
+  }
+
+  if (finding.group === "repeated") {
+    // Fix = merge repeated copies into one (keep first, remove duplicate blocks)
+    const fixedBlocks = new Map(blocks);
+    for (const [key, block] of fixedBlocks) {
+      const matchingDocs = block.docs.filter(d => filePaths.has(d.path));
+      if (matchingDocs.length >= 2) {
+        const kept = [matchingDocs[0], ...block.docs.filter(d => !filePaths.has(d.path))];
+        fixedBlocks.set(key, { ...block, docs: kept });
+      }
+    }
+    return { docs, blocks: fixedBlocks };
+  }
+
+  if (finding.group === "large") {
+    // Fix = split/archive to ≤20K tokens
+    const fixedDocs = docs.map(d =>
+      filePaths.has(d.path) ? { ...d, tokens: Math.min(d.tokens, 20_000), size: Math.min(d.size, 20_000 * 4) } : d
+    );
+    return { docs: fixedDocs, blocks };
+  }
+
+  if (finding.group === "debris") {
+    if (finding.subgroup === "empty") {
+      return { docs: docs.filter(d => !filePaths.has(d.path)), blocks };
+    }
+    // TODO finding — clear markers
+    const fixedDocs = docs.map(d =>
+      filePaths.has(d.path)
+        ? { ...d, body: d.body.replace(/\b(TODO|FIXME|XXX|WIP)\b/gu, "DONE") }
+        : d
+    );
+    return { docs: fixedDocs, blocks };
+  }
+
+  // stale and unknown: no score impact
+  return { docs, blocks };
+}
+
+function simulateFix(docs, blocks, finding) {
+  const fixed = applyFix(docs, blocks, finding);
+  if (fixed.docs.length === 0) return 100;
+  return computeScore(fixed.docs, fixed.blocks).score;
+}
+
+// 🟢 safe to delegate / 🟡 needs the user's judgment / 🔴 structural, grows back.
+const ACTION_BY_GROUP = Object.freeze({
+  alwaysLoaded: "structural",
+  crossTool: "structural",
+  repeated: "judgment",
+  large: "judgment",
+  stale: "info",
+});
+
+function actionForFinding(finding) {
+  if (finding.group === "debris") {
+    return finding.subgroup === "empty" ? "safe" : "judgment";
+  }
+  return ACTION_BY_GROUP[finding.group] ?? "info";
 }
 
 function normalizedDoc(doc) {
@@ -164,6 +346,8 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     }
   }
 
+  markSeriesBlocks(blocks);
+
   for (const block of blocks.values()) {
     const tools = [...new Set(block.docs.map((doc) => doc.tool))].sort();
     if (tools.length < 2) continue;
@@ -190,6 +374,7 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     findings.push({
       group: "repeated",
       weight: item.matches.length >= 4 ? 3 : 2,
+      seriesSuspect: item.block.suppressed === true,
       title: text.repeatedTitle(item.matches.length, item.tool),
       measure: text.repeatedMeasure(item.block.sample.length),
       why: text.repeatedWhy,
@@ -213,6 +398,7 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
   if (empty.length > 0) {
     findings.push({
       group: "debris",
+      subgroup: "empty",
       weight: 1,
       title: text.emptyTitle(empty.length),
       measure: text.emptyMeasure(empty.length),
@@ -233,6 +419,7 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
   if (todoCount >= 5) {
     findings.push({
       group: "debris",
+      subgroup: "todo",
       weight: 1,
       title: text.todoTitle(todoCount),
       measure: text.todoMeasure(todoFiles.length),
@@ -254,10 +441,34 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     });
   }
 
-  const priority = { crossTool: 0, alwaysLoaded: 1, repeated: 2, large: 3, debris: 4, stale: 5 };
-  findings.sort((left, right) => (
-    priority[left.group] - priority[right.group] || right.weight - left.weight
-  ));
+  // ── v2 scoring ─────────────────────────────────────────────────────
+  const { score, sFixed, sWaste, sHygiene } = computeScore(docs, blocks);
+
+  // simulateFix: for each finding, compute score if that finding were resolved
+  for (const finding of findings) {
+    const fixedScore = simulateFix(docs, blocks, finding);
+    finding.delta = Math.max(0, fixedScore - score);
+    finding.severity = severityFromDelta(finding.delta);
+    finding.action = actionForFinding(finding);
+  }
+
+  // potential: score after resolving every scored finding (measured, not estimated)
+  let sim = { docs, blocks };
+  for (const finding of findings) {
+    if (finding.group === "stale") continue;
+    sim = applyFix(sim.docs, sim.blocks, finding);
+  }
+  const potential = Math.max(
+    score,
+    sim.docs.length === 0 ? 100 : computeScore(sim.docs, sim.blocks).score,
+  );
+
+  // sort by delta descending (highest-impact first), stale always last
+  findings.sort((left, right) => {
+    if (left.group === "stale" && right.group !== "stale") return 1;
+    if (right.group === "stale" && left.group !== "stale") return -1;
+    return right.delta - left.delta;
+  });
 
   const toolTotals = new Map();
   for (const doc of docs) {
@@ -273,18 +484,20 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
   });
   const tokens = docs.reduce((sum, doc) => sum + doc.tokens, 0);
   const alTokens = alwaysLoaded.reduce((sum, doc) => sum + doc.tokens, 0);
-  const score = scoreForFindings(findings);
 
   return {
-    v: 1,
+    v: 2,
     os: os ?? discovery.os ?? "linux",
     tools,
     totals: { files: docs.length, tokens, alTokens },
+    subscores: { fixed: sFixed, waste: sWaste, hygiene: sHygiene },
     findings,
     score,
+    potential,
     grade: gradeForScore(score),
     partial: Boolean(partial ?? discovery.partial),
   };
 }
 
 export const analyzeScan = analyze;
+export const FINDING_COPY = COPY;
