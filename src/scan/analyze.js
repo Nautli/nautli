@@ -219,10 +219,10 @@ function severityFromDelta(delta) {
 }
 
 /**
- * Simulate resolving a finding and return the resulting score.
- * This modifies nothing — it creates virtual docs/blocks for re-scoring.
+ * Apply a finding's fix to virtual docs/blocks and return the transformed pair.
+ * This modifies nothing — transforms compose, so fixes can be applied cumulatively.
  */
-function simulateFix(docs, blocks, finding) {
+function applyFix(docs, blocks, finding) {
   const filePaths = new Set(finding.files || []);
 
   if (finding.group === "alwaysLoaded") {
@@ -232,22 +232,20 @@ function simulateFix(docs, blocks, finding) {
         ? { ...d, tokens: Math.min(d.tokens, 1_500), body: d.body.slice(0, 1_500) }
         : d
     );
-    return computeScore(fixedDocs, blocks).score;
+    return { docs: fixedDocs, blocks };
   }
 
   if (finding.group === "crossTool") {
     // Fix = consolidate to one tool, remove copies from others
-    // Keep the first file, suppress the block
     const fixedBlocks = new Map(blocks);
     for (const [key, block] of fixedBlocks) {
       const blockDocs = block.docs.filter(d => filePaths.has(d.path));
       const blockTools = [...new Set(blockDocs.map(d => d.tool))];
       if (blockTools.length >= 2) {
-        // Mark block as suppressed for scoring
         fixedBlocks.set(key, { ...block, suppressed: true });
       }
     }
-    return computeScore(docs, fixedBlocks).score;
+    return { docs, blocks: fixedBlocks };
   }
 
   if (finding.group === "repeated") {
@@ -256,12 +254,11 @@ function simulateFix(docs, blocks, finding) {
     for (const [key, block] of fixedBlocks) {
       const matchingDocs = block.docs.filter(d => filePaths.has(d.path));
       if (matchingDocs.length >= 2) {
-        // Keep only the first doc, simulating merge
         const kept = [matchingDocs[0], ...block.docs.filter(d => !filePaths.has(d.path))];
         fixedBlocks.set(key, { ...block, docs: kept });
       }
     }
-    return computeScore(docs, fixedBlocks).score;
+    return { docs, blocks: fixedBlocks };
   }
 
   if (finding.group === "large") {
@@ -269,15 +266,12 @@ function simulateFix(docs, blocks, finding) {
     const fixedDocs = docs.map(d =>
       filePaths.has(d.path) ? { ...d, tokens: Math.min(d.tokens, 20_000), size: Math.min(d.size, 20_000 * 4) } : d
     );
-    return computeScore(fixedDocs, blocks).score;
+    return { docs: fixedDocs, blocks };
   }
 
   if (finding.group === "debris") {
-    // Distinguish empty-file findings from TODO findings by subgroup
     if (finding.subgroup === "empty") {
-      const fixedDocs = docs.filter(d => !filePaths.has(d.path));
-      if (fixedDocs.length === 0) return 100;
-      return computeScore(fixedDocs, blocks).score;
+      return { docs: docs.filter(d => !filePaths.has(d.path)), blocks };
     }
     // TODO finding — clear markers
     const fixedDocs = docs.map(d =>
@@ -285,11 +279,33 @@ function simulateFix(docs, blocks, finding) {
         ? { ...d, body: d.body.replace(/\b(TODO|FIXME|XXX|WIP)\b/gu, "DONE") }
         : d
     );
-    return computeScore(fixedDocs, blocks).score;
+    return { docs: fixedDocs, blocks };
   }
 
   // stale and unknown: no score impact
-  return computeScore(docs, blocks).score;
+  return { docs, blocks };
+}
+
+function simulateFix(docs, blocks, finding) {
+  const fixed = applyFix(docs, blocks, finding);
+  if (fixed.docs.length === 0) return 100;
+  return computeScore(fixed.docs, fixed.blocks).score;
+}
+
+// 🟢 safe to delegate / 🟡 needs the user's judgment / 🔴 structural, grows back.
+const ACTION_BY_GROUP = Object.freeze({
+  alwaysLoaded: "structural",
+  crossTool: "structural",
+  repeated: "judgment",
+  large: "judgment",
+  stale: "info",
+});
+
+function actionForFinding(finding) {
+  if (finding.group === "debris") {
+    return finding.subgroup === "empty" ? "safe" : "judgment";
+  }
+  return ACTION_BY_GROUP[finding.group] ?? "info";
 }
 
 function normalizedDoc(doc) {
@@ -439,7 +455,19 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     const fixedScore = simulateFix(docs, blocks, finding);
     finding.delta = Math.max(0, fixedScore - score);
     finding.severity = severityFromDelta(finding.delta);
+    finding.action = actionForFinding(finding);
   }
+
+  // potential: score after resolving every scored finding (measured, not estimated)
+  let sim = { docs, blocks };
+  for (const finding of findings) {
+    if (finding.group === "stale") continue;
+    sim = applyFix(sim.docs, sim.blocks, finding);
+  }
+  const potential = Math.max(
+    score,
+    sim.docs.length === 0 ? 100 : computeScore(sim.docs, sim.blocks).score,
+  );
 
   // sort by delta descending (highest-impact first), stale always last
   findings.sort((left, right) => {
@@ -471,9 +499,11 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     subscores: { fixed: sFixed, waste: sWaste, hygiene: sHygiene },
     findings,
     score,
+    potential,
     grade: gradeForScore(score),
     partial: Boolean(partial ?? discovery.partial),
   };
 }
 
 export const analyzeScan = analyze;
+export const FINDING_COPY = COPY;

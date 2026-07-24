@@ -63,6 +63,7 @@ mcp        MCPサーバーを実行します
   },
   "cli.error.invalid_input": { en: "Check your input", ko: "입력 내용을 확인해 주세요.", ja: "入力内容を確認してください。" },
   "cli.scan.score": { en: "Score {score}/100 · grade {grade}", ko: "점수 {score}/100 · 등급 {grade}", ja: "スコア {score}/100 · グレード {grade}" },
+  "cli.scan.potential": { en: "Now {score} → {potential} after cleanup", ko: "지금 {score} → 정리하면 {potential}", ja: "現在{score} → 整理後{potential}" },
   "cli.scan.tools": { en: "Detected tools: {count}", ko: "감지한 도구: {count}개", ja: "検出したツール: {count}個" },
   "cli.scan.top": { en: "Top signal: {finding}", ko: "상위 신호: {finding}", ja: "上位シグナル: {finding}" },
   "cli.scan.clean": { en: "No weighted signals found", ko: "점수에 반영할 신호 없음", ja: "スコアに反映するシグナルなし" },

@@ -221,6 +221,12 @@ async function scanCommand(args) {
     score: scan.result.score,
     grade: scan.result.grade,
   })}\n`);
+  if (Number.isInteger(scan.result.potential) && scan.result.potential > scan.result.score) {
+    process.stdout.write(`${scanT("cli.scan.potential", {
+      score: scan.result.score,
+      potential: scan.result.potential,
+    })}\n`);
+  }
   process.stdout.write(`${scanT("cli.scan.tools", { count: scan.result.tools.length })}\n`);
   process.stdout.write(`${scanT("cli.scan.top", {
     finding: scan.result.findings[0]?.title ?? scanT("cli.scan.clean"),

@@ -49,13 +49,7 @@ export async function ping(result, {
     if (!response.ok) return null;
     const data = await response.json();
     if (data?.ok !== true || !Number.isInteger(data.count)) return null;
-    return {
-      ok: true,
-      count: data.count,
-      ...(Number.isInteger(data.percentile)
-        ? { percentile: Math.min(99, Math.max(0, data.percentile)) }
-        : {}),
-    };
+    return { ok: true, count: data.count };
   } catch {
     return null;
   } finally {
