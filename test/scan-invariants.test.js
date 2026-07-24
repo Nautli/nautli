@@ -103,6 +103,19 @@ function fixtureMixed() {
   ];
 }
 
+// 7. Small always-loaded file + duplicates — regression guard: compressing an
+//    AL file near the 2K free threshold must never lower the raw score (this
+//    is why the waste denominator excludes AL tokens).
+function fixtureSmallAlDup() {
+  const shared = "Duplicated operating paragraph used verbatim in multiple notes for this fixture. ".repeat(3);
+  return [
+    makeDoc({ name: "CLAUDE.md", body: "Rules. " + "r".repeat(8_200), size: 8_300 }),
+    makeDoc({ name: "a.md", path: "/fixture/a/a.md", body: `# A\n\n${shared}\n\nUnique a. ${"x".repeat(600)}` }),
+    makeDoc({ name: "b.md", path: "/fixture/b/b.md", body: `# B\n\n${shared}\n\nUnique b. ${"y".repeat(600)}` }),
+    makeDoc({ name: "c.md", path: "/fixture/c/c.md", body: `# C\n\nClean unique c. ${"z".repeat(800)}` }),
+  ];
+}
+
 const FIXTURES = [
   { name: "clean-small", build: fixtureCleanSmall },
   { name: "bloated-claude", build: fixtureBloatedClaudeMd },
@@ -110,20 +123,21 @@ const FIXTURES = [
   { name: "single-giant", build: fixtureSingleGiant },
   { name: "empty-todo", build: fixtureEmptyTodo },
   { name: "mixed", build: fixtureMixed },
+  { name: "small-al-dup", build: fixtureSmallAlDup },
 ];
 
 /* ── INV-1: Monotonicity ─────────────────────────────────────────────
    For every fixture × every finding: score(simulateFix) ≥ score.
-   This is guaranteed by design (delta = max(0, fixed - score)),
-   but we verify the underlying math never reverses. */
-test("INV-1 monotonicity: fixing a finding never lowers the score", () => {
+   Asserted on rawDelta (unclamped simulateFix difference) — asserting on
+   delta would be tautological, since delta = max(0, rawDelta). */
+test("INV-1 monotonicity: raw re-score after any fix never drops", () => {
   for (const fixture of FIXTURES) {
     const docs = fixture.build();
     const result = analyze(docs, { os: "mac" });
     for (const finding of result.findings) {
       assert.ok(
-        finding.delta >= 0,
-        `${fixture.name}: finding "${finding.group}" has negative delta ${finding.delta}`
+        finding.rawDelta >= 0,
+        `${fixture.name}: finding "${finding.group}" drops the raw score by ${-finding.rawDelta}`
       );
       // Also verify: score + delta ≤ 100
       assert.ok(
@@ -138,7 +152,9 @@ test("INV-1 monotonicity: fixing a finding never lowers the score", () => {
    For each fixture, the top finding's delta must be ≥ 5 points.
    (Except clean-small which may have no significant findings.) */
 test("INV-2 sensitivity: top finding delta ≥ 5 for non-trivial vaults", () => {
-  const nonTrivial = FIXTURES.filter(f => f.name !== "clean-small");
+  // small-al-dup is a monotonicity regression fixture, not an archetype —
+  // its findings are intentionally near-zero-delta.
+  const nonTrivial = FIXTURES.filter(f => f.name !== "clean-small" && f.name !== "small-al-dup");
   for (const fixture of nonTrivial) {
     const docs = fixture.build();
     const result = analyze(docs, { os: "mac" });
@@ -185,11 +201,13 @@ test("INV-4 non-saturation: no single score value dominates the distribution", (
   for (const s of scores) {
     counts.set(s, (counts.get(s) || 0) + 1);
   }
+  // The 10% cap must stay meaningful at small N: allow at most
+  // max(1, floor(0.10 × N)) fixtures per score value.
+  const cap = Math.max(1, Math.floor(0.10 * scores.length));
   for (const [value, count] of counts) {
-    const pct = count / scores.length;
     assert.ok(
-      pct <= 0.10 || count <= 1,
-      `Score ${value} appears ${count}/${scores.length} times (${(pct * 100).toFixed(0)}%), exceeding 10% threshold. ` +
+      count <= cap,
+      `Score ${value} appears ${count}/${scores.length} times (cap ${cap}). ` +
       `All scores: ${scores.join(", ")}`
     );
   }

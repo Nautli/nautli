@@ -16,7 +16,7 @@ const COPY = Object.freeze({
     files: "Files",
     tokens: "Estimated tokens",
     findings: "Signals to review",
-    clean: "No weighted signals were found in the discovered files.",
+    clean: "No scored signals were found in the discovered files.",
     evidence: (count) => `Show ${count} local file paths`,
     share: "Share your score",
     shareBody: "The card contains aggregate numbers only. Saving PNG never uploads it.",

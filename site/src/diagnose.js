@@ -266,10 +266,54 @@
     return { docs, findings, alwaysLoaded, repeated };
   }
 
-  function scoreOf(findings) {
-    // 확도 높은 신호만 점수에 반영한다(weight 0인 노후 파일은 제외).
-    const penalty = findings.reduce((sum, f) => sum + f.weight * 4, 0);
-    return Math.max(20, 100 - Math.min(penalty, 80));
+  // 시리즈 파일명(v1/v2, 01_, final, copy, 발송용, 백업)이 같은 폴더에 몰려 있으면
+  // 의도된 개별 문서로 보고 낭비 계산에서 뺀다 — CLI 스캐너(analyze.js)와 같은 규칙.
+  const SERIES_NAME = /(?:^|[^a-z0-9])v\d+(?:[^a-z0-9]|$)|^\d{2}[-_.]|final|copy|발송용|백업/i;
+  function seriesSuppressed(where) {
+    if (where.length < 2) return false;
+    const dirOf = (p) => p.slice(0, p.lastIndexOf("/") + 1);
+    const baseOf = (p) => p.slice(p.lastIndexOf("/") + 1);
+    const dirs = new Map();
+    for (const p of where) dirs.set(dirOf(p), (dirs.get(dirOf(p)) || 0) + 1);
+    const topDir = [...dirs.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    const hits = where.filter((p) => dirOf(p) === topDir && SERIES_NAME.test(baseOf(p))).length;
+    return hits / where.length >= 0.6;
+  }
+
+  function scoreOf(analysis) {
+    // v2 점수 — CLI 스캐너(analyze.js)와 같은 3축·같은 식이라 브라우저 맛보기와
+    // npx nautli scan이 같은 볼트에서 다른 숫자를 말하지 않는다. 하한 없음.
+    const clamp01 = (x) => Math.min(1, Math.max(0, x));
+    const LN64 = Math.log(64000);
+    const LN2 = Math.log(2000);
+    const toks = analysis.docs.map((d) => ({
+      doc: d,
+      tok: estimateTokens(d.body),
+      al: ALWAYS_LOADED.test(d.name),
+    }));
+    const alTok = toks.filter((t) => t.al).reduce((s, t) => s + t.tok, 0);
+    const baseTok = toks.reduce((s, t) => s + t.tok, 0);
+    const sFixed = 100 * clamp01((LN64 - Math.log(Math.max(alTok, 2000))) / (LN64 - LN2));
+
+    let dupTok = 0;
+    for (const block of analysis.repeated) {
+      if (seriesSuppressed(block.where)) continue;
+      dupTok += (block.where.length - 1) * estimateTokens(block.sample);
+    }
+    let largeTok = 0;
+    for (const t of toks) {
+      if (t.tok > 20000) largeTok += t.tok - 20000;
+    }
+    const sWaste = baseTok <= 0 ? 100 : 100 * (1 - Math.min(1, ((dupTok + largeTok) / baseTok) / 0.40));
+
+    const total = toks.length;
+    const emptyRatio = total ? toks.filter((t) => t.doc.body.trim().length <= 20).length / total : 0;
+    const todoRatio = total
+      ? toks.filter((t) => /\b(TODO|FIXME|XXX|WIP)\b/.test(t.doc.body)).length / total
+      : 0;
+    const sHygiene = 100 * (1 - Math.min(1, emptyRatio / 0.10 + todoRatio / 0.50));
+
+    return Math.round(0.45 * sFixed + 0.45 * sWaste + 0.10 * sHygiene);
   }
 
   function el(tag, className, textContent) {
@@ -390,7 +434,7 @@
 
     // 표면 점수는 부분 스캔에서 만들지 않는다.
     if (!meta.partial && counted.length) {
-      const score = scoreOf(counted);
+      const score = scoreOf(analysis);
       const scoreBox = el("div", "dg-score");
       scoreBox.append(el("span", "dg-score-label", text("scoreLabel")));
       scoreBox.append(el("strong", null, String(score)));

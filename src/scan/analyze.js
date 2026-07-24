@@ -208,8 +208,7 @@ function computeScore(docs, blocks) {
 function severityFromDelta(delta) {
   if (delta >= 5) return "HIGH";
   if (delta >= 1) return "MED";
-  if (delta > 0) return "LOW";
-  return "INFO";
+  return "INFO"; // deltas are integers, so a LOW (0<delta<1) tier is unreachable
 }
 
 /**
@@ -220,13 +219,22 @@ function applyFix(docs, blocks, finding) {
   const filePaths = new Set(finding.files || []);
 
   if (finding.group === "alwaysLoaded") {
-    // Fix = compress AL file to <2K tokens
-    const fixedDocs = docs.map(d =>
-      filePaths.has(d.path) && ALWAYS_LOADED.test(d.name)
-        ? { ...d, tokens: Math.min(d.tokens, 1_500), body: d.body.slice(0, 1_500) }
-        : d
-    );
-    return { docs: fixedDocs, blocks };
+    // Fix = move the overflow out of the always-loaded file (keep ≤1.5K in place).
+    // The content is relocated, not deleted — deleting would shrink the waste
+    // denominator and could lower the total score, breaking INV-1.
+    const moved = [];
+    const fixedDocs = docs.map(d => {
+      if (!(filePaths.has(d.path) && ALWAYS_LOADED.test(d.name)) || d.tokens <= 1_500) return d;
+      moved.push({
+        ...d,
+        name: `${d.name}.archive`,
+        path: `${d.path}.archive`,
+        tokens: d.tokens - 1_500,
+        body: d.body.slice(1_500),
+      });
+      return { ...d, tokens: 1_500, body: d.body.slice(0, 1_500) };
+    });
+    return { docs: [...fixedDocs, ...moved], blocks };
   }
 
   if (finding.group === "crossTool") {
@@ -326,7 +334,6 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     if (doc.tokens < 1_500) continue;
     findings.push({
       group: "alwaysLoaded",
-      weight: doc.tokens > 6_000 ? 3 : 2,
       title: text.alwaysTitle(doc.name),
       measure: text.alwaysMeasure(doc.tokens),
       why: text.alwaysWhy,
@@ -353,7 +360,6 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     if (tools.length < 2) continue;
     findings.push({
       group: "crossTool",
-      weight: 3,
       title: text.crossTitle(tools),
       measure: text.crossMeasure(block.docs.length),
       why: text.crossWhy,
@@ -373,7 +379,6 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
   for (const item of repeated.slice(0, 12)) {
     findings.push({
       group: "repeated",
-      weight: item.matches.length >= 4 ? 3 : 2,
       seriesSuspect: item.block.suppressed === true,
       title: text.repeatedTitle(item.matches.length, item.tool),
       measure: text.repeatedMeasure(item.block.sample.length),
@@ -386,7 +391,6 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     if (doc.size < 60 * 1024) continue;
     findings.push({
       group: "large",
-      weight: 1,
       title: text.largeTitle(doc.name),
       measure: text.largeMeasure(doc.size, doc.tokens),
       why: text.largeWhy,
@@ -399,7 +403,6 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     findings.push({
       group: "debris",
       subgroup: "empty",
-      weight: 1,
       title: text.emptyTitle(empty.length),
       measure: text.emptyMeasure(empty.length),
       why: text.emptyWhy,
@@ -420,7 +423,6 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     findings.push({
       group: "debris",
       subgroup: "todo",
-      weight: 1,
       title: text.todoTitle(todoCount),
       measure: text.todoMeasure(todoFiles.length),
       why: text.todoWhy,
@@ -433,7 +435,6 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
   if (stale.length > 0) {
     findings.push({
       group: "stale",
-      weight: 0,
       title: text.staleTitle(stale.length),
       measure: text.staleMeasure(stale.length),
       why: text.staleWhy,
@@ -444,10 +445,13 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
   // ── v2 scoring ─────────────────────────────────────────────────────
   const { score, sFixed, sWaste, sHygiene } = computeScore(docs, blocks);
 
-  // simulateFix: for each finding, compute score if that finding were resolved
+  // simulateFix: for each finding, compute score if that finding were resolved.
+  // rawDelta stays unclamped so INV-1 can assert real monotonicity; delta is
+  // the user-facing value.
   for (const finding of findings) {
     const fixedScore = simulateFix(docs, blocks, finding);
-    finding.delta = Math.max(0, fixedScore - score);
+    finding.rawDelta = fixedScore - score;
+    finding.delta = Math.max(0, finding.rawDelta);
     finding.severity = severityFromDelta(finding.delta);
     finding.action = actionForFinding(finding);
   }
