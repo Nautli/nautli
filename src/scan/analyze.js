@@ -14,6 +14,28 @@ const TOOL_ORDER = [
 
 const ALWAYS_LOADED = /^(CLAUDE\.md|AGENTS\.md|GEMINI\.md|\.cursorrules|\.windsurfrules|\.clinerules|copilot-instructions\.md|MEMORY\.md)$/iu;
 
+// Same-directory version/number series (v1/v2, 01_, final, copy, 발송용, 백업)
+// are usually intentional per-item documents, not stray copies — merging them
+// destroys user documents, so they are excluded from waste scoring.
+const SERIES_NAME = /(?:^|[^a-z0-9])v\d+(?:[^a-z0-9]|$)|^\d{2}[-_.]|final|copy|발송용|백업/iu;
+
+function markSeriesBlocks(blocks) {
+  for (const block of blocks.values()) {
+    const tools = new Set(block.docs.map((doc) => doc.tool));
+    if (tools.size !== 1 || block.docs.length < 2) continue;
+    const dirCounts = new Map();
+    for (const doc of block.docs) {
+      const dir = path.dirname(doc.path);
+      dirCounts.set(dir, (dirCounts.get(dir) || 0) + 1);
+    }
+    const [topDir] = [...dirCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+    const seriesCount = block.docs.filter((doc) =>
+      path.dirname(doc.path) === topDir && SERIES_NAME.test(path.basename(doc.path)),
+    ).length;
+    if (seriesCount / block.docs.length >= 0.6) block.suppressed = true;
+  }
+}
+
 const COPY = Object.freeze({
   en: {
     alwaysTitle: (name) => `${name} is loaded every session`,
@@ -314,6 +336,8 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     }
   }
 
+  markSeriesBlocks(blocks);
+
   for (const block of blocks.values()) {
     const tools = [...new Set(block.docs.map((doc) => doc.tool))].sort();
     if (tools.length < 2) continue;
@@ -340,6 +364,7 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
     findings.push({
       group: "repeated",
       weight: item.matches.length >= 4 ? 3 : 2,
+      seriesSuspect: item.block.suppressed === true,
       title: text.repeatedTitle(item.matches.length, item.tool),
       measure: text.repeatedMeasure(item.block.sample.length),
       why: text.repeatedWhy,
