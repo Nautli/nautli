@@ -240,7 +240,7 @@ export function renderReportHtml(result, { lang = "en", percentile, pingStatus =
         const tokens = asInt(base.tokens, 0, 10000000, 0);
         const payload = {
           v: 1,
-          score: asInt(base.score, 20, 100, 20),
+          score: asInt(base.score, 0, 100, 0),
           tools: asInt(base.tools, 0, 20, 0),
           tokens: tokens,
           alTokens: asInt(base.alTokens, 0, tokens, 0),
