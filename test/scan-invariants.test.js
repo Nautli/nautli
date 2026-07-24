@@ -103,16 +103,30 @@ function fixtureMixed() {
   ];
 }
 
-// 7. Small always-loaded file + duplicates — regression guard: compressing an
-//    AL file near the 2K free threshold must never lower the raw score (this
-//    is why the waste denominator excludes AL tokens).
+// 7. Small always-loaded file + heavy duplicates — regression witness: the old
+//    delete-style AL simulation shrank the waste denominator and dropped the
+//    raw score by several points here; the conserve-tokens (move) simulation
+//    must keep rawDelta ≥ 0. Waste is deliberately non-saturated so a
+//    denominator perturbation survives rounding.
 function fixtureSmallAlDup() {
-  const shared = "Duplicated operating paragraph used verbatim in multiple notes for this fixture. ".repeat(3);
+  const shared = "Duplicated operating paragraph used verbatim in multiple notes of this fixture vault. ".repeat(19);
   return [
-    makeDoc({ name: "CLAUDE.md", body: "Rules. " + "r".repeat(8_200), size: 8_300 }),
-    makeDoc({ name: "a.md", path: "/fixture/a/a.md", body: `# A\n\n${shared}\n\nUnique a. ${"x".repeat(600)}` }),
-    makeDoc({ name: "b.md", path: "/fixture/b/b.md", body: `# B\n\n${shared}\n\nUnique b. ${"y".repeat(600)}` }),
-    makeDoc({ name: "c.md", path: "/fixture/c/c.md", body: `# C\n\nClean unique c. ${"z".repeat(800)}` }),
+    makeDoc({ name: "CLAUDE.md", body: "Rules. " + "r".repeat(8_400), size: 8_500 }),
+    makeDoc({ name: "notes.md", path: "/fixture/a/notes.md", body: `# Notes\n\n${shared}\n\nUnique notes. ${"x".repeat(200)}` }),
+    makeDoc({ name: "summary.md", path: "/fixture/b/summary.md", body: `# Summary\n\n${shared}\n\nUnique summary. ${"y".repeat(200)}` }),
+    makeDoc({ name: "digest.md", path: "/fixture/c/digest.md", body: `# Digest\n\n${shared}\n\nUnique digest. ${"z".repeat(200)}` }),
+    makeDoc({ name: "clean.md", path: "/fixture/d/clean.md", body: `# Clean\n\nUnrelated tidy content. ${"q".repeat(800)}` }),
+  ];
+}
+
+// 8. Small always-loaded file with TODO markers straddling the 1.5K split —
+//    regression witness: without stripping markers from the moved overflow,
+//    the AL fix minted a second TODO-carrying file and dropped raw hygiene.
+function fixtureSmallAlTodo() {
+  return [
+    makeDoc({ name: "CLAUDE.md", body: "TODO tighten rules. " + "r".repeat(8_200) + " TODO revisit.", size: 8_400 }),
+    makeDoc({ name: "notes.md", path: "/fixture/a/notes.md", body: `# Notes\n\nTidy unique notes. ${"x".repeat(700)}` }),
+    makeDoc({ name: "digest.md", path: "/fixture/b/digest.md", body: `# Digest\n\nTidy unique digest. ${"y".repeat(700)}` }),
   ];
 }
 
@@ -124,6 +138,7 @@ const FIXTURES = [
   { name: "empty-todo", build: fixtureEmptyTodo },
   { name: "mixed", build: fixtureMixed },
   { name: "small-al-dup", build: fixtureSmallAlDup },
+  { name: "small-al-todo", build: fixtureSmallAlTodo },
 ];
 
 /* ── INV-1: Monotonicity ─────────────────────────────────────────────
@@ -152,9 +167,10 @@ test("INV-1 monotonicity: raw re-score after any fix never drops", () => {
    For each fixture, the top finding's delta must be ≥ 5 points.
    (Except clean-small which may have no significant findings.) */
 test("INV-2 sensitivity: top finding delta ≥ 5 for non-trivial vaults", () => {
-  // small-al-dup is a monotonicity regression fixture, not an archetype —
-  // its findings are intentionally near-zero-delta.
-  const nonTrivial = FIXTURES.filter(f => f.name !== "clean-small" && f.name !== "small-al-dup");
+  // small-al-* are monotonicity regression fixtures, not archetypes —
+  // their AL findings are intentionally near-zero-delta.
+  const REGRESSION_ONLY = new Set(["clean-small", "small-al-dup", "small-al-todo"]);
+  const nonTrivial = FIXTURES.filter(f => !REGRESSION_ONLY.has(f.name));
   for (const fixture of nonTrivial) {
     const docs = fixture.build();
     const result = analyze(docs, { os: "mac" });

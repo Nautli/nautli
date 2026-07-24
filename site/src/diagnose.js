@@ -18,7 +18,9 @@
   const MAX_BYTES = 40 * 1024 * 1024;
   const TEXT_EXT = /\.(md|markdown|mdx|txt|org)$/i;
   // 에이전트가 매 세션 통째로 읽는 파일들. 여기 붙은 용량은 대화마다 반복 지불된다.
-  const ALWAYS_LOADED = /^(claude\.md|agents\.md|conventions\.md|cursorrules|\.cursorrules|copilot-instructions\.md|gemini\.md|memory\.md)$/i;
+  // CLI 스캐너(src/scan/analyze.js)의 ALWAYS_LOADED와 동일 목록 — 갈리면 같은
+  // 볼트에서 웹 맛보기와 CLI 점수가 달라진다.
+  const ALWAYS_LOADED = /^(CLAUDE\.md|AGENTS\.md|GEMINI\.md|\.cursorrules|\.windsurfrules|\.clinerules|copilot-instructions\.md|MEMORY\.md)$/i;
 
   function show(name) {
     for (const [key, node] of Object.entries(panes)) {

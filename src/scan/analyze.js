@@ -230,7 +230,9 @@ function applyFix(docs, blocks, finding) {
         name: `${d.name}.archive`,
         path: `${d.path}.archive`,
         tokens: d.tokens - 1_500,
-        body: d.body.slice(1_500),
+        // Strip stale markers so the split cannot mint a second TODO-carrying
+        // file out of one — those markers are the todo finding's own scope.
+        body: d.body.slice(1_500).replace(/\b(TODO|FIXME|XXX|WIP)\b/gu, ""),
       });
       return { ...d, tokens: 1_500, body: d.body.slice(0, 1_500) };
     });
@@ -331,7 +333,9 @@ export function analyze(input, { os, partial, lang = "en", now = Date.now() } = 
 
   const alwaysLoaded = docs.filter((doc) => ALWAYS_LOADED.test(doc.name));
   for (const doc of alwaysLoaded) {
-    if (doc.tokens < 1_500) continue;
+    // Fire only above the 2K free threshold — below it compression cannot move
+    // S_fixed, so the card would be pure zero-delta noise.
+    if (doc.tokens < 2_000) continue;
     findings.push({
       group: "alwaysLoaded",
       title: text.alwaysTitle(doc.name),
